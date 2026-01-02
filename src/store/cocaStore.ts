@@ -1088,6 +1088,20 @@ export const useCocaStore = create<CocaState>()(
             logRoutine(worker, warehouseKoksAvailable > 0, salesMade);
           }
 
+          if (totalSoldGrams > 0) {
+            const summaryWorker = activeWorkers[0];
+            if (summaryWorker) {
+              get().addCocaActivityLog({
+                workerId: summaryWorker.id,
+                workerName: summaryWorker.name,
+                workerIcon: summaryWorker.icon,
+                action: `Dealers haben insgesamt ${totalSoldGrams}g Import-Koks verkauft`,
+                amount: totalSoldGrams,
+                revenue: totalRevenue,
+              });
+            }
+          }
+
           if (totalRevenue > 0) {
             set({
               cocaCoins: state.cocaCoins + totalRevenue,
@@ -1213,6 +1227,20 @@ export const useCocaStore = create<CocaState>()(
           logRoutine(worker, remainingProducts.length > 0, salesMade);
         }
 
+        if (totalSoldGrams > 0) {
+          const summaryWorker = activeWorkers[0];
+          if (summaryWorker) {
+            get().addCocaActivityLog({
+              workerId: summaryWorker.id,
+              workerName: summaryWorker.name,
+              workerIcon: summaryWorker.icon,
+              action: `Dealers haben insgesamt ${totalSoldGrams}g Koks verkauft`,
+              amount: totalSoldGrams,
+              revenue: totalRevenue,
+            });
+          }
+        }
+
         if (totalRevenue > 0) {
           set({
             cocaProducts: remainingProducts,
@@ -1251,7 +1279,7 @@ export const useCocaStore = create<CocaState>()(
         const now = Date.now();
         const newLog: CocaActivityLog = {
           ...log,
-          id: now,
+          id: now + Math.floor(Math.random() * 1000),
           timestamp: now,
         };
         // Keep only the last 50 logs

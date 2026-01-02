@@ -694,9 +694,9 @@ export const KoksScreen = () => {
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          {cocaActivityLogs.slice(0, 15).map((log) => (
+                          {cocaActivityLogs.slice(0, 15).map((log, index) => (
                             <motion.div
-                              key={log.id}
+                              key={`${log.id}-${index}`}
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               className={`flex items-start gap-2 p-1.5 rounded text-xs ${

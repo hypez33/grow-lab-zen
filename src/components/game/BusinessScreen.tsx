@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, Clock, DollarSign, TrendingUp, Warehouse, Package, Lock, CheckCircle2, MapPin, Truck, Store, Car, Music2, Waves, Leaf, Snowflake, Gem, Anchor, Shield } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,7 +56,12 @@ export const BusinessScreen = () => {
     buyContract,
   } = useBusinessStore();
 
-  const { budcoins, level, gameTimeMinutes } = useGameStore();
+  const budcoins = useGameStore(state => state.budcoins);
+  const level = useGameStore(state => state.level);
+  const gameTimeMinutes = useGameStore(state => state.gameTimeMinutes);
+  const [liveEarningsPerMinute, setLiveEarningsPerMinute] = useState(0);
+  const lastCoinsRef = useRef(useGameStore.getState().totalCoinsEarned);
+  const revenueWindowRef = useRef<number[]>([]);
 
   const safeGameMinutes = Number.isFinite(gameTimeMinutes) ? gameTimeMinutes : 0;
   const { day, time } = useMemo(() => formatGameTime(safeGameMinutes), [safeGameMinutes]);
@@ -93,6 +98,21 @@ export const BusinessScreen = () => {
     () => businesses.filter(item => item.owned).reduce((sum, item) => sum + item.profitPerGameHour, 0),
     [businesses]
   );
+  const liveEarningsPerHour = Math.max(0, Math.round(liveEarningsPerMinute * 60));
+  const combinedPerHour = profitPerHour + liveEarningsPerHour;
+
+  useEffect(() => {
+    lastCoinsRef.current = useGameStore.getState().totalCoinsEarned;
+    const interval = setInterval(() => {
+      const currentCoins = useGameStore.getState().totalCoinsEarned;
+      const earned = Math.max(0, currentCoins - lastCoinsRef.current);
+      lastCoinsRef.current = currentCoins;
+      revenueWindowRef.current = [...revenueWindowRef.current, earned].slice(-60);
+      const total = revenueWindowRef.current.reduce((sum, value) => sum + value, 0);
+      setLiveEarningsPerMinute(total);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleBuyBusiness = (businessId: string, cost: number) => {
     const currentState = useGameStore.getState();
@@ -163,7 +183,11 @@ export const BusinessScreen = () => {
               <DollarSign size={16} className="text-resource-budcoin" />
               {budcoins.toLocaleString()} $
             </div>
-            <div className="text-xs text-amber-200">+{profitPerHour.toLocaleString()} $/h</div>
+            <div className="text-xs text-amber-200">+{combinedPerHour.toLocaleString()} $/h</div>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>Business {profitPerHour.toLocaleString()} $/h</span>
+            <span>Dealer ~{liveEarningsPerHour.toLocaleString()} $/h</span>
           </div>
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded-lg bg-muted/30 p-2">
@@ -247,7 +271,7 @@ export const BusinessScreen = () => {
                       <button
                         type="button"
                         onClick={() => handleBuyWarehouse(upgrade.id, upgrade.cost)}
-                        disabled={!canBuy}
+                        aria-disabled={!canBuy}
                         className={`rounded-lg px-3 py-1 text-xs font-semibold ${
                           canBuy ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                         }`}
@@ -309,7 +333,7 @@ export const BusinessScreen = () => {
                       <button
                         type="button"
                         onClick={() => handleBuyBusiness(business.id, business.cost)}
-                        disabled={!canBuy}
+                        aria-disabled={!canBuy}
                         className={`rounded-lg px-3 py-1 text-xs font-semibold ${
                           canBuy ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                         }`}

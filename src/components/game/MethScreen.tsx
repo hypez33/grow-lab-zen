@@ -237,7 +237,7 @@ export const MethScreen = () => {
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={() => handleBuyPrecursors(1)}
-                disabled={budcoins < METH_PRECURSOR_COST}
+                aria-disabled={budcoins < METH_PRECURSOR_COST}
                 className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold ${
                   budcoins >= METH_PRECURSOR_COST ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
                 }`}
@@ -248,7 +248,7 @@ export const MethScreen = () => {
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={() => handleBuyPrecursors(5)}
-                disabled={budcoins < METH_PRECURSOR_COST * 5}
+                aria-disabled={budcoins < METH_PRECURSOR_COST * 5}
                 className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold ${
                   budcoins >= METH_PRECURSOR_COST * 5 ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
                 }`}
