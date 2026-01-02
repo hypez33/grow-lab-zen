@@ -1,0 +1,304 @@
+/* Fonts loaded via index.html with preload for better performance */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark neon theme */
+    --background: 240 10% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 10% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Neon Green Primary */
+    --primary: 115 100% 62%;
+    --primary-foreground: 240 10% 6%;
+
+    /* Deep Purple Secondary */
+    --secondary: 270 70% 55%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 240 10% 15%;
+    --muted-foreground: 240 5% 55%;
+
+    /* Accent - Cyan */
+    --accent: 180 100% 50%;
+    --accent-foreground: 240 10% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 95%;
+
+    --border: 240 10% 20%;
+    --input: 240 10% 15%;
+    --ring: 115 100% 62%;
+
+    --radius: 0.75rem;
+
+    /* Game-specific colors */
+    --neon-green: 115 100% 62%;
+    --neon-purple: 270 70% 55%;
+    --neon-cyan: 180 100% 50%;
+    --neon-pink: 330 100% 65%;
+    --neon-orange: 30 100% 55%;
+    --neon-gold: 45 100% 55%;
+
+    /* Rarity colors */
+    --rarity-common: 0 0% 70%;
+    --rarity-uncommon: 115 70% 50%;
+    --rarity-rare: 210 100% 60%;
+    --rarity-epic: 270 70% 60%;
+    --rarity-legendary: 45 100% 55%;
+
+    /* Resource colors */
+    --budcoin: 45 100% 55%;
+    --resin: 270 70% 55%;
+    --essence: 180 100% 50%;
+    --seeds: 115 70% 50%;
+    --gems: 330 100% 65%;
+
+    /* Glow effects */
+    --glow-green: 0 0 20px hsl(115 100% 62% / 0.6), 0 0 40px hsl(115 100% 62% / 0.3);
+    --glow-purple: 0 0 20px hsl(270 70% 55% / 0.6), 0 0 40px hsl(270 70% 55% / 0.3);
+    --glow-gold: 0 0 20px hsl(45 100% 55% / 0.6), 0 0 40px hsl(45 100% 55% / 0.3);
+  }
+
+  .dark {
+    --background: 240 10% 6%;
+    --foreground: 0 0% 95%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif;
+  }
+}
+
+@layer components {
+  /* Neon glow text */
+  .text-neon-green {
+    color: hsl(var(--neon-green));
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.8), 0 0 20px hsl(var(--neon-green) / 0.5);
+  }
+
+  .text-neon-purple {
+    color: hsl(var(--neon-purple));
+    text-shadow: 0 0 10px hsl(var(--neon-purple) / 0.8), 0 0 20px hsl(var(--neon-purple) / 0.5);
+  }
+
+  /* Glow box effects */
+  .glow-green {
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.4), 0 0 40px hsl(var(--neon-green) / 0.2), inset 0 0 20px hsl(var(--neon-green) / 0.1);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px hsl(var(--neon-purple) / 0.4), 0 0 40px hsl(var(--neon-purple) / 0.2), inset 0 0 20px hsl(var(--neon-purple) / 0.1);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px hsl(var(--neon-gold) / 0.4), 0 0 40px hsl(var(--neon-gold) / 0.2), inset 0 0 20px hsl(var(--neon-gold) / 0.1);
+  }
+
+  /* Game card */
+  .game-card {
+    @apply relative overflow-hidden rounded-xl bg-card border border-border/50 backdrop-blur-sm;
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(240 10% 8%) 100%);
+  }
+
+  .game-card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, hsl(var(--neon-green) / 0.1) 0%, transparent 50%);
+  }
+
+  .game-card:hover::before,
+  .game-card:active::before {
+    @apply opacity-100;
+  }
+
+  /* Parallax cloud background */
+  .cloud-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 200%;
+    transform: translate3d(0, 0, 0);
+    animation: cloud-drift linear infinite;
+    will-change: transform;
+  }
+
+  .cloud-shape {
+    position: absolute;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 30% 70%, var(--cloud-color) 0 55%, transparent 56%),
+      radial-gradient(circle at 50% 40%, var(--cloud-color) 0 50%, transparent 51%),
+      radial-gradient(circle at 70% 70%, var(--cloud-color) 0 55%, transparent 56%),
+      radial-gradient(circle at 50% 80%, var(--cloud-color) 0 60%, transparent 61%);
+  }
+
+  /* Upgrade card */
+  .upgrade-card {
+    @apply game-card p-4 cursor-pointer transition-all duration-200;
+  }
+
+  .upgrade-card:active {
+    @apply scale-[0.98];
+  }
+
+  /* Resource badge */
+  .resource-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold;
+    background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(240 10% 12%) 100%);
+  }
+
+  /* Neon button */
+  .btn-neon {
+    @apply relative px-6 py-3 font-bold uppercase tracking-wider rounded-lg transition-all duration-200;
+    @apply bg-primary text-primary-foreground;
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 4px 15px hsl(var(--primary) / 0.3);
+  }
+
+  .btn-neon:hover {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.6), 0 4px 20px hsl(var(--primary) / 0.4);
+  }
+
+  .btn-neon:active {
+    @apply scale-95;
+  }
+
+  .btn-neon-secondary {
+    @apply btn-neon bg-secondary text-secondary-foreground;
+    box-shadow: 0 0 20px hsl(var(--secondary) / 0.4), 0 4px 15px hsl(var(--secondary) / 0.3);
+  }
+
+  /* Progress bar with shimmer */
+  .progress-shimmer {
+    @apply relative overflow-hidden;
+  }
+
+  .progress-shimmer::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+
+  /* Tab button */
+  .tab-btn {
+    @apply px-4 py-2 text-sm font-semibold uppercase tracking-wider transition-all duration-200;
+    @apply text-muted-foreground border-b-2 border-transparent;
+  }
+
+  .tab-btn.active {
+    @apply text-primary border-primary;
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
+  }
+
+  /* Rarity borders */
+  .rarity-common { @apply border-l-4; border-left-color: hsl(var(--rarity-common)); }
+  .rarity-uncommon { @apply border-l-4; border-left-color: hsl(var(--rarity-uncommon)); }
+  .rarity-rare { @apply border-l-4; border-left-color: hsl(var(--rarity-rare)); }
+  .rarity-epic { @apply border-l-4; border-left-color: hsl(var(--rarity-epic)); }
+  .rarity-legendary { @apply border-l-4; border-left-color: hsl(var(--rarity-legendary)); }
+}
+
+@layer utilities {
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe area padding for mobile */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+}
+
+/* Keyframe animations */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 40px hsl(var(--neon-green) / 0.6), 0 0 60px hsl(var(--neon-green) / 0.3);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes coin-pop {
+  0% { transform: scale(0) translateY(0); opacity: 1; }
+  50% { transform: scale(1.2) translateY(-20px); opacity: 1; }
+  100% { transform: scale(1) translateY(-40px); opacity: 0; }
+}
+
+@keyframes harvest-burst {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes particle-rise {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100px) scale(0.5); opacity: 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 10px hsl(var(--neon-green) / 0.5)); }
+  50% { filter: brightness(1.2) drop-shadow(0 0 20px hsl(var(--neon-green) / 0.8)); }
+}
+
+@keyframes cloud-drift {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.animate-shimmer { animation: shimmer 2s infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-sway { animation: sway 4s ease-in-out infinite; }
+.animate-coin-pop { animation: coin-pop 0.8s ease-out forwards; }
+.animate-harvest-burst { animation: harvest-burst 0.5s ease-out forwards; }
+.animate-particle-rise { animation: particle-rise 1s ease-out forwards; }
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
