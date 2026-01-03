@@ -1115,7 +1115,7 @@ export const useCocaStore = create<CocaState>()(
               const minDeal = 6 + Math.floor(worker.level * 0.6);
               const maxDeal = 18 + Math.floor(worker.level * 1.4);
               const targetGrams = Math.floor(randomBetween(minDeal, maxDeal));
-              const warehouseSale = useBusinessStore.getState().sellWarehouseStock('koks', targetGrams);
+              const warehouseSale = useBusinessStore.getState().sellWarehouseStock('koks', targetGrams, false);
               if (warehouseSale.gramsSold <= 0) {
                 break;
               }
