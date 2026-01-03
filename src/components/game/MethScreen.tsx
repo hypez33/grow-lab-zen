@@ -415,18 +415,15 @@ export const MethScreen = () => {
                   </div>
                 </div>
                 
-                {/* Stage Pipeline Visual */}
-                <div className="flex items-center gap-1">
+                {/* Stage Pipeline Visual - Compact */}
+                <div className="flex items-center gap-0.5 bg-muted/20 rounded-lg p-1">
                   {(['maceration', 'oxidation', 'crystallization', 'ready'] as MethStage[]).map((stage, idx) => (
-                    <div key={stage} className="flex-1 flex items-center">
-                      <div className={`flex-1 rounded-lg p-2 text-center bg-gradient-to-r ${stageColors[stage]}/20 border border-white/10`}>
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          {stageIcons[stage]}
-                          <span className="text-[10px] font-medium">{stageLabels[stage]}</span>
-                        </div>
-                        <div className="text-sm font-bold">{stageTotals[stage]}g</div>
+                    <div key={stage} className="flex items-center flex-1">
+                      <div className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 px-1 bg-gradient-to-r ${stageColors[stage]}/15`}>
+                        {stageIcons[stage]}
+                        <span className="text-[10px] font-bold tabular-nums">{stageTotals[stage]}g</span>
                       </div>
-                      {idx < 3 && <ChevronRight size={14} className="text-muted-foreground mx-0.5 flex-shrink-0" />}
+                      {idx < 3 && <ChevronRight size={10} className="text-muted-foreground/50 mx-0.5 flex-shrink-0" />}
                     </div>
                   ))}
                 </div>
