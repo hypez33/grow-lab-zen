@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
 import type { CocaProduct } from '@/store/cocaStore';
 import type { MethProduct } from '@/store/methStore';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface CustomerModalProps {
   customer: Customer | null;
@@ -94,6 +99,51 @@ const calculateHardRevenue = (customer: Customer, grams: number, qualityScore: n
   return Math.floor(grams * pricePerGram * loyaltyMultiplier * spendingMultiplier);
 };
 
+// Section Header Component
+const SectionHeader = ({ 
+  icon: Icon, 
+  title, 
+  badge,
+  isOpen,
+  variant = 'default'
+}: { 
+  icon: React.ElementType; 
+  title: string; 
+  badge?: string;
+  isOpen: boolean;
+  variant?: 'default' | 'warning' | 'success';
+}) => {
+  const variantStyles = {
+    default: 'bg-card/60 border-border/50 hover:bg-card/80',
+    warning: 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20',
+    success: 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20',
+  };
+
+  const iconColors = {
+    default: 'text-primary',
+    warning: 'text-yellow-400',
+    success: 'text-emerald-400',
+  };
+
+  return (
+    <div className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg border transition-all ${variantStyles[variant]}`}>
+      <div className="flex items-center gap-2">
+        <Icon size={14} className={iconColors[variant]} />
+        <span className="text-xs font-medium">{title}</span>
+        {badge && (
+          <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-primary/20 text-primary">
+            {badge}
+          </span>
+        )}
+      </div>
+      <ChevronDown 
+        size={14} 
+        className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+      />
+    </div>
+  );
+};
+
 export const CustomerModal = ({
   customer,
   inventory,
@@ -141,6 +191,11 @@ export const CustomerModal = ({
   const [offerDrug, setOfferDrug] = useState<'koks' | 'meth'>('koks');
   const [offerGrams, setOfferGrams] = useState(5);
 
+  // Collapsible states
+  const [messagesOpen, setMessagesOpen] = useState(true);
+  const [sellOpen, setSellOpen] = useState(true);
+  const [offerOpen, setOfferOpen] = useState(false);
+
   useEffect(() => {
     if (!customer) return;
     setSampleBudId(sampleOptions[0]?.id ?? '');
@@ -150,6 +205,9 @@ export const CustomerModal = ({
     setPriceTouched({ weed: false, koks: false, meth: false });
     setPendingOffer(null);
     setShowOfferPanel(false);
+    setMessagesOpen(customer.messages.length > 0);
+    setSellOpen(true);
+    setOfferOpen(false);
   }, [customer?.id]);
 
   useEffect(() => {
@@ -331,68 +389,32 @@ export const CustomerModal = ({
     }));
   };
 
-  const renderTabButton = (tab: DrugType, label: string) => (
-    <button
-      type="button"
-      onClick={() => setActiveTab(tab)}
-      className={`flex-1 px-3 py-2 text-xs rounded-lg border ${
-        activeTab === tab ? 'border-primary bg-primary/20 text-primary' : 'border-border bg-muted/30 text-muted-foreground'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   const renderProductSelect = () => {
-    if (activeTab === 'weed') {
-      return (
-        <select
-          value={selectedDrug.id}
-          onChange={(event) => setSelectedDrug(prev => ({ ...prev, id: event.target.value }))}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-        >
-          {weedOptions.length === 0 && <option value="">Keine Buds</option>}
-          {weedOptions.map(bud => (
-            <option key={bud.id} value={bud.id}>
-              {formatBudLabel(bud)}
-            </option>
-          ))}
-        </select>
-      );
-    }
-
-    if (activeTab === 'koks') {
-      return (
-        <select
-          value={selectedDrug.id}
-          onChange={(event) => setSelectedDrug(prev => ({ ...prev, id: event.target.value }))}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-        >
-          {koksOptions.length === 0 && <option value="">Kein Koks</option>}
-          {koksOptions.map(product => (
-            <option key={product.id} value={product.id}>
-              {formatKoksLabel(product)}
-            </option>
-          ))}
-        </select>
-      );
-    }
+    const options = activeTab === 'weed' ? weedOptions : activeTab === 'koks' ? koksOptions : methOptions;
+    const formatLabel = activeTab === 'weed' ? formatBudLabel : activeTab === 'koks' ? formatKoksLabel : formatMethLabel;
+    const emptyLabel = activeTab === 'weed' ? 'Keine Buds' : activeTab === 'koks' ? 'Kein Koks' : 'Kein Meth';
 
     return (
       <select
         value={selectedDrug.id}
         onChange={(event) => setSelectedDrug(prev => ({ ...prev, id: event.target.value }))}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
+        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
       >
-        {methOptions.length === 0 && <option value="">Kein Meth</option>}
-        {methOptions.map(product => (
-          <option key={product.id} value={product.id}>
-            {formatMethLabel(product)}
+        {options.length === 0 && <option value="">{emptyLabel}</option>}
+        {options.map(item => (
+          <option key={item.id} value={item.id}>
+            {formatLabel(item as any)}
           </option>
         ))}
       </select>
     );
   };
+
+  const drugTabs = [
+    { type: 'weed' as DrugType, label: '🌿 Weed', count: weedOptions.length },
+    { type: 'koks' as DrugType, label: '❄️ Koks', count: koksOptions.length },
+    { type: 'meth' as DrugType, label: '🧪 Meth', count: methOptions.length },
+  ];
 
   return (
     <AnimatePresence>
@@ -401,31 +423,58 @@ export const CustomerModal = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 p-2 sm:p-4"
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4"
         >
           <motion.div
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            className="w-full max-w-2xl h-[92vh] h-[92svh] sm:h-auto max-h-[92vh] max-h-[92svh] sm:max-h-[85vh] game-card p-4 flex flex-col overflow-hidden"
+            initial={{ y: 30, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 30, opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="w-full max-w-lg h-[92vh] h-[92svh] sm:h-auto max-h-[92vh] max-h-[92svh] sm:max-h-[85vh] bg-gradient-to-b from-card to-card/95 border border-border/50 rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-2">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 p-4 border-b border-border/30 bg-card/80">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{customer.avatar}</span>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl border border-primary/20">
+                  {customer.avatar}
+                </div>
                 <div>
-                  <div className="font-semibold text-lg">{customer.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{customer.status.toUpperCase()}</div>
+                  <div className="font-semibold text-base">{customer.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                      customer.status === 'vip' ? 'bg-amber-500/20 text-amber-400' :
+                      customer.status === 'loyal' ? 'bg-emerald-500/20 text-emerald-400' :
+                      customer.status === 'active' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {customer.status.toUpperCase()}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      💰 {customer.spendingPower}% | ❤️ {customer.loyalty}%
+                    </span>
+                  </div>
                 </div>
               </div>
-              <button type="button" onClick={onClose} className="p-1 rounded-full bg-muted/40">
+              <button 
+                type="button" 
+                onClick={onClose} 
+                className="p-2 rounded-full bg-muted/40 hover:bg-muted/60 transition-colors"
+              >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-6 sm:pb-4">
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+              {/* Pending Offer Alert */}
               {pendingOffer && (
-                <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 p-3 space-y-2">
-                  <div className="text-xs text-orange-200">
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border border-orange-500/40 bg-gradient-to-r from-orange-500/10 to-amber-500/10 p-3 space-y-2"
+                >
+                  <div className="text-xs text-orange-200 flex items-center gap-2">
+                    <Zap size={14} className="text-orange-400" />
                     Willst du {customer.name} mit {pendingOffer.grams}g {pendingOffer.drug} anfixen?
                   </div>
                   <div className="flex gap-2">
@@ -439,30 +488,35 @@ export const CustomerModal = ({
                     <button
                       type="button"
                       onClick={() => setPendingOffer(null)}
-                      className="flex-1 rounded-lg bg-muted/40 px-3 py-2 text-xs"
+                      className="flex-1 rounded-lg bg-muted/40 px-3 py-2 text-xs hover:bg-muted/60 transition-colors"
                     >
                       Abbrechen
                     </button>
                   </div>
-                </div>
+                </motion.div>
               )}
 
+              {/* Pending Request */}
               {pendingRequest && (
-                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="font-semibold text-yellow-300">
-                      📬 Active Request: {pendingRequest.gramsRequested}g {pendingRequest.drug}
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-orange-500/5 p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-yellow-300 flex items-center gap-2">
+                      📬 Anfrage: {pendingRequest.gramsRequested}g {pendingRequest.drug}
                     </span>
-                    <span className="text-[10px] text-red-400">
-                      Expires: {formatTimeLeft(pendingRequest.expiresAt)}
+                    <span className="text-[10px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
+                      ⏱ {formatTimeLeft(pendingRequest.expiresAt)}
                     </span>
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Max Price: ${pendingRequest.maxPrice.toLocaleString()}
+                    Max: <span className="text-emerald-400 font-medium">${pendingRequest.maxPrice.toLocaleString()}</span>
                   </div>
                   {!hasRequestStock && (
-                    <div className="text-[10px] text-red-300">
-                      Nicht genug Ware fuer die Anfrage.
+                    <div className="text-[10px] text-red-300 bg-red-500/10 rounded-lg px-2 py-1">
+                      ⚠️ Nicht genug Ware
                     </div>
                   )}
                   <button
@@ -471,56 +525,22 @@ export const CustomerModal = ({
                     disabled={!hasRequestStock}
                     className="btn-neon w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    💰 Fulfill Request
+                    💰 Anfrage erfüllen
                   </button>
-                </div>
+                </motion.div>
               )}
 
-              <div className="max-h-none sm:max-h-[40vh] min-h-[160px] sm:min-h-[200px] overflow-y-visible sm:overflow-y-auto space-y-2 pr-1">
-                {customer.messages.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">Keine Nachrichten.</div>
-                ) : (
-                  customer.messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.from === 'customer' ? 'justify-start' : 'justify-end'}`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-lg px-3 py-2 text-xs break-words ${
-                          msg.from === 'customer'
-                            ? 'bg-muted/40 text-foreground'
-                            : 'bg-primary/20 text-primary-foreground'
-                        }`}
-                      >
-                        <div>{msg.message}</div>
-                        <div className="mt-1 text-[10px] text-muted-foreground">{formatTime(msg.timestamp)}</div>
-                        {msg.actions && !msg.actionsUsed && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {msg.actions.map(action => (
-                              <button
-                                key={action.id}
-                                type="button"
-                                onClick={() => handleMessageAction(msg.id, action)}
-                                className="btn-neon px-2 py-1 text-[10px]"
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
+              {/* Sample Section for Prospects */}
               {customer.status === 'prospect' && (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">Sample Bud auswaehlen</div>
+                <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                    <Gift size={14} />
+                    Sample geben
+                  </div>
                   <select
                     value={sampleBudId}
                     onChange={(event) => setSampleBudId(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
+                    className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs"
                   >
                     {sampleOptions.length === 0 && (
                       <option value="">Keine Buds verfuegbar</option>
@@ -533,7 +553,7 @@ export const CustomerModal = ({
                   </select>
                   {selectedSampleBud && (
                     <div className="text-[10px] text-muted-foreground">
-                      Qualitaet {selectedSampleBud.quality}% | {selectedSampleBud.grams.toFixed(1)}g verfuegbar
+                      Qualität {selectedSampleBud.quality}% | {selectedSampleBud.grams.toFixed(1)}g verfügbar
                     </div>
                   )}
                   <button
@@ -542,149 +562,249 @@ export const CustomerModal = ({
                     disabled={!selectedSampleBud}
                     className="btn-neon w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    📦 Give Sample (0.5g)
+                    📦 Sample geben (0.5g)
                   </button>
                 </div>
               )}
 
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {renderTabButton('weed', '🌿 WEED')}
-                  {renderTabButton('koks', '❄️ KOKS')}
-                  {renderTabButton('meth', '🧪 METH')}
-                </div>
-
-                {renderProductSelect()}
-
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>Menge waehlen</span>
-                  <span>Verfuegbar: {maxGrams.toFixed(1)}g</span>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {suggestions.map(amount => (
-                    <button
-                      key={`${activeTab}-${amount}`}
-                      type="button"
-                      onClick={() => setSelectedDrug(prev => ({ ...prev, grams: amount }))}
-                      disabled={amount > maxGrams}
-                      className={`btn-neon px-2 py-1 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed ${
-                        clampedGrams === amount ? 'ring-2 ring-primary' : ''
-                      }`}
-                    >
-                      {amount}g
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDrug(prev => ({ ...prev, grams: Math.max(1, Math.floor(maxGrams)) }))}
-                    disabled={maxGrams <= 0}
-                    className="btn-neon px-2 py-1 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    MAX
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1 text-[10px] text-muted-foreground">
-                    <span>Menge (g)</span>
-                    <input
-                      type="number"
-                      min={0.1}
-                      step={0.1}
-                      value={clampedGrams}
-                      onChange={(event) => setSelectedDrug(prev => ({ ...prev, grams: Number(event.target.value) }))}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
+              {/* Messages Section */}
+              <Collapsible open={messagesOpen} onOpenChange={setMessagesOpen}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="w-full">
+                    <SectionHeader 
+                      icon={MessageSquare} 
+                      title="Nachrichten" 
+                      badge={customer.messages.length > 0 ? `${customer.messages.length}` : undefined}
+                      isOpen={messagesOpen}
                     />
-                  </label>
-                  <label className="space-y-1 text-[10px] text-muted-foreground">
-                    <span>Preis pro g</span>
-                    <input
-                      type="number"
-                      min={0.1}
-                      step={0.1}
-                      value={pricePerGram[activeTab]}
-                      onChange={(event) => {
-                        const nextValue = Number(event.target.value);
-                        setPricePerGram(prev => ({ ...prev, [activeTab]: nextValue }));
-                        setPriceTouched(prev => ({ ...prev, [activeTab]: true }));
-                      }}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-                    />
-                  </label>
-                </div>
-
-                <div className="text-xs text-emerald-300">Revenue Preview: ~${revenuePreview.toLocaleString()}</div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleUnifiedSell}
-                    disabled={maxGrams <= 0 || clampedGrams <= 0}
-                    className="btn-neon flex-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    💰 SELL TO {customer.name.toUpperCase()}
                   </button>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 rounded-lg bg-muted/40 px-3 py-2 text-xs"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-2">
-                {!showOfferPanel ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowOfferPanel(true)}
-                    className="btn-neon w-full text-xs"
-                  >
-                    💼 Make Offer
-                  </button>
-                ) : (
-                  <div className="space-y-2 rounded-lg bg-muted/20 p-2">
-                    <div className="text-xs font-semibold">Offer Hard Drugs:</div>
-                    <select
-                      value={offerDrug}
-                      onChange={e => setOfferDrug(e.target.value as 'koks' | 'meth')}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-                    >
-                      <option value="koks">❄️ Koks</option>
-                      <option value="meth">🧪 Meth</option>
-                    </select>
-                    <input
-                      type="number"
-                      value={offerGrams}
-                      onChange={e => setOfferGrams(Number(e.target.value))}
-                      min={1}
-                      max={50}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOfferDrug(customer, offerDrug, offerGrams);
-                          setShowOfferPanel(false);
-                        }}
-                        className="btn-neon flex-1 text-xs"
-                      >
-                        Offer {offerGrams}g {offerDrug}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowOfferPanel(false)}
-                        className="flex-1 rounded-lg bg-muted/40 px-3 py-2 text-xs"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 max-h-[200px] overflow-y-auto space-y-2 pr-1 rounded-lg bg-muted/10 p-2">
+                    {customer.messages.length === 0 ? (
+                      <div className="text-xs text-muted-foreground text-center py-4">Keine Nachrichten</div>
+                    ) : (
+                      customer.messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`flex ${msg.from === 'customer' ? 'justify-start' : 'justify-end'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] rounded-xl px-3 py-2 text-xs break-words ${
+                              msg.from === 'customer'
+                                ? 'bg-muted/50 text-foreground rounded-tl-sm'
+                                : 'bg-primary/20 text-primary-foreground rounded-tr-sm'
+                            }`}
+                          >
+                            <div>{msg.message}</div>
+                            <div className="mt-1 text-[10px] text-muted-foreground">{formatTime(msg.timestamp)}</div>
+                            {msg.actions && !msg.actionsUsed && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {msg.actions.map(action => (
+                                  <button
+                                    key={action.id}
+                                    type="button"
+                                    onClick={() => handleMessageAction(msg.id, action)}
+                                    className="btn-neon px-2 py-1 text-[10px]"
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                )}
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Sell Section */}
+              <Collapsible open={sellOpen} onOpenChange={setSellOpen}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="w-full">
+                    <SectionHeader 
+                      icon={DollarSign} 
+                      title="Verkaufen" 
+                      isOpen={sellOpen}
+                      variant="success"
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-3 rounded-lg bg-muted/10 p-3">
+                    {/* Drug Type Tabs */}
+                    <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
+                      {drugTabs.map(tab => (
+                        <button
+                          key={tab.type}
+                          type="button"
+                          onClick={() => setActiveTab(tab.type)}
+                          className={`flex-1 px-2 py-2 text-[11px] rounded-md transition-all ${
+                            activeTab === tab.type 
+                              ? 'bg-primary text-primary-foreground shadow-sm' 
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          {tab.label}
+                          {tab.count > 0 && (
+                            <span className="ml-1 opacity-70">({tab.count})</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Product Dropdown */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground">Produkt wählen</label>
+                      {renderProductSelect()}
+                    </div>
+
+                    {/* Quick Amount Buttons */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-muted-foreground">Menge</label>
+                        <span className="text-[10px] text-muted-foreground">
+                          Verfügbar: <span className="text-foreground font-medium">{maxGrams.toFixed(1)}g</span>
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {suggestions.map(amount => (
+                          <button
+                            key={`${activeTab}-${amount}`}
+                            type="button"
+                            onClick={() => setSelectedDrug(prev => ({ ...prev, grams: amount }))}
+                            disabled={amount > maxGrams}
+                            className={`flex-1 py-2 text-[11px] rounded-lg border transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                              clampedGrams === amount 
+                                ? 'border-primary bg-primary/20 text-primary' 
+                                : 'border-border bg-card/60 hover:bg-muted/50'
+                            }`}
+                          >
+                            {amount}g
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDrug(prev => ({ ...prev, grams: Math.max(1, Math.floor(maxGrams)) }))}
+                          disabled={maxGrams <= 0}
+                          className="flex-1 py-2 text-[11px] rounded-lg border border-border bg-card/60 hover:bg-muted/50 transition-all disabled:opacity-30"
+                        >
+                          MAX
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Custom Input Row */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground">Menge (g)</label>
+                        <input
+                          type="number"
+                          min={0.1}
+                          step={0.1}
+                          value={clampedGrams}
+                          onChange={(event) => setSelectedDrug(prev => ({ ...prev, grams: Number(event.target.value) }))}
+                          className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground">$/g</label>
+                        <input
+                          type="number"
+                          min={0.1}
+                          step={0.1}
+                          value={pricePerGram[activeTab]}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            setPricePerGram(prev => ({ ...prev, [activeTab]: nextValue }));
+                            setPriceTouched(prev => ({ ...prev, [activeTab]: true }));
+                          }}
+                          className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Revenue Preview */}
+                    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="text-[11px] text-muted-foreground">Einnahmen</span>
+                      <span className="text-sm font-bold text-emerald-400">${revenuePreview.toLocaleString()}</span>
+                    </div>
+
+                    {/* Sell Button */}
+                    <button
+                      type="button"
+                      onClick={handleUnifiedSell}
+                      disabled={maxGrams <= 0 || clampedGrams <= 0}
+                      className="btn-neon w-full py-3 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      💰 AN {customer.name.toUpperCase()} VERKAUFEN
+                    </button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Make Offer Section */}
+              <Collapsible open={offerOpen} onOpenChange={setOfferOpen}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="w-full">
+                    <SectionHeader 
+                      icon={Package} 
+                      title="Angebot machen" 
+                      isOpen={offerOpen}
+                      variant="warning"
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-3 rounded-lg bg-muted/10 p-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground">Droge wählen</label>
+                      <select
+                        value={offerDrug}
+                        onChange={e => setOfferDrug(e.target.value as 'koks' | 'meth')}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                      >
+                        <option value="koks">❄️ Koks</option>
+                        <option value="meth">🧪 Meth</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground">Menge (g)</label>
+                      <input
+                        type="number"
+                        value={offerGrams}
+                        onChange={e => setOfferGrams(Number(e.target.value))}
+                        min={1}
+                        max={50}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOfferDrug(customer, offerDrug, offerGrams);
+                        setOfferOpen(false);
+                      }}
+                      className="btn-neon w-full py-2.5 text-xs"
+                    >
+                      💼 {offerGrams}g {offerDrug === 'koks' ? 'Koks' : 'Meth'} anbieten
+                    </button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-border/30 bg-card/80">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-lg bg-muted/40 hover:bg-muted/60 px-4 py-2.5 text-xs font-medium transition-colors"
+              >
+                Schließen
+              </button>
             </div>
           </motion.div>
         </motion.div>
