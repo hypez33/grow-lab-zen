@@ -551,38 +551,19 @@ export const CustomerModal = ({
                   </div>
                 </motion.div>
               )}
-
-              {/* Pending Request */}
+              {/* Pending Request - now just a subtle indicator, main action is in chat */}
               {pendingRequest && (
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="rounded-xl border border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-orange-500/5 p-3 space-y-2"
+                  className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 flex items-center justify-between"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-yellow-300 flex items-center gap-2">
-                      📬 Anfrage: {pendingRequest.gramsRequested}g {pendingRequest.drug}
-                    </span>
-                    <span className="text-[10px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
-                      ⏱ {formatTimeLeft(pendingRequest.expiresAt)}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Max: <span className="text-emerald-400 font-medium">${pendingRequest.maxPrice.toLocaleString()}</span>
-                  </div>
-                  {!hasRequestStock && (
-                    <div className="text-[10px] text-red-300 bg-red-500/10 rounded-lg px-2 py-1">
-                      ⚠️ Nicht genug Ware
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleFulfillRequest}
-                    disabled={!hasRequestStock}
-                    className="btn-neon w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    💰 Anfrage erfüllen
-                  </button>
+                  <span className="text-[10px] text-yellow-300/80 flex items-center gap-1.5">
+                    📬 Offene Anfrage: {pendingRequest.gramsRequested}g {pendingRequest.drug}
+                  </span>
+                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full">
+                    ⏱ {formatTimeLeft(pendingRequest.expiresAt)}
+                  </span>
                 </motion.div>
               )}
 
@@ -718,6 +699,39 @@ export const CustomerModal = ({
                                     } ${!msg.read && isCustomer ? 'ring-1 ring-primary/40' : ''}`}
                                   >
                                     <div className="whitespace-pre-wrap">{msg.message}</div>
+                                    
+                                    {/* Inline Sell Button for purchase requests */}
+                                    {isCustomer && (msg.type === 'purchase-request' || msg.type === 'request') && pendingRequest && (
+                                      <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="mt-2 pt-2 border-t border-border/20"
+                                      >
+                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                          <span className="text-[9px] text-muted-foreground">
+                                            {pendingRequest.gramsRequested}g • Max ${pendingRequest.maxPrice}
+                                          </span>
+                                          {!hasRequestStock && (
+                                            <span className="text-[8px] text-red-400">⚠️ Kein Vorrat</span>
+                                          )}
+                                        </div>
+                                        <motion.button
+                                          type="button"
+                                          onClick={handleFulfillRequest}
+                                          disabled={!hasRequestStock}
+                                          whileHover={{ scale: hasRequestStock ? 1.02 : 1 }}
+                                          whileTap={{ scale: hasRequestStock ? 0.98 : 1 }}
+                                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold rounded-lg transition-all ${
+                                            hasRequestStock
+                                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                              : 'bg-muted/30 text-muted-foreground border border-border/30 cursor-not-allowed'
+                                          }`}
+                                        >
+                                          <DollarSign size={12} />
+                                          Verkaufen
+                                        </motion.button>
+                                      </motion.div>
+                                    )}
                                     
                                     {/* Unread indicator */}
                                     {!msg.read && isCustomer && (

@@ -415,17 +415,52 @@ export const MethScreen = () => {
                   </div>
                 </div>
                 
-                {/* Stage Pipeline Visual - Compact */}
+                {/* Stage Pipeline Visual - Compact with Progress */}
                 <div className="flex items-center gap-0.5 bg-muted/20 rounded-lg p-1">
-                  {(['maceration', 'oxidation', 'crystallization', 'ready'] as MethStage[]).map((stage, idx) => (
-                    <div key={stage} className="flex items-center flex-1">
-                      <div className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 px-1 bg-gradient-to-r ${stageColors[stage]}/15`}>
-                        {stageIcons[stage]}
-                        <span className="text-[10px] font-bold tabular-nums">{stageTotals[stage]}g</span>
+                  {(['maceration', 'oxidation', 'crystallization', 'ready'] as MethStage[]).map((stage, idx) => {
+                    const activeInStage = methSlots.filter(s => s.batch?.stage === stage);
+                    const hasActive = activeInStage.length > 0;
+                    const avgProgress = hasActive 
+                      ? Math.round(activeInStage.reduce((sum, s) => sum + s.progress, 0) / activeInStage.length)
+                      : 0;
+                    
+                    return (
+                      <div key={stage} className="flex items-center flex-1">
+                        <div className={`flex-1 relative rounded-md overflow-hidden bg-gradient-to-r ${stageColors[stage]}/15`}>
+                          {/* Progress bar background */}
+                          {hasActive && stage !== 'ready' && (
+                            <motion.div
+                              className={`absolute inset-0 bg-gradient-to-r ${stageColors[stage]}/30`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${avgProgress}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                            />
+                          )}
+                          {/* Shimmer effect for active stages */}
+                          {hasActive && stage !== 'ready' && (
+                            <motion.div
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                              animate={{ x: ['-100%', '200%'] }}
+                              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            />
+                          )}
+                          <div className="relative flex items-center justify-center gap-1.5 py-1.5 px-1">
+                            <motion.div
+                              animate={hasActive && stage !== 'ready' ? { scale: [1, 1.2, 1] } : {}}
+                              transition={{ duration: 1, repeat: Infinity }}
+                            >
+                              {stageIcons[stage]}
+                            </motion.div>
+                            <span className="text-[10px] font-bold tabular-nums">{stageTotals[stage]}g</span>
+                            {hasActive && stage !== 'ready' && (
+                              <span className="text-[8px] text-white/60">({avgProgress}%)</span>
+                            )}
+                          </div>
+                        </div>
+                        {idx < 3 && <ChevronRight size={10} className="text-muted-foreground/50 mx-0.5 flex-shrink-0" />}
                       </div>
-                      {idx < 3 && <ChevronRight size={10} className="text-muted-foreground/50 mx-0.5 flex-shrink-0" />}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Crew Status */}
