@@ -236,11 +236,26 @@ export const CustomerModal = ({
   const selectedSampleBud = sampleOptions.find(bud => bud.id === sampleBudId) || null;
   const pendingRequest = customer?.pendingRequest ?? null;
   const requestNeedsWeed = pendingRequest?.drug === 'weed';
-  const requestBud = requestNeedsWeed
-    ? weedOptions.find(bud => bud.id === selectedDrug.id) || weedOptions[0]
-    : null;
   const requestGramsNeeded = pendingRequest?.gramsRequested ?? 0;
-  const hasRequestStock = !requestNeedsWeed || (requestBud && requestBud.grams >= requestGramsNeeded);
+  
+  // Check if we have enough stock for the request - check ANY dried bud, not just the selected one
+  const hasRequestStock = useMemo(() => {
+    if (!pendingRequest) return true;
+    
+    if (pendingRequest.drug === 'weed') {
+      // Check if any dried bud has enough grams
+      return weedOptions.some(bud => bud.grams >= requestGramsNeeded);
+    }
+    if (pendingRequest.drug === 'koks') {
+      // Check if any koks product has enough grams
+      return koksOptions.some(product => product.grams >= requestGramsNeeded);
+    }
+    if (pendingRequest.drug === 'meth') {
+      // Check if any meth product has enough grams
+      return methOptions.some(product => product.grams >= requestGramsNeeded);
+    }
+    return true;
+  }, [pendingRequest, weedOptions, koksOptions, methOptions, requestGramsNeeded]);
 
   const currentWeed = weedOptions.find(bud => bud.id === selectedDrug.id) || null;
   const currentKoks = koksOptions.find(product => product.id === selectedDrug.id) || null;
@@ -298,7 +313,8 @@ export const CustomerModal = ({
 
   const handleFulfillRequest = () => {
     if (!customer || !pendingRequest) return;
-    onFulfillRequest(customer, requestNeedsWeed ? requestBud?.id : undefined);
+    // Let the store automatically choose the best product
+    onFulfillRequest(customer, undefined);
   };
 
   const handleUnifiedSell = () => {
