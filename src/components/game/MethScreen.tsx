@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Beaker, FlaskConical, Package, Lock, Plus, Play, Download, DollarSign, Users, Skull, Flame, Sparkles, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { useMethStore, METH_RECIPES, METH_PRECURSOR_COST, METH_SLOT_UNLOCK_BASE_COST, METH_SLOT_UNLOCK_COST_SCALING, MethStage } from '@/store/methStore';
+import { useMethStore, METH_RECIPES, METH_PRECURSOR_COST, METH_SLOT_UNLOCK_BASE_COST, METH_SLOT_UNLOCK_COST_SCALING, METH_DEALER_PROFILES, MethStage } from '@/store/methStore';
+import type { MethLogType } from '@/store/methStore';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 
@@ -13,18 +14,59 @@ const stageLabels: Record<MethStage, string> = {
   ready: 'Fertig',
 };
 
+const MIN_METH_RECIPE_COST = METH_RECIPES.length > 0
+  ? METH_RECIPES.reduce((min, recipe) => Math.min(min, recipe.precursorCost), METH_RECIPES[0].precursorCost)
+  : 0;
+
+const logTypeMeta: Record<MethLogType, { label: string; card: string; badge: string }> = {
+  sale: {
+    label: 'Deal',
+    card: 'border-cyan-500/30 bg-cyan-500/10',
+    badge: 'bg-cyan-500/20 text-cyan-200',
+  },
+  dealer: {
+    label: 'Dealer',
+    card: 'border-amber-500/30 bg-amber-500/10',
+    badge: 'bg-amber-500/20 text-amber-200',
+  },
+  bonus: {
+    label: 'Bonus',
+    card: 'border-emerald-500/30 bg-emerald-500/10',
+    badge: 'bg-emerald-500/20 text-emerald-200',
+  },
+  risk: {
+    label: 'Risiko',
+    card: 'border-rose-500/30 bg-rose-500/10',
+    badge: 'bg-rose-500/20 text-rose-200',
+  },
+  info: {
+    label: 'Info',
+    card: 'border-slate-500/30 bg-slate-500/10',
+    badge: 'bg-slate-500/20 text-slate-200',
+  },
+};
+
+const resolveLogType = (log: { type?: MethLogType; dealerName?: string }): MethLogType => (
+  log.type ?? (log.dealerName ? 'dealer' : 'sale')
+);
+
 export const MethScreen = () => {
   const {
     precursors,
     methSlots,
     methInventory,
     methCustomers,
+    methSamples,
+    methProspects,
     methActivityLogs,
+    methWorkers,
     buyPrecursors,
     unlockMethSlot,
     startMethCook,
     collectMeth,
     sellMethProduct,
+    createMethSamples,
+    acquireMethCustomer,
     totalMethCooked,
     totalMethSold,
     totalMethRevenue,
@@ -38,6 +80,7 @@ export const MethScreen = () => {
   };
 
   const [selectedRecipeId, setSelectedRecipeId] = useState(METH_RECIPES[0]?.id ?? '');
+  const [activeTab, setActiveTab] = useState<'lab' | 'kunden'>('lab');
 
   const selectedRecipe = useMemo(() => (
     METH_RECIPES.find(r => r.id === selectedRecipeId) ?? METH_RECIPES[0]
@@ -96,6 +139,37 @@ export const MethScreen = () => {
     }, 0),
     [liveSellingDealers]
   );
+
+  const ownedMethWorkers = useMemo(
+    () => methWorkers.filter(worker => worker.owned),
+    [methWorkers]
+  );
+  const activeMethWorkers = useMemo(
+    () => ownedMethWorkers.filter(worker => !worker.paused),
+    [ownedMethWorkers]
+  );
+  const activeCookers = useMemo(
+    () => activeMethWorkers.filter(worker => worker.abilities.includes('cook')),
+    [activeMethWorkers]
+  );
+  const activeCollectors = useMemo(
+    () => activeMethWorkers.filter(worker => worker.abilities.includes('collect')),
+    [activeMethWorkers]
+  );
+  const readySlotCount = useMemo(
+    () => methSlots.filter(slot => slot.isUnlocked && slot.batch?.stage === 'ready').length,
+    [methSlots]
+  );
+  const emptySlotCount = useMemo(
+    () => methSlots.filter(slot => slot.isUnlocked && !slot.batch).length,
+    [methSlots]
+  );
+  const cookStatus = activeCookers.length === 0
+    ? 'aus'
+    : (emptySlotCount > 0 && precursors >= MIN_METH_RECIPE_COST ? 'kocht' : 'wartet');
+  const collectStatus = activeCollectors.length === 0
+    ? 'aus'
+    : (readySlotCount > 0 ? 'sammelt' : 'wartet');
 
   const stageTotals = useMemo(() => {
     const totals = {
@@ -167,11 +241,29 @@ export const MethScreen = () => {
   const handleSell = (productId: string) => {
     const result = sellMethProduct(productId);
     if (!result.success) {
-      toast.error('Verkauf fehlgeschlagen.');
+      toast.error(result.error || 'Verkauf fehlgeschlagen.');
       return;
     }
     updateBudcoins(result.revenue);
     toast.success(`+${result.revenue}$ verdient.`);
+  };
+
+  const handleCreateSamples = (grams: number) => {
+    const result = createMethSamples(grams);
+    if (!result.success) {
+      toast.error(result.error || 'Samples konnten nicht erstellt werden.');
+      return;
+    }
+    toast.success(`+${result.grams} Sample(s) erstellt.`);
+  };
+
+  const handleAcquireCustomer = () => {
+    const result = acquireMethCustomer();
+    if (!result.success) {
+      toast.error(result.error || 'Kunde konnte nicht gewonnen werden.');
+      return;
+    }
+    toast.success(`Neuer Kunde: ${result.customer?.name}`);
   };
 
   return (
@@ -184,7 +276,34 @@ export const MethScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-4">
-        <div className="grid gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('lab')}
+            className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              activeTab === 'lab'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted/30 text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            Labor
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('kunden')}
+            className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              activeTab === 'kunden'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted/30 text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            Kunden
+          </button>
+        </div>
+
+        {activeTab === 'lab' && (
+          <>
+            <div className="grid gap-3">
           <div className="game-card p-3 space-y-3 bg-gradient-to-br from-slate-900/60 via-slate-900/30 to-cyan-500/10">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
@@ -232,29 +351,40 @@ export const MethScreen = () => {
                 <div className="text-[10px] text-muted-foreground">Kristalle</div>
               </div>
             </div>
+            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-[10px] text-cyan-100">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-cyan-200">
+                  <Users size={14} className="text-cyan-300" />
+                  Meth Crew
+                </div>
+                <span>{activeMethWorkers.length}/{ownedMethWorkers.length} aktiv</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-cyan-100/80">
+                <span>Kochen: {cookStatus}</span>
+                <span>Sammeln: {collectStatus}</span>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
+              <button
                 type="button"
                 onClick={() => handleBuyPrecursors(1)}
-                aria-disabled={budcoins < METH_PRECURSOR_COST}
+                disabled={budcoins < METH_PRECURSOR_COST}
                 className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold ${
                   budcoins >= METH_PRECURSOR_COST ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
                 }`}
               >
                 +1 Precursors ({METH_PRECURSOR_COST}$)
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
+              </button>
+              <button
                 type="button"
                 onClick={() => handleBuyPrecursors(5)}
-                aria-disabled={budcoins < METH_PRECURSOR_COST * 5}
+                disabled={budcoins < METH_PRECURSOR_COST * 5}
                 className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold ${
                   budcoins >= METH_PRECURSOR_COST * 5 ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
                 }`}
               >
                 +5 Precursors ({METH_PRECURSOR_COST * 5}$)
-              </motion.button>
+              </button>
             </div>
             <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs">
               <div className="flex items-center gap-2 text-amber-200">
@@ -410,9 +540,9 @@ export const MethScreen = () => {
               </div>
             )}
           </div>
-        </div>
+            </div>
 
-        <div className="grid gap-3">
+            <div className="grid gap-3">
           <div className="game-card p-3 space-y-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <Zap size={16} className="text-neon-cyan" />
@@ -455,6 +585,8 @@ export const MethScreen = () => {
               <div className="space-y-2">
                 {activeDealers.map(dealer => {
                   const canSell = dealer.abilities.includes('sell');
+                  const profile = METH_DEALER_PROFILES[dealer.id] ?? METH_DEALER_PROFILES.default;
+                  const totalBonus = Math.round((dealer.level * 0.08 + profile.bonus) * 100);
                   const baseSales = dealer.salesPerTick + Math.floor(dealer.level * 0.5);
                   const salesPerTick = Math.max(1, Math.floor(baseSales * 1.6));
                   return (
@@ -472,6 +604,9 @@ export const MethScreen = () => {
                         <div className="text-[10px] text-muted-foreground">
                           Lv.{dealer.level} - {dealer.paused ? 'Pausiert' : canSell ? `${salesPerTick}/Tick` : 'kein Vertrieb'}
                         </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Stil: {profile.label} - Bonus +{totalBonus}%
+                        </div>
                       </div>
                       {canSell && !dealer.paused && (
                         <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
@@ -484,9 +619,9 @@ export const MethScreen = () => {
               </div>
             )}
           </div>
-        </div>
+            </div>
 
-        <div className="grid gap-3">
+            <div className="grid gap-3">
           <div className="game-card p-3 space-y-2">
             <div className="flex items-center justify-between gap-2 text-sm font-semibold text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -532,53 +667,218 @@ export const MethScreen = () => {
               <div className="text-xs text-muted-foreground">Noch keine Aktivitaeten.</div>
             ) : (
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {methActivityLogs.slice(0, 12).map(log => (
-                  <div
-                    key={log.id}
-                    className={`flex items-start gap-2 rounded-lg border p-2 text-xs ${
-                      log.dealerName ? 'border-amber-500/30 bg-amber-500/10' : 'border-cyan-500/30 bg-cyan-500/10'
-                    }`}
-                  >
-                    {log.dealerIcon ? (
-                      <span className="text-lg">{log.dealerIcon}</span>
-                    ) : (
-                      <FlaskConical size={16} className="text-neon-cyan mt-0.5" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold whitespace-normal break-words">{log.message}</div>
-                      {log.customerName && (
-                        <div className="text-[10px] text-muted-foreground">
-                          {log.customerName} - Sucht {log.addiction ?? 0}% - Gier {log.greed ?? 0}%
-                        </div>
+                {methActivityLogs.slice(0, 12).map(log => {
+                  const logType = resolveLogType(log);
+                  const typeMeta = logTypeMeta[logType];
+                  return (
+                    <div
+                      key={log.id}
+                      className={`flex items-start gap-2 rounded-lg border p-2 text-xs ${typeMeta.card}`}
+                    >
+                      {log.dealerIcon ? (
+                        <span className="text-lg">{log.dealerIcon}</span>
+                      ) : (
+                        <FlaskConical size={16} className="text-neon-cyan mt-0.5" />
                       )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold whitespace-normal break-words">{log.message}</div>
+                        {log.detail && (
+                          <div className="text-[10px] text-muted-foreground">{log.detail}</div>
+                        )}
+                        {log.customerName && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {log.customerName} - Sucht {log.addiction ?? 0}% - Gier {log.greed ?? 0}%
+                          </div>
+                        )}
+                        {log.dealerName && (
+                          <div className="text-[10px] text-muted-foreground">
+                            Dealer: {log.dealerName}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeMeta.badge}`}>
+                          {typeMeta.label}
+                        </span>
+                        {log.revenue && (
+                          <span className="text-[10px] font-semibold text-green-300">+${log.revenue}</span>
+                        )}
+                      </div>
                     </div>
-                    {log.revenue && (
-                      <span className="text-[10px] font-semibold text-green-300">+${log.revenue}</span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
+            </div>
 
-        <div className="game-card p-3">
-          <div className="text-sm font-semibold text-muted-foreground mb-2">Stats</div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="rounded-lg bg-muted/30 p-2">
-              <div className="font-bold">{totalMethCooked.toLocaleString()}g</div>
-              <div className="text-[10px] text-muted-foreground">Gekocht</div>
+            <div className="game-card p-3">
+              <div className="text-sm font-semibold text-muted-foreground mb-2">Stats</div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-bold">{totalMethCooked.toLocaleString()}g</div>
+                  <div className="text-[10px] text-muted-foreground">Gekocht</div>
+                </div>
+                <div className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-bold">{totalMethSold.toLocaleString()}g</div>
+                  <div className="text-[10px] text-muted-foreground">Verkauft</div>
+                </div>
+                <div className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-bold">${totalMethRevenue.toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground">Umsatz</div>
+                </div>
+              </div>
             </div>
-            <div className="rounded-lg bg-muted/30 p-2">
-              <div className="font-bold">{totalMethSold.toLocaleString()}g</div>
-              <div className="text-[10px] text-muted-foreground">Verkauft</div>
+          </>
+        )}
+
+        {activeTab === 'kunden' && (
+          <div className="grid gap-3">
+            <div className="game-card p-3 space-y-3 bg-gradient-to-br from-slate-900/60 via-slate-900/30 to-emerald-500/10">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <Users size={16} className="text-emerald-300" />
+                  Kundenaufbau
+                </div>
+                <div className="text-[10px] text-muted-foreground">{methSamples} Samples</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-bold">{methCustomers.length}</div>
+                  <div className="text-[10px] text-muted-foreground">Kunden</div>
+                </div>
+                <div className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-bold">{methProspects.length}</div>
+                  <div className="text-[10px] text-muted-foreground">Prospects</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCreateSamples(1)}
+                  disabled={inventoryGrams < 1}
+                  className={`rounded-lg px-2 py-2 text-xs font-semibold ${
+                    inventoryGrams >= 1 ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
+                  }`}
+                >
+                  +1 Sample
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCreateSamples(5)}
+                  disabled={inventoryGrams < 5}
+                  className={`rounded-lg px-2 py-2 text-xs font-semibold ${
+                    inventoryGrams >= 5 ? 'bg-muted/40' : 'bg-muted/20 text-muted-foreground'
+                  }`}
+                >
+                  +5 Samples
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleAcquireCustomer}
+                disabled={methSamples <= 0 || methProspects.length === 0}
+                className={`w-full rounded-lg px-3 py-2 text-xs font-semibold ${
+                  methSamples > 0 && methProspects.length > 0
+                    ? 'bg-emerald-500/20 text-emerald-200'
+                    : 'bg-muted/20 text-muted-foreground'
+                }`}
+              >
+                Kunde akquirieren (1 Sample)
+              </button>
+              <div className="text-[10px] text-muted-foreground">
+                Samples verteilen, bevor Dealer eingestellt werden.
+              </div>
             </div>
-            <div className="rounded-lg bg-muted/30 p-2">
-              <div className="font-bold">${totalMethRevenue.toLocaleString()}</div>
-              <div className="text-[10px] text-muted-foreground">Umsatz</div>
+
+            <div className="game-card p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 text-sm font-semibold text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Flame size={16} className="text-orange-400" />
+                  Kundenliste
+                </div>
+                <span className="text-[10px] text-muted-foreground">{methCustomers.length} aktiv</span>
+              </div>
+              {methCustomers.length === 0 ? (
+                <div className="text-xs text-muted-foreground">Noch keine Kunden gewonnen.</div>
+              ) : (
+                <div className="space-y-2">
+                  {methCustomers.map(customer => (
+                    <div key={customer.id} className="rounded-lg border border-border/40 bg-muted/30 p-2">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold">{customer.name}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Sucht {customer.addiction}% · Kaeufe {customer.purchases}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <Flame size={12} className="text-orange-400" />
+                          <div className="h-1.5 flex-1 rounded-full bg-muted/40">
+                            <div
+                              className="h-full rounded-full bg-orange-400"
+                              style={{ width: `${customer.addiction}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <Sparkles size={12} className="text-cyan-300" />
+                          <div className="h-1.5 flex-1 rounded-full bg-muted/40">
+                            <div
+                              className="h-full rounded-full bg-cyan-400"
+                              style={{ width: `${customer.greed}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="game-card p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <Package size={16} />
+                Direktverkauf
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Verkaufe direkt an deine Kunden (keine Dealer noetig).
+              </div>
+              {methInventory.length === 0 ? (
+                <div className="text-xs text-muted-foreground">Keine Produkte verfuegbar.</div>
+              ) : (
+                <div className="space-y-2">
+                  {methInventory.map(product => (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/30 px-2 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{product.recipeName}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {product.grams}g - Reinheit {product.purity}% - Qualitaet {product.quality}%
+                        </div>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleSell(product.id)}
+                        disabled={methCustomers.length === 0}
+                        className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                          methCustomers.length > 0
+                            ? 'bg-green-500/20 text-green-300'
+                            : 'bg-muted/30 text-muted-foreground'
+                        }`}
+                      >
+                        Verkaufen
+                      </motion.button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

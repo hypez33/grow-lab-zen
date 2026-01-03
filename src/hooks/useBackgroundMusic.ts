@@ -134,6 +134,16 @@ const themes: Record<Screen, MusicTheme> = {
     bassEnabled: false,
     padEnabled: true,
   },
+  turf: {
+    baseFreq: 207, // G#3
+    scale: [0, 3, 5, 7, 10, 12], // Minor pentatonic
+    tempo: 1600,
+    waveType: 'triangle',
+    filterFreq: 950,
+    volume: 0.06,
+    bassEnabled: true,
+    padEnabled: true,
+  },
 };
 
 export const useBackgroundMusic = () => {

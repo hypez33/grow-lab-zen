@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Screen = 'grow' | 'shop' | 'genetics' | 'skills' | 'quests' | 'collection' | 'settings' | 'dryroom' | 'sales' | 'business' | 'koks' | 'meth';
+export type Screen = 'grow' | 'shop' | 'genetics' | 'skills' | 'quests' | 'collection' | 'settings' | 'dryroom' | 'sales' | 'business' | 'koks' | 'meth' | 'customers' | 'turf';
 
 interface NavigationState {
   activeScreen: Screen;

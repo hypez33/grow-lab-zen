@@ -7,7 +7,19 @@ import { Progress } from '@/components/ui/progress';
 import { BudIcon } from './BudIcon';
 
 export const DryRoomScreen = () => {
-  const { inventory, dryingRacks, startDrying, collectDried, buyDryingRack, getDryingRackCost, budcoins, upgrades } = useGameStore();
+  const {
+    inventory,
+    dryingRacks,
+    startDrying,
+    collectDried,
+    buyDryingRack,
+    getDryingRackCost,
+    budcoins,
+    upgrades,
+    salesChannels,
+    autoSellSettings,
+    setAutoSellSettings,
+  } = useGameStore();
   const [selectedBud, setSelectedBud] = useState<BudItem | null>(null);
   const [showBudPicker, setShowBudPicker] = useState(false);
   const [targetRackId, setTargetRackId] = useState<number | null>(null);
@@ -29,6 +41,10 @@ export const DryRoomScreen = () => {
 
   const wetBuds = inventory.filter(b => b.state === 'wet');
   const driedBuds = inventory.filter(b => b.state === 'dried');
+  const preferredChannelLabel = autoSellSettings.preferredChannel === 'auto'
+    ? 'Auto'
+    : salesChannels.find(channel => channel.id === autoSellSettings.preferredChannel)?.name
+      ?? autoSellSettings.preferredChannel;
 
   const handleRackClick = (rackId: number, rack: typeof dryingRacks[0]) => {
     if (!rack.isUnlocked) return;
@@ -204,6 +220,24 @@ export const DryRoomScreen = () => {
           </div>
         </motion.div>
       )}
+
+      <div className="game-card p-3 mb-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold">Auto-Sell</div>
+          <button
+            type="button"
+            onClick={() => setAutoSellSettings({ enabled: !autoSellSettings.enabled })}
+            className="btn-neon px-3 py-1 text-[10px]"
+          >
+            {autoSellSettings.enabled ? 'Aktiv' : 'Aus'}
+          </button>
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          {autoSellSettings.enabled
+            ? `Min. Qualitaet ${autoSellSettings.minQuality}% · Kanal ${preferredChannelLabel}${autoSellSettings.onlyWhenFull ? ' · nur bei vollem Lager' : ''}`
+            : 'Automatischer Verkauf ist deaktiviert.'}
+        </div>
+      </div>
 
       {/* Inventory Summary */}
       <div className="flex gap-3 mb-4">

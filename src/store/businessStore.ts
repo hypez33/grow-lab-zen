@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useTerritoryStore } from '@/store/territoryStore';
 
 export type BusinessDrug = 'weed' | 'koks';
+export type BusinessEventType = 'bonus-shipment' | 'premium-quality' | 'raid' | 'seizure';
 
 export interface Business {
   id: string;
@@ -12,6 +14,9 @@ export interface Business {
   profitPerGameHour: number;
   minLevel: number;
   owned: boolean;
+  level: number;
+  upgradeBaseCost: number;
+  pausedUntilMinutes: number;
 }
 
 export interface WarehouseUpgrade {
@@ -81,6 +86,15 @@ export interface BusinessLog {
   type: 'business' | 'contract' | 'shipment' | 'warehouse';
 }
 
+export interface BusinessEvent {
+  id: number;
+  type: BusinessEventType;
+  timestampMinutes: number;
+  message: string;
+  profit: number;
+  loss: number;
+}
+
 interface PurchaseResult {
   success: boolean;
   cost: number;
@@ -101,17 +115,39 @@ export interface BusinessState {
   warehouseCapacity: number;
   totalBusinessRevenue: number;
   businessLogs: BusinessLog[];
+  businessEvents: BusinessEvent[];
+  totalEvents: number;
+  totalEventProfit: number;
+  totalEventLoss: number;
+  lastEventCheckMinutes: number;
 
   buyBusiness: (businessId: string, budcoins: number, playerLevel: number, gameMinutes: number) => PurchaseResult;
+  upgradeBusiness: (businessId: string, budcoins: number, gameMinutes: number) => PurchaseResult;
   buyWarehouse: (upgradeId: string, budcoins: number, playerLevel: number, gameMinutes: number) => PurchaseResult;
   buyContract: (contractId: string, budcoins: number, playerLevel: number, gameMinutes: number) => PurchaseResult;
-  tickBusiness: (deltaMinutes: number, gameMinutes: number, luckFactor: number) => { profit: number };
-  sellWarehouseStock: (drug: BusinessDrug, grams: number) => WarehouseSaleResult;
+  dispatchContractShipment: (contractId: string, gameMinutes: number, luckFactor: number) => PurchaseResult;
+  tickBusiness: (deltaMinutes: number, gameMinutes: number, luckFactor: number) => { profit: number; events: BusinessEvent[] };
+  sellWarehouseStock: (drug: BusinessDrug, grams: number, preferBestQuality: boolean) => WarehouseSaleResult;
+  triggerRandomEvent: (gameMinutes: number, luckFactor: number) => BusinessEvent[];
 }
 
 const BUSINESS_LOG_LIMIT = 60;
+const BUSINESS_EVENT_LIMIT = 30;
+const GAME_MINUTES_PER_HOUR = 60;
+let businessLogCounter = 0;
+let businessEventCounter = 0;
 
-const BUSINESS_CATALOG: Omit<Business, 'owned'>[] = [
+const createBusinessLogId = () => {
+  businessLogCounter = (businessLogCounter + 1) % 1000;
+  return Date.now() * 1000 + businessLogCounter;
+};
+
+const createBusinessEventId = () => {
+  businessEventCounter = (businessEventCounter + 1) % 1000;
+  return Date.now() * 1000 + businessEventCounter;
+};
+
+const BUSINESS_CATALOG: Omit<Business, 'owned' | 'level' | 'pausedUntilMinutes'>[] = [
   {
     id: 'corner-bodega',
     name: 'Bodega',
@@ -119,6 +155,7 @@ const BUSINESS_CATALOG: Omit<Business, 'owned'>[] = [
     icon: 'bodega',
     cost: 5000,
     profitPerGameHour: 120,
+    upgradeBaseCost: 3000,
     minLevel: 2,
   },
   {
@@ -128,6 +165,7 @@ const BUSINESS_CATALOG: Omit<Business, 'owned'>[] = [
     icon: 'car-wash',
     cost: 25000,
     profitPerGameHour: 420,
+    upgradeBaseCost: 15000,
     minLevel: 6,
   },
   {
@@ -137,6 +175,7 @@ const BUSINESS_CATALOG: Omit<Business, 'owned'>[] = [
     icon: 'club',
     cost: 120000,
     profitPerGameHour: 1600,
+    upgradeBaseCost: 70000,
     minLevel: 12,
   },
   {
@@ -146,6 +185,7 @@ const BUSINESS_CATALOG: Omit<Business, 'owned'>[] = [
     icon: 'logistics',
     cost: 280000,
     profitPerGameHour: 3600,
+    upgradeBaseCost: 160000,
     minLevel: 18,
   },
 ];
@@ -295,6 +335,22 @@ const rollGrams = (min: number, max: number, luckFactor: number) => {
   return Math.max(1, Math.floor(base * luckBoost));
 };
 
+const getImportSpeedMultiplier = () => {
+  const bonuses = useTerritoryStore.getState().getActiveBonuses();
+  const totalBonus = bonuses
+    .filter(bonus => bonus.type === 'import-speed')
+    .reduce((sum, bonus) => sum + bonus.value, 0);
+  return 1 + totalBonus / 100;
+};
+
+const getDrugBasePrice = (drug: BusinessDrug) => (drug === 'weed' ? 15 : 45);
+
+const getPricePerGram = (drug: BusinessDrug, quality: number) =>
+  getDrugBasePrice(drug) * (0.5 + (quality / 100) * 1.5);
+
+const estimateLotValue = (drug: BusinessDrug, grams: number, quality: number) =>
+  Math.max(0, Math.floor(grams * getPricePerGram(drug, quality)));
+
 const createShipment = (contract: ImportContract, gameMinutes: number, luckFactor: number): Shipment => {
   const totalMinutes = contract.route.reduce((sum, leg) => sum + leg.durationMinutes, 0);
   return {
@@ -313,10 +369,167 @@ const createShipment = (contract: ImportContract, gameMinutes: number, luckFacto
   };
 };
 
+type BusinessEventResult = {
+  events: BusinessEvent[];
+  businesses: Business[];
+  shipments: Shipment[];
+  warehouseLots: WarehouseLot[];
+  businessLogs: BusinessLog[];
+  eventProfit: number;
+  eventLoss: number;
+};
+
+const applyRandomBusinessEvent = (
+  input: {
+    businesses: Business[];
+    shipments: Shipment[];
+    warehouseLots: WarehouseLot[];
+    businessLogs: BusinessLog[];
+  },
+  gameMinutes: number,
+  luckFactor: number
+): BusinessEventResult => {
+  const positiveChance = Math.min(0.18, 0.1 + luckFactor * 0.12);
+  const negativeChance = Math.max(0.02, 0.05 - luckFactor * 0.04);
+  const roll = Math.random();
+
+  let businesses = [...input.businesses];
+  let shipments = [...input.shipments];
+  let warehouseLots = [...input.warehouseLots];
+  let businessLogs = [...input.businessLogs];
+  const events: BusinessEvent[] = [];
+  let eventProfit = 0;
+  let eventLoss = 0;
+
+  const pushEvent = (type: BusinessEventType, message: string, profit: number, loss: number, logType: BusinessLog['type']) => {
+    const eventEntry: BusinessEvent = {
+      id: createBusinessEventId(),
+      type,
+      timestampMinutes: gameMinutes,
+      message,
+      profit,
+      loss,
+    };
+    events.push(eventEntry);
+    businessLogs.unshift({
+      id: createBusinessLogId(),
+      timestampMinutes: gameMinutes,
+      message,
+      type: logType,
+    });
+    eventProfit += profit;
+    eventLoss += loss;
+  };
+
+  const pickRandomShipment = () => {
+    if (shipments.length === 0) return null;
+    return shipments[Math.floor(Math.random() * shipments.length)];
+  };
+
+  const pickRandomLotIndex = () => {
+    if (warehouseLots.length === 0) return -1;
+    return Math.floor(Math.random() * warehouseLots.length);
+  };
+
+  const pickRandomBusinessIndex = () => {
+    const candidates = businesses
+      .map((business, index) => ({ business, index }))
+      .filter(item => item.business.owned && item.business.pausedUntilMinutes <= gameMinutes);
+    if (candidates.length === 0) return -1;
+    return candidates[Math.floor(Math.random() * candidates.length)].index;
+  };
+
+  if (roll < positiveChance) {
+    const outcomeRoll = Math.random();
+    const shipment = pickRandomShipment();
+    if (!shipment) {
+      return { events, businesses, shipments, warehouseLots, businessLogs, eventProfit, eventLoss };
+    }
+
+    if (outcomeRoll < 0.34) {
+      const bonusGrams = Math.max(1, Math.floor(shipment.totalGrams * 0.2));
+      shipments = shipments.map(item =>
+        item.id === shipment.id ? { ...item, totalGrams: item.totalGrams + bonusGrams } : item
+      );
+      const profit = estimateLotValue(shipment.drug, bonusGrams, shipment.quality);
+      pushEvent('bonus-shipment', `🎉 Bonuslieferung: ${shipment.name} +${bonusGrams}g`, profit, 0, 'shipment');
+    } else if (outcomeRoll < 0.67) {
+      const newQuality = clamp(Math.round(shipment.quality + 15), 0, 100);
+      const qualityGain = Math.max(0, newQuality - shipment.quality);
+      shipments = shipments.map(item =>
+        item.id === shipment.id ? { ...item, quality: newQuality } : item
+      );
+      const profit = estimateLotValue(shipment.drug, shipment.totalGrams, newQuality)
+        - estimateLotValue(shipment.drug, shipment.totalGrams, shipment.quality);
+      pushEvent('premium-quality', `💎 Premium-Qualitaet: ${shipment.name} +${qualityGain}%`, Math.max(0, profit), 0, 'shipment');
+    } else {
+      shipments = shipments.map(item => {
+        if (item.id !== shipment.id) return item;
+        const currentLeg = item.route[item.legIndex];
+        if (!currentLeg) return item;
+        const boostedProgress = Math.min(currentLeg.durationMinutes, item.legProgressMinutes + 30);
+        return {
+          ...item,
+          etaMinutes: Math.max(0, item.etaMinutes - 30),
+          legProgressMinutes: boostedProgress,
+        };
+      });
+      pushEvent('bonus-shipment', `🚀 Express-Route: ${shipment.name} ist schneller unterwegs.`, 0, 0, 'shipment');
+    }
+  } else if (roll < positiveChance + negativeChance) {
+    const outcomeRoll = Math.random();
+    if (outcomeRoll < 0.4) {
+      const businessIndex = pickRandomBusinessIndex();
+      if (businessIndex < 0) {
+        return { events, businesses, shipments, warehouseLots, businessLogs, eventProfit, eventLoss };
+      }
+      const pausedUntilMinutes = gameMinutes + 240;
+      const target = businesses[businessIndex];
+      businesses = businesses.map((item, index) =>
+        index === businessIndex ? { ...item, pausedUntilMinutes } : item
+      );
+      pushEvent('raid', `🚔 Razzia bei ${target.name}. Geschaeft pausiert fuer 4h.`, 0, 0, 'business');
+    } else if (outcomeRoll < 0.75) {
+      const shipment = pickRandomShipment();
+      if (!shipment) {
+        return { events, businesses, shipments, warehouseLots, businessLogs, eventProfit, eventLoss };
+      }
+      shipments = shipments.filter(item => item.id !== shipment.id);
+      const fullValue = estimateLotValue(shipment.drug, shipment.totalGrams, shipment.quality);
+      const refund = Math.floor(fullValue * 0.5);
+      const loss = Math.max(0, fullValue - refund);
+      pushEvent('seizure', `📦 Beschlagnahmt: ${shipment.name} verloren. 50% Refund.`, refund, loss, 'shipment');
+    } else {
+      const lotIndex = pickRandomLotIndex();
+      if (lotIndex < 0) {
+        return { events, businesses, shipments, warehouseLots, businessLogs, eventProfit, eventLoss };
+      }
+      const lot = warehouseLots[lotIndex];
+      const lossGrams = Math.max(1, Math.floor(lot.grams * 0.1));
+      const lossValue = estimateLotValue(lot.drug, lossGrams, lot.quality);
+      if (lot.grams <= lossGrams) {
+        warehouseLots = warehouseLots.filter((_, index) => index !== lotIndex);
+      } else {
+        warehouseLots = warehouseLots.map((item, index) =>
+          index === lotIndex ? { ...item, grams: item.grams - lossGrams } : item
+        );
+      }
+      pushEvent('seizure', `🔥 Lagerschaden: ${lossGrams}g aus ${lot.origin} verloren.`, 0, lossValue, 'warehouse');
+    }
+  }
+
+  return { events, businesses, shipments, warehouseLots, businessLogs, eventProfit, eventLoss };
+};
+
 export const useBusinessStore = create<BusinessState>()(
   persist(
     (set, get) => ({
-      businesses: BUSINESS_CATALOG.map((business) => ({ ...business, owned: false })),
+      businesses: BUSINESS_CATALOG.map((business) => ({
+        ...business,
+        owned: false,
+        level: 1,
+        pausedUntilMinutes: 0,
+      })),
       warehouseUpgrades: WAREHOUSE_CATALOG.map((upgrade) => ({ ...upgrade, owned: false })),
       importContracts: CONTRACT_CATALOG.map((contract) => ({ ...contract, owned: false, nextShipmentAt: null })),
       shipments: [],
@@ -324,6 +537,11 @@ export const useBusinessStore = create<BusinessState>()(
       warehouseCapacity: 0,
       totalBusinessRevenue: 0,
       businessLogs: [],
+      businessEvents: [],
+      totalEvents: 0,
+      totalEventProfit: 0,
+      totalEventLoss: 0,
+      lastEventCheckMinutes: 0,
 
       buyBusiness: (businessId, budcoins, playerLevel, gameMinutes) => {
         const state = get();
@@ -338,7 +556,7 @@ export const useBusinessStore = create<BusinessState>()(
         }
 
         const logEntry: BusinessLog = {
-          id: Date.now(),
+          id: createBusinessLogId(),
           timestampMinutes: gameMinutes,
           message: `${business.name} gekauft. Cashflow aktiviert.`,
           type: 'business',
@@ -350,6 +568,40 @@ export const useBusinessStore = create<BusinessState>()(
         });
 
         return { success: true, cost: business.cost };
+      },
+
+      upgradeBusiness: (businessId, budcoins, gameMinutes) => {
+        const state = get();
+        const business = state.businesses.find(item => item.id === businessId);
+        if (!business) return { success: false, cost: 0, error: 'Geschaeft nicht gefunden.' };
+        if (!business.owned) return { success: false, cost: 0, error: 'Geschaeft nicht gekauft.' };
+
+        // Upgrade cost increases exponentially with level
+        const upgradeCost = Math.floor(business.upgradeBaseCost * Math.pow(1.5, business.level - 1));
+
+        if (budcoins < upgradeCost) {
+          return { success: false, cost: upgradeCost, error: 'Nicht genug Budcoins.' };
+        }
+
+        const newLevel = business.level + 1;
+        const oldProfit = Math.floor(business.profitPerGameHour * (1 + (business.level - 1) * 0.15));
+        const newProfit = Math.floor(business.profitPerGameHour * (1 + (newLevel - 1) * 0.15));
+
+        const logEntry: BusinessLog = {
+          id: Date.now(),
+          timestampMinutes: gameMinutes,
+          message: `${business.name} auf Lv.${newLevel} upgraded. Profit: ${oldProfit}$/h → ${newProfit}$/h`,
+          type: 'business',
+        };
+
+        set({
+          businesses: state.businesses.map(item =>
+            item.id === businessId ? { ...item, level: newLevel } : item
+          ),
+          businessLogs: [logEntry, ...state.businessLogs].slice(0, BUSINESS_LOG_LIMIT),
+        });
+
+        return { success: true, cost: upgradeCost };
       },
 
       buyWarehouse: (upgradeId, budcoins, playerLevel, gameMinutes) => {
@@ -365,7 +617,7 @@ export const useBusinessStore = create<BusinessState>()(
         }
 
         const logEntry: BusinessLog = {
-          id: Date.now(),
+          id: createBusinessLogId(),
           timestampMinutes: gameMinutes,
           message: `${upgrade.name} freigeschaltet. +${upgrade.capacity}g Kapazitaet.`,
           type: 'warehouse',
@@ -399,7 +651,7 @@ export const useBusinessStore = create<BusinessState>()(
 
         const nextShipmentAt = gameMinutes + Math.max(30, Math.floor(contract.cooldownMinutes * 0.25));
         const logEntry: BusinessLog = {
-          id: Date.now(),
+          id: createBusinessLogId(),
           timestampMinutes: gameMinutes,
           message: `${contract.name} aktiviert. Erste Lieferung unterwegs.`,
           type: 'contract',
@@ -415,18 +667,80 @@ export const useBusinessStore = create<BusinessState>()(
         return { success: true, cost: contract.cost };
       },
 
-      tickBusiness: (deltaMinutes, gameMinutes, luckFactor) => {
-        const safeDelta = Math.max(0, deltaMinutes);
+      dispatchContractShipment: (contractId, gameMinutes, luckFactor) => {
         const state = get();
-        let profit = 0;
-        const ownedBusinesses = state.businesses.filter(item => item.owned);
-        if (ownedBusinesses.length > 0) {
-          profit = ownedBusinesses.reduce(
-            (sum, business) => sum + (business.profitPerGameHour / 60) * safeDelta,
-            0
-          );
+        const contract = state.importContracts.find(item => item.id === contractId);
+        if (!contract) return { success: false, cost: 0, error: 'Vertrag nicht gefunden.' };
+        if (!contract.owned) return { success: false, cost: 0, error: 'Vertrag nicht aktiv.' };
+
+        const readyAt = contract.nextShipmentAt ?? gameMinutes;
+        if (gameMinutes < readyAt) {
+          return { success: false, cost: 0, error: 'Lieferung noch nicht bereit.' };
         }
 
+        const shipment = createShipment(contract, gameMinutes, luckFactor);
+        const logEntry: BusinessLog = {
+          id: createBusinessLogId(),
+          timestampMinutes: gameMinutes,
+          message: `${contract.name} manuell gestartet. ${shipment.totalGrams}g unterwegs.`,
+          type: 'shipment',
+        };
+
+        set({
+          importContracts: state.importContracts.map(item =>
+            item.id === contractId ? { ...item, nextShipmentAt: gameMinutes + contract.cooldownMinutes } : item
+          ),
+          shipments: [...state.shipments, shipment],
+          businessLogs: [logEntry, ...state.businessLogs].slice(0, BUSINESS_LOG_LIMIT),
+        });
+
+        return { success: true, cost: 0 };
+      },
+
+      triggerRandomEvent: (gameMinutes, luckFactor) => {
+        const state = get();
+        const result = applyRandomBusinessEvent(
+          {
+            businesses: state.businesses,
+            shipments: state.shipments,
+            warehouseLots: state.warehouseLots,
+            businessLogs: state.businessLogs,
+          },
+          gameMinutes,
+          luckFactor
+        );
+
+        if (result.events.length === 0) {
+          return [];
+        }
+
+        set((s) => ({
+          shipments: result.shipments,
+          warehouseLots: result.warehouseLots,
+          businesses: result.businesses,
+          businessLogs: result.businessLogs.slice(0, BUSINESS_LOG_LIMIT),
+          businessEvents: [...result.events, ...s.businessEvents].slice(0, BUSINESS_EVENT_LIMIT),
+          totalEvents: s.totalEvents + result.events.length,
+          totalEventProfit: s.totalEventProfit + result.eventProfit,
+          totalEventLoss: s.totalEventLoss + result.eventLoss,
+          lastEventCheckMinutes: gameMinutes,
+        }));
+
+        return result.events;
+      },
+
+      tickBusiness: (deltaMinutes, gameMinutes, luckFactor) => {
+        const safeDelta = Math.max(0, deltaMinutes);
+        const importSpeedMultiplier = getImportSpeedMultiplier();
+        const shipmentDelta = safeDelta * importSpeedMultiplier;
+        const state = get();
+        const profit = 0;
+
+        let businesses = state.businesses.map(business => (
+          business.pausedUntilMinutes > 0 && business.pausedUntilMinutes <= gameMinutes
+            ? { ...business, pausedUntilMinutes: 0 }
+            : business
+        ));
         let importContracts = [...state.importContracts];
         let shipments = [...state.shipments];
         let warehouseLots = [...state.warehouseLots];
@@ -439,7 +753,7 @@ export const useBusinessStore = create<BusinessState>()(
           const shipment = createShipment(contract, gameMinutes, luckFactor);
           shipments.push(shipment);
           businessLogs.unshift({
-            id: Date.now(),
+            id: createBusinessLogId(),
             timestampMinutes: gameMinutes,
             message: `${contract.name} gestartet. ${shipment.totalGrams}g unterwegs.`,
             type: 'shipment',
@@ -470,7 +784,7 @@ export const useBusinessStore = create<BusinessState>()(
                 },
               ];
               businessLogs.unshift({
-                id: Date.now(),
+                id: createBusinessLogId(),
                 timestampMinutes: gameMinutes,
                 message: `${shipment.name} entladen. ${shipment.totalGrams}g im Lager.`,
                 type: 'warehouse',
@@ -482,7 +796,7 @@ export const useBusinessStore = create<BusinessState>()(
           }
 
           let legIndex = shipment.legIndex;
-          let legProgress = shipment.legProgressMinutes + safeDelta;
+          let legProgress = shipment.legProgressMinutes + shipmentDelta;
 
           while (legIndex < shipment.route.length && legProgress >= shipment.route[legIndex].durationMinutes) {
             legProgress -= shipment.route[legIndex].durationMinutes;
@@ -503,7 +817,7 @@ export const useBusinessStore = create<BusinessState>()(
                 },
               ];
               businessLogs.unshift({
-                id: Date.now(),
+                id: createBusinessLogId(),
                 timestampMinutes: gameMinutes,
                 message: `${shipment.name} angekommen. ${shipment.totalGrams}g im Lager.`,
                 type: 'warehouse',
@@ -517,7 +831,7 @@ export const useBusinessStore = create<BusinessState>()(
                 legProgressMinutes: shipment.route[shipment.route.length - 1].durationMinutes,
               });
               businessLogs.unshift({
-                id: Date.now(),
+                id: createBusinessLogId(),
                 timestampMinutes: gameMinutes,
                 message: `${shipment.name} wartet auf Lagerplatz.`,
                 type: 'shipment',
@@ -537,17 +851,29 @@ export const useBusinessStore = create<BusinessState>()(
         }
 
         set({
+          businesses,
           importContracts,
           shipments: updatedShipments,
           warehouseLots,
-          totalBusinessRevenue: state.totalBusinessRevenue + Math.floor(profit),
-          businessLogs,
+          totalBusinessRevenue: state.totalBusinessRevenue,
+          businessLogs: businessLogs.slice(0, BUSINESS_LOG_LIMIT),
         });
 
-        return { profit };
+        const currentHour = Math.floor(gameMinutes / GAME_MINUTES_PER_HOUR);
+        const lastHour = Math.floor((state.lastEventCheckMinutes ?? 0) / GAME_MINUTES_PER_HOUR);
+        if (currentHour <= lastHour) {
+          return { profit, events: [] };
+        }
+
+        const events = get().triggerRandomEvent(gameMinutes, luckFactor);
+        if (events.length === 0) {
+          set({ lastEventCheckMinutes: gameMinutes });
+        }
+
+        return { profit, events };
       },
 
-      sellWarehouseStock: (drug, grams) => {
+      sellWarehouseStock: (drug, grams, preferBestQuality) => {
         const state = get();
         const targetGrams = Math.max(0, Math.floor(grams));
         if (targetGrams <= 0) return { gramsSold: 0, averageQuality: 0 };
@@ -555,19 +881,30 @@ export const useBusinessStore = create<BusinessState>()(
         let remaining = targetGrams;
         let totalTaken = 0;
         let totalQuality = 0;
-        const updatedLots: WarehouseLot[] = [];
 
-        for (const lot of state.warehouseLots) {
-          if (lot.drug !== drug || remaining <= 0) {
-            updatedLots.push(lot);
-            continue;
-          }
+        const saleLots = preferBestQuality
+          ? state.warehouseLots
+              .filter(lot => lot.drug === drug)
+              .sort((a, b) => b.quality - a.quality)
+          : state.warehouseLots.filter(lot => lot.drug === drug);
+        const deductions = new Map<string, number>();
 
+        for (const lot of saleLots) {
+          if (remaining <= 0) break;
           const take = Math.min(lot.grams, remaining);
           remaining -= take;
           totalTaken += take;
           totalQuality += take * lot.quality;
+          deductions.set(lot.id, take);
+        }
 
+        const updatedLots: WarehouseLot[] = [];
+        for (const lot of state.warehouseLots) {
+          const take = deductions.get(lot.id);
+          if (!take) {
+            updatedLots.push(lot);
+            continue;
+          }
           if (lot.grams > take) {
             updatedLots.push({ ...lot, grams: lot.grams - take });
           }
@@ -585,7 +922,81 @@ export const useBusinessStore = create<BusinessState>()(
     }),
     {
       name: 'business-save',
-      version: 1,
+      version: 4,
+      migrate: (persistedState: any) => {
+        const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
+        const existingBusinesses = Array.isArray(state.businesses) ? state.businesses : [];
+        const existingUpgrades = Array.isArray(state.warehouseUpgrades) ? state.warehouseUpgrades : [];
+        const existingContracts = Array.isArray(state.importContracts) ? state.importContracts : [];
+
+        const businesses = BUSINESS_CATALOG.map((business) => {
+          const existing = existingBusinesses.find((item: any) => item.id === business.id);
+          return {
+            ...business,
+            owned: existing?.owned ?? false,
+            level: Number.isFinite(existing?.level) && existing.level >= 1 ? existing.level : 1,
+            pausedUntilMinutes: Number.isFinite(existing?.pausedUntilMinutes) ? existing.pausedUntilMinutes : 0,
+          };
+        });
+
+        const warehouseUpgrades = WAREHOUSE_CATALOG.map((upgrade) => {
+          const existing = existingUpgrades.find((item: any) => item.id === upgrade.id);
+          return {
+            ...upgrade,
+            owned: existing?.owned ?? false,
+          };
+        });
+
+        const importContracts = CONTRACT_CATALOG.map((contract) => {
+          const existing = existingContracts.find((item: any) => item.id === contract.id);
+          return {
+            ...contract,
+            owned: existing?.owned ?? false,
+            nextShipmentAt: existing?.nextShipmentAt ?? null,
+          };
+        });
+
+        const warehouseLots = Array.isArray(state.warehouseLots)
+          ? state.warehouseLots
+              .filter((lot: any) => lot && typeof lot === 'object' && typeof lot.drug === 'string')
+              .map((lot: any) => ({
+                ...lot,
+                grams: Number.isFinite(lot.grams) ? lot.grams : 0,
+                quality: Number.isFinite(lot.quality) ? lot.quality : 0,
+                arrivedAtMinutes: Number.isFinite(lot.arrivedAtMinutes) ? lot.arrivedAtMinutes : 0,
+              }))
+          : [];
+
+        const shipments = Array.isArray(state.shipments) ? state.shipments : [];
+        const businessLogs = Array.isArray(state.businessLogs)
+          ? state.businessLogs.slice(0, BUSINESS_LOG_LIMIT)
+          : [];
+        const businessEvents = Array.isArray(state.businessEvents)
+          ? state.businessEvents.slice(0, BUSINESS_EVENT_LIMIT)
+          : [];
+
+        const persistedCapacity = Number.isFinite(state.warehouseCapacity) ? state.warehouseCapacity : 0;
+        const computedCapacity = warehouseUpgrades
+          .filter((upgrade) => upgrade.owned)
+          .reduce((sum, upgrade) => sum + upgrade.capacity, 0);
+
+        return {
+          ...state,
+          businesses,
+          warehouseUpgrades,
+          importContracts,
+          shipments,
+          warehouseLots,
+          warehouseCapacity: Math.max(persistedCapacity, computedCapacity),
+          totalBusinessRevenue: Number.isFinite(state.totalBusinessRevenue) ? state.totalBusinessRevenue : 0,
+          businessLogs,
+          businessEvents,
+          totalEvents: Number.isFinite(state.totalEvents) ? state.totalEvents : 0,
+          totalEventProfit: Number.isFinite(state.totalEventProfit) ? state.totalEventProfit : 0,
+          totalEventLoss: Number.isFinite(state.totalEventLoss) ? state.totalEventLoss : 0,
+          lastEventCheckMinutes: Number.isFinite(state.lastEventCheckMinutes) ? state.lastEventCheckMinutes : 0,
+        };
+      },
     }
   )
 );

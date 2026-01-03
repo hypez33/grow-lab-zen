@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
 
 let audioContext: AudioContext | null = null;
@@ -14,36 +14,41 @@ const getAudioContext = () => {
 // Unlock audio on iOS - must be triggered by user interaction
 const unlockAudio = async () => {
   if (audioUnlocked) return;
-  
+
   const ctx = getAudioContext();
-  
-  // iOS requires playing a silent sound on user interaction to unlock audio
+
   if (ctx.state === 'suspended') {
-    await ctx.resume();
+    try {
+      await ctx.resume();
+    } catch {
+      // If resume is blocked, wait for next gesture
+      return;
+    }
   }
-  
+
   // Play a silent buffer to fully unlock on iOS
   const buffer = ctx.createBuffer(1, 1, 22050);
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   source.connect(ctx.destination);
   source.start(0);
-  
+
   audioUnlocked = true;
 };
 
 // Set up global touch/click listener to unlock audio
 if (typeof window !== 'undefined') {
   const unlockEvents = ['touchstart', 'touchend', 'click', 'keydown'];
-  
-  const handleUnlock = () => {
-    unlockAudio();
-    // Remove listeners after first interaction
-    unlockEvents.forEach(event => {
-      document.removeEventListener(event, handleUnlock, true);
-    });
+
+  const handleUnlock = async () => {
+    await unlockAudio();
+    if (audioUnlocked) {
+      unlockEvents.forEach(event => {
+        document.removeEventListener(event, handleUnlock, true);
+      });
+    }
   };
-  
+
   unlockEvents.forEach(event => {
     document.addEventListener(event, handleUnlock, true);
   });
@@ -51,20 +56,25 @@ if (typeof window !== 'undefined') {
 
 export const useGameSounds = () => {
   const soundEnabled = useGameStore((state) => state.soundEnabled);
-  const contextResumed = useRef(false);
 
   const ensureContext = useCallback(async () => {
+    if (!audioUnlocked) return null;
+
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      await ctx.resume();
+      try {
+        await ctx.resume();
+      } catch {
+        return null;
+      }
     }
-    contextResumed.current = true;
     return ctx;
   }, []);
 
   const playTap = useCallback(async () => {
     if (!soundEnabled) return;
     const ctx = await ensureContext();
+    if (!ctx) return;
 
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
@@ -86,6 +96,7 @@ export const useGameSounds = () => {
   const playHarvest = useCallback(async () => {
     if (!soundEnabled) return;
     const ctx = await ensureContext();
+    if (!ctx) return;
 
     // Layered harvest sound - sparkle + coin jingle
     const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
@@ -138,6 +149,7 @@ export const useGameSounds = () => {
   const playPurchase = useCallback(async () => {
     if (!soundEnabled) return;
     const ctx = await ensureContext();
+    if (!ctx) return;
 
     // Satisfying "ka-ching" sound
     const oscillator1 = ctx.createOscillator();
@@ -176,6 +188,7 @@ export const useGameSounds = () => {
   const playError = useCallback(async () => {
     if (!soundEnabled) return;
     const ctx = await ensureContext();
+    if (!ctx) return;
 
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
@@ -197,6 +210,7 @@ export const useGameSounds = () => {
   const playLevelUp = useCallback(async () => {
     if (!soundEnabled) return;
     const ctx = await ensureContext();
+    if (!ctx) return;
 
     // Epic fanfare with multiple layers
     

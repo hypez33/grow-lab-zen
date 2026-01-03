@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useBusinessStore } from '@/store/businessStore';
+import { useTerritoryStore } from '@/store/territoryStore';
 
 // Types
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -115,6 +116,7 @@ export interface Worker {
   description: string;
   icon: string;
   cost: number;
+  costKoksGrams?: number;
   owned: boolean;
   paused: boolean; // Is worker on vacation/paused
   level: number;
@@ -187,6 +189,18 @@ export interface DealerActivity {
   dealerId: string; // which dealer did this
 }
 
+export interface SalesWindowEntry {
+  timestamp: number;
+  revenue: number;
+}
+
+export interface AutoSellSettings {
+  enabled: boolean;
+  minQuality: number; // 0-100
+  preferredChannel: string | 'auto';
+  onlyWhenFull: boolean;
+}
+
 export interface GameState {
   // Resources
   budcoins: number;
@@ -218,6 +232,12 @@ export interface GameState {
   // Dealer Activity Log & Effects
   dealerActivities: DealerActivity[];
   dealerDrugEffects: Record<string, DealerDrugEffect | null>; // per dealer drug effects
+
+  // Sales Tracking
+  weedSalesWindow: SalesWindowEntry[];
+  lastWeedSalesMinute: number;
+  autoSellSettings: AutoSellSettings;
+  lastAutoSellAt: number;
   
   // Collection
   discoveredSeeds: string[]; // Array of seed names that have been discovered
@@ -279,6 +299,8 @@ export interface GameState {
   unlockSalesChannel: (channelId: string) => void;
   buyDryingRack: () => { success: boolean; cost: number; message: string };
   getDryingRackCost: () => number;
+  setAutoSellSettings: (settings: Partial<AutoSellSettings>) => void;
+  runAutoSellTick: () => void;
   
   // Worker Actions
   buyWorker: (workerId: string) => boolean;
@@ -316,6 +338,8 @@ export interface GameState {
 // - CritMaster: +15% base crit chance
 // - Resilient: Plant auto-replants same seed on harvest (20% chance)
 // - Bountiful: +30% to all resource yields
+
+const SALES_WINDOW_MS = 60 * 60 * 1000;
 
 // Initial seeds - expanded variety
 const initialSeeds: Seed[] = [
@@ -461,6 +485,20 @@ const initialWorkers: Worker[] = [
     abilities: ['sell']
   },
   { 
+    id: 'dealer-dejan', 
+    name: 'Dejan', 
+    description: 'Spielsüchtiger, drogensüchtiger Dealer. Zockt ständig, verkauft trotzdem weiter.', 
+    icon: '🎰', 
+    cost: 35000,
+    costKoksGrams: 10,
+    owned: false,
+    paused: false,
+    level: 1, 
+    maxLevel: 6,
+    slotsManaged: 6, // buds per tick
+    abilities: ['sell']
+  },
+  { 
     id: 'street-psycho', 
     name: 'Der Psycho', 
     description: 'Aggressiver Straßendealer. Schneller, brutaler, unberechenbar. Mehr Kohle, mehr Chaos.', 
@@ -514,6 +552,14 @@ const STAGE_THRESHOLDS: Record<PlantStage, number> = {
   harvest: 100,
 };
 
+const getTerritorySalesMultiplier = (drug: 'weed') => {
+  const bonuses = useTerritoryStore.getState().getActiveBonuses();
+  const totalBonus = bonuses
+    .filter(bonus => bonus.type === 'sales-multiplier' && (bonus.drug === drug || bonus.drug === 'all'))
+    .reduce((sum, bonus) => sum + bonus.value, 0);
+  return 1 + totalBonus / 100;
+};
+
 const getStageFromProgress = (progress: number): PlantStage => {
   if (progress >= 100) return 'harvest';
   if (progress >= 75) return 'flower';
@@ -561,6 +607,17 @@ export const useGameStore = create<GameState>()(
       // Dealer Activity Log & Effects
       dealerActivities: [] as DealerActivity[],
       dealerDrugEffects: {} as Record<string, DealerDrugEffect | null>,
+
+      // Sales Tracking
+      weedSalesWindow: [] as SalesWindowEntry[],
+      lastWeedSalesMinute: 0,
+      autoSellSettings: {
+        enabled: false,
+        minQuality: 60,
+        preferredChannel: 'auto',
+        onlyWhenFull: false,
+      },
+      lastAutoSellAt: 0,
       
       // Collection - start with first seed discovered
       discoveredSeeds: ['Green Dream'],
@@ -1161,6 +1218,15 @@ export const useGameStore = create<GameState>()(
           salesChannels: JSON.parse(JSON.stringify(initialSalesChannels)),
           totalGramsSold: 0,
           totalSalesRevenue: 0,
+          weedSalesWindow: [],
+          lastWeedSalesMinute: 0,
+          autoSellSettings: {
+            enabled: false,
+            minQuality: 60,
+            preferredChannel: 'auto',
+            onlyWhenFull: false,
+          },
+          lastAutoSellAt: 0,
         });
         
         // Force page reload to ensure clean state
@@ -1300,10 +1366,12 @@ export const useGameStore = create<GameState>()(
         // Calculate revenue with quality bonus
         const qualityBonus = 1 + (bud.quality / 100) * 0.5; // Up to 50% bonus
         const rarityBonus = bud.rarity === 'legendary' ? 2 : bud.rarity === 'epic' ? 1.5 : bud.rarity === 'rare' ? 1.25 : bud.rarity === 'uncommon' ? 1.1 : 1;
-        const revenue = Math.floor(grams * channel.pricePerGram * qualityBonus * rarityBonus);
+        const territoryMultiplier = getTerritorySalesMultiplier('weed');
+        const revenue = Math.floor(grams * channel.pricePerGram * qualityBonus * rarityBonus * territoryMultiplier);
         
         // Update state
         set((state) => {
+          const saleTimestamp = now;
           let inventory = [...state.inventory];
           const budIndex = inventory.findIndex(b => b.id === budId);
           
@@ -1318,6 +1386,11 @@ export const useGameStore = create<GameState>()(
           const salesChannels = state.salesChannels.map(c => 
             c.id === channelId ? { ...c, lastSaleTime: now } : c
           );
+
+          const weedSalesWindow = [
+            ...state.weedSalesWindow,
+            { timestamp: saleTimestamp, revenue },
+          ].filter(entry => saleTimestamp - entry.timestamp <= SALES_WINDOW_MS);
           
           return {
             inventory,
@@ -1326,6 +1399,8 @@ export const useGameStore = create<GameState>()(
             totalGramsSold: state.totalGramsSold + grams,
             totalSalesRevenue: state.totalSalesRevenue + revenue,
             totalCoinsEarned: state.totalCoinsEarned + revenue,
+            weedSalesWindow,
+            lastWeedSalesMinute: saleTimestamp,
           };
         });
         
@@ -1350,6 +1425,117 @@ export const useGameStore = create<GameState>()(
         const baseCost = 500;
         return Math.floor(baseCost * Math.pow(2.5, unlockedCount - 2));
       },
+
+      setAutoSellSettings: (settings: Partial<AutoSellSettings>) => set((state) => {
+        const next = { ...state.autoSellSettings, ...settings };
+        const normalizedQuality = Math.max(0, Math.min(100, Math.floor(next.minQuality)));
+        const preferredChannel = typeof next.preferredChannel === 'string' ? next.preferredChannel : 'auto';
+        const hasChannel = preferredChannel === 'auto' || state.salesChannels.some(c => c.id === preferredChannel);
+        return {
+          autoSellSettings: {
+            ...next,
+            minQuality: normalizedQuality,
+            preferredChannel: hasChannel ? preferredChannel : 'auto',
+          },
+        };
+      }),
+
+      runAutoSellTick: () => set((state) => {
+        if (!state.autoSellSettings.enabled) return state;
+
+        const now = Date.now();
+        if (now - state.lastAutoSellAt < 1000) {
+          return state;
+        }
+
+        const driedBuds = state.inventory.filter(
+          bud => bud.state === 'dried' && bud.quality >= state.autoSellSettings.minQuality
+        );
+
+        if (driedBuds.length === 0) {
+          return { lastAutoSellAt: now };
+        }
+
+        if (state.autoSellSettings.onlyWhenFull) {
+          const unlockedRacks = state.dryingRacks.filter(r => r.isUnlocked).length;
+          const fullnessTarget = Math.max(1, Math.ceil(unlockedRacks * 0.8));
+          if (driedBuds.length < fullnessTarget) {
+            return { lastAutoSellAt: now };
+          }
+        }
+
+        const sortedBuds = [...driedBuds].sort((a, b) => {
+          if (a.quality !== b.quality) return a.quality - b.quality;
+          return a.grams - b.grams;
+        });
+
+        for (const bud of sortedBuds) {
+          const eligibleChannels = state.salesChannels.filter((channel) => {
+            if (!channel.unlocked || bud.quality < channel.minQuality) return false;
+            if (state.autoSellSettings.preferredChannel !== 'auto' && channel.id !== state.autoSellSettings.preferredChannel) {
+              return false;
+            }
+            const cooldownMs = channel.cooldownMinutes * 60 * 1000;
+            return now - channel.lastSaleTime >= cooldownMs;
+          });
+
+          if (eligibleChannels.length === 0) {
+            continue;
+          }
+
+          const channel = state.autoSellSettings.preferredChannel === 'auto'
+            ? eligibleChannels.sort((a, b) => b.pricePerGram - a.pricePerGram)[0]
+            : eligibleChannels[0];
+
+          if (!channel) continue;
+
+          const gramsToSell = Math.min(bud.grams, channel.maxGramsPerSale);
+          const qualityBonus = 1 + (bud.quality / 100) * 0.5;
+          const rarityBonus = bud.rarity === 'legendary'
+            ? 2
+            : bud.rarity === 'epic'
+              ? 1.5
+              : bud.rarity === 'rare'
+                ? 1.25
+                : bud.rarity === 'uncommon'
+                  ? 1.1
+                  : 1;
+          const territoryMultiplier = getTerritorySalesMultiplier('weed');
+          const revenue = Math.floor(gramsToSell * channel.pricePerGram * qualityBonus * rarityBonus * territoryMultiplier);
+
+          let inventory = [...state.inventory];
+          const budIndex = inventory.findIndex(b => b.id === bud.id);
+          if (budIndex === -1) continue;
+          if (gramsToSell >= bud.grams) {
+            inventory = inventory.filter(b => b.id !== bud.id);
+          } else {
+            inventory[budIndex] = { ...inventory[budIndex], grams: inventory[budIndex].grams - gramsToSell };
+          }
+
+          const salesChannels = state.salesChannels.map(c =>
+            c.id === channel.id ? { ...c, lastSaleTime: now } : c
+          );
+
+          const weedSalesWindow = [
+            ...state.weedSalesWindow,
+            { timestamp: now, revenue },
+          ].filter(entry => now - entry.timestamp <= SALES_WINDOW_MS);
+
+          return {
+            inventory,
+            salesChannels,
+            budcoins: state.budcoins + revenue,
+            totalGramsSold: state.totalGramsSold + gramsToSell,
+            totalSalesRevenue: state.totalSalesRevenue + revenue,
+            totalCoinsEarned: state.totalCoinsEarned + revenue,
+            weedSalesWindow,
+            lastWeedSalesMinute: now,
+            lastAutoSellAt: now,
+          };
+        }
+
+        return { lastAutoSellAt: now };
+      }),
 
       buyDryingRack: () => {
         const state = get();
@@ -1379,8 +1565,29 @@ export const useGameStore = create<GameState>()(
       buyWorker: (workerId: string) => {
         const state = get();
         const worker = state.workers.find(w => w.id === workerId);
-        if (!worker || worker.owned || state.budcoins < worker.cost) return false;
-        
+        if (!worker || worker.owned) return false;
+
+        if (worker.costKoksGrams && worker.costKoksGrams > 0) {
+          const businessState = useBusinessStore.getState();
+          const availableKoks = businessState.warehouseLots
+            .filter(lot => lot.drug === 'koks')
+            .reduce((sum, lot) => sum + lot.grams, 0);
+
+          if (availableKoks < worker.costKoksGrams) return false;
+
+          const consumed = businessState.sellWarehouseStock('koks', worker.costKoksGrams);
+          if (consumed.gramsSold < worker.costKoksGrams) return false;
+
+          set({
+            workers: state.workers.map(w => 
+              w.id === workerId ? { ...w, owned: true } : w
+            ),
+          });
+          return true;
+        }
+
+        if (state.budcoins < worker.cost) return false;
+
         set({
           budcoins: state.budcoins - worker.cost,
           workers: state.workers.map(w => 
@@ -1431,6 +1638,48 @@ export const useGameStore = create<GameState>()(
         let totalGramsSold = state.totalGramsSold;
         let totalSalesRevenue = state.totalSalesRevenue;
         let dealerActivities = [...state.dealerActivities];
+        let xp = state.xp;
+        let level = state.level;
+        let skillPoints = state.skillPoints;
+        let weedSalesWindow = [...state.weedSalesWindow];
+        let lastWeedSalesMinute = state.lastWeedSalesMinute;
+
+        const grantXp = (amount: number) => {
+          if (!Number.isFinite(amount) || amount <= 0) return;
+          let newXp = xp + Math.floor(amount);
+          let newLevel = level;
+          let newSkillPoints = skillPoints;
+          while (newXp >= getXpForLevel(newLevel)) {
+            newXp -= getXpForLevel(newLevel);
+            newLevel += 1;
+            newSkillPoints += 1;
+          }
+          xp = newXp;
+          level = newLevel;
+          skillPoints = newSkillPoints;
+        };
+
+        const getWorkerHarvestXp = (rarity: Rarity) => {
+          switch (rarity) {
+            case 'legendary':
+              return 8;
+            case 'epic':
+              return 6;
+            case 'rare':
+              return 4;
+            case 'uncommon':
+              return 3;
+            default:
+              return 2;
+          }
+        };
+
+        const getDealerSaleXp = (gramsSold: number) => Math.max(1, Math.floor(gramsSold / 5));
+        const recordWeedSale = (revenue: number) => {
+          const stamp = Date.now();
+          weedSalesWindow.push({ timestamp: stamp, revenue });
+          lastWeedSalesMinute = stamp;
+        };
 
         for (const worker of activeWorkers) {
           const slotsToManage = worker.slotsManaged + worker.level - 1;
@@ -1454,6 +1703,7 @@ export const useGameStore = create<GameState>()(
                 if (seed.rarity !== 'common') {
                   essence += Math.floor(baseYield * 0.05);
                 }
+                grantXp(getWorkerHarvestXp(seed.rarity));
 
                 // Create bud for drying
                 const newBud: BudItem = {
@@ -1569,6 +1819,135 @@ export const useGameStore = create<GameState>()(
             const driedBuds = inventory.filter(b => b.state === 'dried');
             const dealerId = worker.id;
             const isPsycho = dealerId === 'street-psycho';
+            const isDejan = dealerId === 'dealer-dejan';
+
+            const customerNames = [
+              'Kevin', 'Marcel', 'Tim', 'Lukas', 'Max', 'Leon', 'Felix', 'Paul', 'Jan', 'Tom',
+              'Lisa', 'Anna', 'Sarah', 'Julia', 'Laura', 'Lena', 'Marie', 'Sophie', 'Emma', 'Mia',
+              'Digga', 'Bruder', 'Bro', 'Kumpel', 'Homie', 'Alter', 'Kollege', 'der Typ', 'Dude',
+              'Stammkunde #42', 'der Student', 'die Studentin', 'der Nachbar', 'der von Nebenan',
+              'die Alte von 3. Stock', 'der Assi von der Tanke', 'der Typ mit dem Pitbull',
+              'die mit den Extensions', 'der mit dem AMG', 'der Hartzer', 'die vom Späti',
+              'der Dönermann', 'der Shisha-Bar-Typ', 'der Security vom Club', 'die Krankenschwester',
+              'der Taxifahrer', 'der LKW-Fahrer', 'der Hausmeister', 'der Kioskbesitzer',
+              'Mehmet', 'Achmed', 'Dimitri', 'Slavik', 'Ronny', 'Mandy', 'Jacqueline', 'Dustin',
+            ];
+            const getRandomCustomerName = () => customerNames[Math.floor(Math.random() * customerNames.length)];
+            const getRandomEventMessages = () => (
+              isPsycho ? [
+                `🚔 Polizeikontrolle. Hat den Cop bedroht. Der ist weggerannt, mit blutiger Nase.`,
+                `🔥 Hat nen Mülleimer angezündet. Weil ihm langweilig war. Hat den ganzen Block abgefackelt.`,
+                `🐕 Ein Hund hat ihn angebellt. Hat den Besitzer verprügelt. Und den Hund gefressen.`,
+                `🚗 Hat nen AMG geklaut. Für 10 Minuten. "Nur kurz Spritztour." Hat ihn in den Fluss gefahren.`,
+                `🏪 Späti überfallen. Nur Zigaretten mitgenommen. Und den Verkäufer als Geisel.`,
+                `🎰 Hat am Automaten 800€ gewonnen. Mit Drohung. Hat den Automaten danach zerlegt.`,
+                `👊 Prügelei mit 3 Typen. Hat gewonnen. Hat ihre Organe verkauft.`,
+                `🔪 Hat jemandem das Handy "geliehen". Für immer. Mit abgetrenntem Finger.`,
+                `🚨 Flucht vor der Polizei. Durch 3 Hinterhöfe. Hat funktioniert. Hat Fallen mit Glasscherben gelegt.`,
+                `🏚️ Übernachtet in leerstehendem Haus. Ist jetzt seins. Hat den Geist vertrieben, indem er ihn gefoltert.`,
+                `🚦 Hat die Ampel umgetreten. "Die glotzt mich an." Hat sie dann als Waffe benutzt.`,
+                `🏍️ Macht ne Spritztour auf fremdem Roller. Hat den Eigentümer überfahren.`,
+                `🦄 Hat ein imaginäres Einhorn gejagt. Es war der Nachbarskatze. Hat sie in Stücke gerissen.`,
+                `🍔 Burger-Laden terrorisiert. Weil der Ketchup "zu rot" war. Hat den Koch mit Ketchup ertränkt.`,
+                `👻 Geisterbahn besucht. Hat die Geister verprügelt. "Zu gruselig." Hat echte Leichen hinzugefügt.`,
+                `🚀 Rakete gebaut aus Müll. Startversuch im Park. Fehlschlag episch. Hat Kinder verbrannt.`,
+                `🐢 Schildkröte herausgefordert. Verloren. "Zu langsam für mich." Hat sie zertrampelt und gegessen.`,
+                `📺 Fernseher angeschrien. Weil die Werbung ihn ignoriert. Hat ihn mit Axt zerhackt.`,
+                `🌳 Baum umarmt. Dann gefällt. "Er hat zurückgeumarmt." Hat Möbel aus seinen Knochen gemacht.`,
+                `🎈 Ballons geklaut. Für eine "Luftschlacht" mit Tauben. Hat sie mit Giftgas gefüllt.`,
+                `💀 Hat einen Friedhof umdekoriert. Mit Party-Lichtern. "Zu düster." Hat Gräber geöffnet und Partys gefeiert.`,
+                `🧟 Zombie-Apokalypse simuliert. Nachbarn erschreckt. Polizei gerufen. Hat echte Viren freigesetzt.`,
+                `🔥 Hat sein eigenes Auto angezündet. "Es hat mich verraten." Hat darin geschlafen.`,
+                `🩸 Blutspende-Station überfallen. Wollte "frisches Blut" für Kunst. Hat es getrunken.`,
+                `🤡 Clown-Kostüm angezogen. Dann Kinderparty gecrasht. Chaos. Hat die Kinder als Clowns verkleidet und entführt.`,
+                `🧠 Hat einen Psychiater bedroht. "Du bist der Verrückte hier!" Hat sein Gehirn gewaschen.`,
+                `🐍 Schlangen als Haustiere freigelassen. Im Supermarkt. Hat sie mit Gift aufgeladen.`,
+                `🕷️ Spinnenfarm gestartet. In der Nachbarwohnung. Hat Nachbarn als Futter verwendet.`,
+                `🧪 Chemie-Set missbraucht. Hat den Block evakuiert. Hat Nervengas produziert.`,
+                `👹 Maske aufgesetzt. Hat sich selbst erschreckt. Spiegel zertrümmert. Hat sein Gesicht zerschnitten.`,
+              ] : isDejan ? [
+                `🎰 Hat das komplette Wechselgeld in den Automaten geworfen. 0€ raus. Hat den Automaten verflucht und zertrümmert.`,
+                `🎲 Hat Würfel gezückt. "Ich geh doppelt oder nix." Hat seine Seele verwettet.`,
+                `🃏 Verliert beim Kartenabend. Zahlt mit Gras. Und mit seinem linken Auge.`,
+                `🍒 "Gleich Jackpot!" Der Jackpot bleibt aus. Hat den Automaten mit Säure übergossen.`,
+                `💸 Zockt sein ganzes Trinkgeld weg. Tja. Hat dann seine Organe verzockt.`,
+                `🎮 Spielhalle statt Kunden. Prioritäten. Hat die Halle in Brand gesteckt aus Frust.`,
+                `🧾 Hat Schulden beim Zocker-Kiosk. Verspricht "morgen" zu zahlen. Hat den Kioskbesitzer erpresst.`,
+                `🪙 Hat die letzte Münze verzockt. Gute Nacht. Hat dann seinen Schatten verzockt.`,
+                `🃏 Deal ausgesetzt, weil Pokerturnier läuft. Hat das Turnier mit gefälschten Karten sabotiert.`,
+                `🏇 Gewettet auf ein Pferd. Es ist umgefallen. Beim Start. Hat das Pferd geschlachtet.`,
+                `🎲 Würfelt gegen sich selbst. Verliert. Zweimal. Hat sich selbst bestraft mit Peitsche.`,
+                `🤑 Hat den Automaten umarmt. Für Glück. Hat Stromschlag bekommen. Hat den Automaten verklagt.`,
+                `🃏 Karten getauscht. Mit unsichtbaren. Hat trotzdem verloren. Hat die Karten verbrannt.`,
+                `🍀 Vierblättriges Kleeblatt gekauft. War fake. Verloren wieder. Hat den Verkäufer verflucht.`,
+                `🎰 Automat gehackt. Mit Hammer. Jetzt kaputt. Hat die Teile gegessen.`,
+                `💰 Hat auf "sicher" gesetzt. War unsicher. Verloren. Hat das Casino angezündet.`,
+                `🪄 Zaubertrick beim Zocken. Karten verschwunden. Geld auch. Hat den Zauberer ermordet.`,
+                `🤑 Hat seinen eigenen Schatten verzockt. Jetzt schattenlos. Hat die Sonne verklagt.`,
+                `🎲 Würfelt um sein Leben. Gewinnt. Aber verliert die Würfel. Hat neue aus Knochen gemacht.`,
+                `🃏 Pokerface trainiert. Im Spiegel. Verliert gegen sich selbst. Hat den Spiegel zertrümmert.`,
+                `💸 Hat auf den Weltuntergang gewettet. Wartet immer noch. Hat den Untergang herbeigeführt.`,
+                `🍒 Frucht-Automat. Isst echte Früchte statt zu zocken. Verliert Hunger. Hat sich selbst gefressen.`,
+                `🏆 Turnier gewonnen. Mit Schummeln. Wurde disqualifiziert. Hat die Jury bestochen.`,
+                `🧠 Hat sein Gedächtnis verzockt. Vergisst, was er verloren hat. Hat sein Gehirn verzockt.`,
+                `🎰 Automat als Freund betrachtet. Hat ihn verlassen. Für einen anderen. Hat den alten zerstört.`,
+                `💰 Geld verdoppelt. Im Traum. Wacht auf. Pleite. Hat den Traum verklagt.`,
+                `🪙 Münze geworfen. Kopf oder Zahl? Landet auf Kante. Universum crasht. Hat das Universum resettet.`,
+              ] : [
+                `👮 Von Polizei angehalten. Hat sie bestochen. Mit Gras. Und mit einer Niere.`,
+                `🏃 Wurde von ner Oma verfolgt. Sie war schneller. Hat sie umgerannt und bestohlen.`,
+                `🐕 Hund hat 5g gefressen. Teuerster Snack seines Lebens. Hat den Hund operiert, um es zurückzuholen.`,
+                `🦝 Waschbär hat die Stash geklaut. Wurde verfolgt. Waschbär hat gewonnen. Hat den Waschbär gejagt und gehäutet.`,
+                `🏠 Auf falscher Beerdigung gelandet. Hat trotzdem verkauft. Hat den Sarg als Stash verwendet.`,
+                `💒 Vor ner Kirche gedealt. Pfarrer ist Stammkunde. Hat den Altar profaniert.`,
+                `🚂 Im Zug kontrolliert. Ticket gefunden. Stash nicht. Hat den Kontrolleur high gemacht.`,
+                `🎤 Hat ausversehen Karaoke gewonnen. Hat das Mikrofon als Waffe benutzt.`,
+                `🏀 Hat nen Streetball gewonnen, dann verkauft. Hat die Spieler als Sklaven verkauft.`,
+                `🛵 Lieferando-Fahrer verjagt. Deal verzögert. Hat den Fahrer überfahren.`,
+                `🛸 Aliens getroffen. Hat Space-Gras verkauft. Nun berühmt im Universum. Hat die Erde verraten.`,
+                `🎭 Im Theater gedealt. Mitten in der Szene. Standing Ovations. Hat die Schauspieler süchtig gemacht.`,
+                `🍦 Eisverkäufer verwechselt. Hat Gras statt Vanille verkauft. Hat Kinder high gemacht.`,
+                `🦸 Als Superheld verkleidet. Hat "Rettung" mit Deal kombiniert. Hat die Stadt terrorisiert.`,
+                `📚 In Bibliothek gedealt. Bücher als Tarnung. "Lesen bildet." Hat Bücher mit Gift verseucht.`,
+                `🎪 Zirkus besucht. Hat Clowns high gemacht. Show chaotisch. Hat die Tiere freigelassen.`,
+                `🧳 Im Urlaub gedealt. Am Flughafen. Fast erwischt. Hat den Sicherheitsmann bestochen.`,
+                `🐧 Pinguine im Zoo. Hat versucht zu dealen. Sie watscheln weg. Hat den Zoo geflutet.`,
+              ]
+            );
+            const getMeetingMessages = (customerName: string) => (
+              isPsycho ? [
+                `🤝 ${customerName} getroffen. "Hast du mein Geld?" - Hat er nicht.`,
+                `😤 ${customerName} wollte reden. "Halt die Fresse." - Gespräch beendet.`,
+                `📱 ${customerName} ruft an. Geht nicht ran. Nie.`,
+                `💀 ${customerName} hat gewunken. Wurde ignoriert.`,
+                `🗣️ ${customerName} wollte quatschen. Wurde abgewürgt.`,
+                `📵 ${customerName} schreibt. Wird blockiert.`,
+              ] : isDejan ? [
+                `🎰 ${customerName} wollte kaufen. Dejan war am Automaten.`,
+                `🃏 ${customerName} trifft ihn beim Kartenabend. Kein Deal.`,
+                `💸 ${customerName} fragt nach Rabatt. Dejan will nur Geld für den Einsatz.`,
+                `🍺 ${customerName} ruft an. Dejan ist zu breit.`,
+                `🎲 ${customerName} wartet. Dejan würfelt um den Preis.`,
+                `🧃 ${customerName} bringt Bier. Deal verschoben.`,
+              ] : [
+                `🤝 Mit ${customerName} getroffen. Kein Deal, nur Gelaber.`,
+                `☕ Döner mit ${customerName}. Nur Quatschen, kein Business.`,
+                `📱 ${customerName} hat angerufen. Will später kommen. Kommt nie.`,
+                `⏳ ${customerName} hat kein Geld dabei. "Nächste Woche, Bruder."`,
+                `🗣️ ${customerName} wollte nur reden. 2 Stunden. Über seine Ex.`,
+                `💸 ${customerName} schuldet noch von letzter Woche.`,
+                `🕒 ${customerName} kam zu spät. Deal geplatzt.`,
+                `📝 ${customerName} will Vertrag. Dealer lacht.`,
+              ]
+            );
+
+            const killChance = isPsycho ? 8 : isDejan ? 1 : 3;
+            const drugChance = isPsycho ? 5 : isDejan ? 16 : 7;
+            const scamChance = isPsycho ? 12 : isDejan ? 9 : 7;
+            const violenceChance = isPsycho ? 10 : 0; // Psycho-exclusive
+            const robberyChance = isPsycho ? 8 : 0; // Psycho-exclusive
+            const randomChance = isPsycho ? 5 : isDejan ? 18 : 10;
+            const meetingChance = isPsycho ? 5 : isDejan ? 12 : 15; // Psycho wastes less time talking
             
             // Only sell ONE bud per tick to simulate realistic sales
             if (driedBuds.length > 0) {
@@ -1585,31 +1964,12 @@ export const useGameStore = create<GameState>()(
               const scamBonus = currentDrugEffect?.scamChanceBonus ?? 0;
               
               // Psycho has different probabilities: more violent, faster, more scams
-              const killChance = isPsycho ? 8 : 3;
-              const drugChance = isPsycho ? 5 : 7;
-              const scamChance = isPsycho ? 12 : 7;
-              const violenceChance = isPsycho ? 10 : 0; // Psycho-exclusive
-              const robberyChance = isPsycho ? 8 : 0; // Psycho-exclusive
-              const randomChance = isPsycho ? 5 : 10;
-              const meetingChance = isPsycho ? 5 : 15; // Psycho wastes less time talking
               
               // Random chance for different outcomes
               const roll = Math.random() * 100;
               const bud = driedBuds[0];
               
-              // Customer names - realistic street names
-              const customerNames = [
-                'Kevin', 'Marcel', 'Tim', 'Lukas', 'Max', 'Leon', 'Felix', 'Paul', 'Jan', 'Tom',
-                'Lisa', 'Anna', 'Sarah', 'Julia', 'Laura', 'Lena', 'Marie', 'Sophie', 'Emma', 'Mia',
-                'Digga', 'Bruder', 'Bro', 'Kumpel', 'Homie', 'Alter', 'Kollege', 'der Typ', 'Dude',
-                'Stammkunde #42', 'der Student', 'die Studentin', 'der Nachbar', 'der von Nebenan',
-                'die Alte von 3. Stock', 'der Assi von der Tanke', 'der Typ mit dem Pitbull',
-                'die mit den Extensions', 'der mit dem AMG', 'der Hartzer', 'die vom Späti',
-                'der Dönermann', 'der Shisha-Bar-Typ', 'der Security vom Club', 'die Krankenschwester',
-                'der Taxifahrer', 'der LKW-Fahrer', 'der Hausmeister', 'der Kioskbesitzer',
-                'Mehmet', 'Achmed', 'Dimitri', 'Slavik', 'Ronny', 'Mandy', 'Jacqueline', 'Dustin',
-              ];
-              const customerName = customerNames[Math.floor(Math.random() * customerNames.length)];
+              const customerName = getRandomCustomerName();
               
               let threshold = 0;
               
@@ -1626,6 +1986,8 @@ export const useGameStore = create<GameState>()(
                   `🔥 ${customerName} hat die Ware angezweifelt. Liegt jetzt im Container.`,
                   `💣 ${customerName} hat mit Polizei gedroht. Ruft jetzt nie mehr an.`,
                   `🗡️ ${customerName} hat seinen Namen falsch ausgesprochen. Tödlicher Fehler.`,
+                  `🪦 ${customerName} hat gelacht. Das war das letzte Mal.`,
+                  `🥀 ${customerName} wollte zurückreden. Jetzt ist Ruhe.`,
                 ] : [
                   `☠️ ${customerName} wollte nicht zahlen... Problem gelöst.`,
                   `🔪 ${customerName} hat gedroht zu verpetzen. Schweigt jetzt für immer.`,
@@ -1633,6 +1995,8 @@ export const useGameStore = create<GameState>()(
                   `⚰️ ${customerName} hatte 50 Cent zu wenig dabei. Inakzeptabel.`,
                   `🪦 ${customerName} hat die Ware beleidigt. Ruhe in Frieden.`,
                   `😵 ${customerName} wollte Mengenrabatt. Hat jetzt ewigen Rabatt.`,
+                  `🧯 ${customerName} hat Alarm gemacht. Jetzt ist er leise.`,
+                  `🚬 ${customerName} meinte "später zahlen". Gibt kein später.`,
                 ];
                 
                 dealerActivities.unshift({
@@ -1659,6 +2023,8 @@ export const useGameStore = create<GameState>()(
                   `😈 ${customerName} hat gezittert. Richtig so. +${violenceAmount}$`,
                   `🔨 ${customerName} "überzeugt" zu zahlen. Mit Nachdruck. +${violenceAmount}$`,
                   `💪 ${customerName} wollte abhauen. Wurde eingeholt. +${violenceAmount}$`,
+                  `🥊 ${customerName} kassiert Haken. Portemonnaie auch. +${violenceAmount}$`,
+                  `🪑 ${customerName} gegen den Tisch gedrückt. Hat bezahlt. +${violenceAmount}$`,
                 ];
                 
                 dealerActivities.unshift({
@@ -1686,6 +2052,8 @@ export const useGameStore = create<GameState>()(
                   `😱 ${customerName} hat vor Angst die Hosen voll. Und kein Geld mehr. +${robberyAmount}$`,
                   `🏃 ${customerName} verfolgt und ausgenommen. +${robberyAmount}$`,
                   `💎 ${customerName} seine Kette gerissen. Verkauft für +${robberyAmount}$`,
+                  `🧢 ${customerName} seine Tasche geschnappt. +${robberyAmount}$`,
+                  `🧤 ${customerName} leergeräumt. Handschuhe an. +${robberyAmount}$`,
                 ];
                 
                 dealerActivities.unshift({
@@ -1708,6 +2076,7 @@ export const useGameStore = create<GameState>()(
                       `❄️ Dicke Line gezogen. Rennt durch die Stadt. (+100% Verkäufe, +20% Scam)`,
                       `⚡ Auf irgendwas. Zittert, aber macht Kohle. (+100% Verkäufe)`,
                       `🔥 Hat was geschluckt. Weiß selbst nicht was. Läuft aber. (+100% Verkäufe)`,
+                      `💥 Adrenalin pur. Verkauft wie im Rausch. (+100% Verkäufe)`,
                     ]
                   },
                   {
@@ -1717,6 +2086,7 @@ export const useGameStore = create<GameState>()(
                       `☠️ Hat alles gemischt. Kann kaum stehen. (-80% Verkäufe, +30% Scam)`,
                       `🧟 Sieht aus wie ne Leiche. Ist aber noch da. Irgendwie. (-80% Verkäufe)`,
                       `🚑 Fast abgekratzt. Verkauft trotzdem weiter. (-80% Verkäufe)`,
+                      `🫥 Ist komplett weggetreten. Nur Automatismus. (-80% Verkäufe)`,
                     ]
                   },
                   {
@@ -1726,6 +2096,35 @@ export const useGameStore = create<GameState>()(
                       `😤 Auf Krawall gebürstet. Jeder ist Feind. (-40% Verkäufe)`,
                       `👁️ Traut niemandem. Bedroht jeden Kunden erstmal. (-40%, +40% Scam)`,
                       `🗡️ "WER BIST DU?!" Schreit jeden an. (-40% Verkäufe)`,
+                      `🚫 Lässt niemanden ran, außer mit Cash. (-40% Verkäufe, +40% Scam)`,
+                    ]
+                  },
+                ] : isDejan ? [
+                  {
+                    effect: { type: 'hyper', name: '🎰 Aufgedreht', salesMultiplier: 1.6, scamChanceBonus: 15, expiresAt: Date.now() + 50000 },
+                    messages: [
+                      `🎰 Hat am Automaten gewonnen. Jetzt läuft er heiß. (+60% Verkäufe, +15% Scam)`,
+                      `❄️ Dünne Line, dicke Klappe. Zockt und verkauft gleichzeitig. (+60% Verkäufe)`,
+                      `⚡ "Nur noch ein Spin!" Verkauft trotzdem wie verrückt. (+60% Verkäufe)`,
+                      `🃏 Glückssträhne. Verkauft und verzockt in einem Atemzug. (+60% Verkäufe)`,
+                    ]
+                  },
+                  {
+                    effect: { type: 'wasted', name: '💀 Total drauf', salesMultiplier: 0.25, scamChanceBonus: 25, expiresAt: Date.now() + 120000 },
+                    messages: [
+                      `💀 Hat alles gemischt. Sitzt vorm Automaten und sabbert. (-75% Verkäufe)`,
+                      `🎲 Verliert den Überblick. Chips leer, Kopf leer. (-75% Verkäufe)`,
+                      `🤢 Neben der Spielhalle abgestürzt. (-75% Verkäufe, +25% Scam)`,
+                      `🥴 Keine Kontrolle mehr. Tüten vertauscht. (-75% Verkäufe)`,
+                    ]
+                  },
+                  {
+                    effect: { type: 'drunk', name: '🍺 Besoffen', salesMultiplier: 0.55, scamChanceBonus: 20, expiresAt: Date.now() + 90000 },
+                    messages: [
+                      `🍺 Hat sein Taschengeld in Bier verwandelt. Lallt rum. (-45% Verkäufe)`,
+                      `🥃 "Nur ein Shot" wurden acht. (-45% Verkäufe, +20% Scam)`,
+                      `🎰 Trinkt und drückt. Der Automat gewinnt. (-45% Verkäufe)`,
+                      `🍻 Verlässt die Theke nicht. Verkauf stockt. (-45% Verkäufe)`,
                     ]
                   },
                 ] : [
@@ -1735,6 +2134,7 @@ export const useGameStore = create<GameState>()(
                       `🚬 *zieht am fetten Joint* "Qualitätskontrolle..." (-30% Verkäufe)`,
                       `💨 Hat 3 Bongs geraucht. Kann sich nicht konzentrieren. (-30% Verkäufe)`,
                       `🌿 "Nur ein kleiner Probezug..." *vergisst was er wollte* (-30% Verkäufe)`,
+                      `🥬 Kann die Ware nicht aus der Hand legen. (-30% Verkäufe)`,
                     ]
                   },
                   {
@@ -1743,6 +2143,7 @@ export const useGameStore = create<GameState>()(
                       `❄️ Hat ne Line gezogen. Redet sehr schnell. (+50% Verkäufe, +10% Scam)`,
                       `💊 Pille eingeworfen. Rennt durch die Stadt. (+50% Verkäufe)`,
                       `⚡ Auf Speed. Hat 47 Leute angesprochen. (+50% Verkäufe)`,
+                      `🏃 Sprintet durch den Kiez. Verkäufe explodieren. (+50% Verkäufe)`,
                     ]
                   },
                   {
@@ -1751,6 +2152,7 @@ export const useGameStore = create<GameState>()(
                       `🍺 5 Bier und 3 Kurze. Lallt rum. (-50% Verkäufe, +15% Scam)`,
                       `🥃 Hat ne Flasche Wodka geext. Kann kaum laufen. (-50% Verkäufe)`,
                       `🤮 Kotzt in die Ecke. Verkauft trotzdem weiter. (-50% Verkäufe)`,
+                      `🍷 Lallt Preise falsch. Kaum Deals. (-50% Verkäufe)`,
                     ]
                   },
                   {
@@ -1759,6 +2161,7 @@ export const useGameStore = create<GameState>()(
                       `🍄 Hat Pilze gefuttert. Sieht die Wände atmen. (-70% Verkäufe)`,
                       `🧪 LSD-Trip. Spricht mit Bäumen statt Kunden. (-70% Verkäufe)`,
                       `😵‍💫 Hat DMT geraucht. Andere Dimension. (-70% Verkäufe)`,
+                      `🌀 Redet mit Ampeln. Kunden warten. (-70% Verkäufe)`,
                     ]
                   },
                   {
@@ -1766,6 +2169,7 @@ export const useGameStore = create<GameState>()(
                     messages: [
                       `💀 Hat alles gemischt. Liegt im Gebüsch. (-90% Verkäufe für 3min)`,
                       `😵 Komplett abgestürzt. Pennt im Hauseingang. (-90% Verkäufe)`,
+                      `🛌 Schläft auf dem Bordstein. Kein Deal. (-90% Verkäufe)`,
                     ]
                   },
                 ];
@@ -1799,12 +2203,16 @@ export const useGameStore = create<GameState>()(
                   `🧊 ${customerName} hat Kreide als Koks gekauft. +${scamAmount}$`,
                   `📦 ${customerName} eine leere Tüte verkauft. +${scamAmount}$`,
                   `🔪 "Geld her oder Messer rein." ${customerName} hat gezahlt. +${scamAmount}$`,
+                  `💣 ${customerName} wollte diskutieren. Hat jetzt gezahlt. +${scamAmount}$`,
+                  `🕶️ ${customerName} hat Angst bekommen. Kohle ohne Ware. +${scamAmount}$`,
                 ] : [
                   `💰 ${customerName} abgezogen! +${scamAmount}$ (kein Verlust)`,
                   `🎭 ${customerName} wollte auf Pump. Trotzdem kassiert: +${scamAmount}$`,
                   `😈 Fake-Deal mit ${customerName}! +${scamAmount}$ ohne Ware`,
                   `🧊 ${customerName} Badesalz als Crystal verkauft. +${scamAmount}$`,
                   `🌿 ${customerName} Oregano als Haze angedreht. +${scamAmount}$`,
+                  `📉 ${customerName} hat "Rabatt" bekommen. Ware war Luft. +${scamAmount}$`,
+                  `🧃 ${customerName} hat Sirup statt Öl bekommen. +${scamAmount}$`,
                 ];
                 
                 dealerActivities.unshift({
@@ -1819,27 +2227,7 @@ export const useGameStore = create<GameState>()(
               }
               // RANDOM EVENTS
               else if (roll < (threshold += randomChance)) {
-                const absurdMessages = isPsycho ? [
-                  `🚔 Polizeikontrolle. Hat den Cop bedroht. Der ist weggerannt.`,
-                  `🔥 Hat nen Mülleimer angezündet. Weil ihm langweilig war.`,
-                  `🐕 Ein Hund hat ihn angebellt. Hat den Besitzer verprügelt.`,
-                  `🚗 Hat nen AMG geklaut. Für 10 Minuten. "Nur kurz Spritztour."`,
-                  `🏪 Späti überfallen. Nur Zigaretten mitgenommen.`,
-                  `🎰 Hat am Automaten 800€ gewonnen. Mit Drohung.`,
-                  `👊 Prügelei mit 3 Typen. Hat gewonnen.`,
-                  `🔪 Hat jemandem das Handy "geliehen". Für immer.`,
-                  `🚨 Flucht vor der Polizei. Durch 3 Hinterhöfe. Hat funktioniert.`,
-                  `🏚️ Übernachtet in leerstehendem Haus. Ist jetzt seins.`,
-                ] : [
-                  `👮 Von Polizei angehalten. Hat sie bestochen. Mit Gras.`,
-                  `🏃 Wurde von ner Oma verfolgt. Sie war schneller.`,
-                  `🐕 Hund hat 5g gefressen. Teuerster Snack seines Lebens.`,
-                  `🦝 Waschbär hat die Stash geklaut. Wurde verfolgt. Waschbär hat gewonnen.`,
-                  `🏠 Auf falscher Beerdigung gelandet. Hat trotzdem verkauft.`,
-                  `💒 Vor ner Kirche gedealt. Pfarrer ist Stammkunde.`,
-                  `🚂 Im Zug kontrolliert. Ticket gefunden. Stash nicht.`,
-                  `🎤 Hat ausversehen Karaoke gewonnen.`,
-                ];
+                const absurdMessages = getRandomEventMessages();
                 
                 dealerActivities.unshift({
                   id: `act-${Date.now()}-${Math.random()}`,
@@ -1851,19 +2239,7 @@ export const useGameStore = create<GameState>()(
               }
               // MEETING (no sale)
               else if (roll < (threshold += meetingChance)) {
-                const meetingMessages = isPsycho ? [
-                  `🤝 ${customerName} getroffen. "Hast du mein Geld?" - Hat er nicht.`,
-                  `😤 ${customerName} wollte reden. "Halt die Fresse." - Gespräch beendet.`,
-                  `📱 ${customerName} ruft an. Geht nicht ran. Nie.`,
-                  `💀 ${customerName} hat gewunken. Wurde ignoriert.`,
-                ] : [
-                  `🤝 Mit ${customerName} getroffen. Kein Deal, nur Gelaber.`,
-                  `☕ Döner mit ${customerName}. Nur Quatschen, kein Business.`,
-                  `📱 ${customerName} hat angerufen. Will später kommen. Kommt nie.`,
-                  `⏳ ${customerName} hat kein Geld dabei. "Nächste Woche, Bruder."`,
-                  `🗣️ ${customerName} wollte nur reden. 2 Stunden. Über seine Ex.`,
-                  `💸 ${customerName} schuldet noch von letzter Woche.`,
-                ];
+                const meetingMessages = getMeetingMessages(customerName);
                 
                 dealerActivities.unshift({
                   id: `act-${Date.now()}-${Math.random()}`,
@@ -1892,12 +2268,15 @@ export const useGameStore = create<GameState>()(
                   // Psycho gets slightly better prices (intimidation)
                   const psychoBonus = isPsycho ? 1.2 : 1;
                   const baseRevenue = gramsToSell * channel.pricePerGram * qualityMultiplier * psychoBonus;
-                  const revenue = Math.floor(baseRevenue * salesMult);
+                  const territoryMultiplier = getTerritorySalesMultiplier('weed');
+                  const revenue = Math.floor(baseRevenue * salesMult * territoryMultiplier);
 
                   budcoins += revenue;
                   totalCoinsEarned += revenue;
                   totalGramsSold += gramsToSell;
                   totalSalesRevenue += revenue;
+                  grantXp(getDealerSaleXp(gramsToSell));
+                  recordWeedSale(revenue);
 
                   if (gramsToSell >= bud.grams) {
                     inventory = inventory.filter(b => b.id !== bud.id);
@@ -1915,6 +2294,16 @@ export const useGameStore = create<GameState>()(
                     `🗡️ ${gramsToSell}g an ${customerName}. "Erzähl niemandem." ${revenue}$`,
                     `☠️ Deal mit ${customerName}. ${gramsToSell}g. Der hat Schiss. ${revenue}$`,
                     `💀 ${gramsToSell}g an ${customerName} gedrückt. Kein Widerspruch. ${revenue}$`,
+                    `🧨 ${customerName} bekommt ${gramsToSell}g. "Kein Stress." ${revenue}$`,
+                    `🪓 ${gramsToSell}g an ${customerName}. Blick sagt alles. ${revenue}$`,
+                  ] : isDejan ? [
+                    `🎰 ${gramsToSell}g an ${customerName}. "Jackpot kommt gleich." ${revenue}$`,
+                    `🃏 Deal mit ${customerName}: ${gramsToSell}g für ${revenue}$. "Nur noch ein Spiel."`,
+                    `💸 ${customerName} zahlt. Dejan rennt direkt zur Spielhalle. ${revenue}$`,
+                    `🍒 ${gramsToSell}g vertickt. "Ich hol das Geld zurück." ${revenue}$`,
+                    `🎲 ${customerName}: ${gramsToSell}g für ${revenue}$. Würfelglück heute.`,
+                    `🎮 ${gramsToSell}g an ${customerName}. "Noch eine Runde." ${revenue}$`,
+                    `💳 ${customerName} zahlt schnell. Dejan zockt schneller. ${revenue}$`,
                   ] : [
                     `💵 ${gramsToSell}g an ${customerName} vertickt. ${revenue}$`,
                     `✅ Deal mit ${customerName}: ${gramsToSell}g für ${revenue}$`,
@@ -1922,6 +2311,8 @@ export const useGameStore = create<GameState>()(
                     `💰 ${gramsToSell}g an ${customerName} = ${revenue}$`,
                     `🔥 ${customerName}: "Geiles Zeug!" ${gramsToSell}g, ${revenue}$`,
                     `👌 ${customerName}: "Endlich gutes Zeug!" ${gramsToSell}g weg. ${revenue}$`,
+                    `📦 ${customerName} nimmt ${gramsToSell}g ${bud.strainName}. ${revenue}$`,
+                    `🤝 ${gramsToSell}g Deal mit ${customerName}. ${revenue}$`,
                   ];
 
                   dealerActivities.unshift({
@@ -1942,75 +2333,137 @@ export const useGameStore = create<GameState>()(
                 dealerActivities = dealerActivities.slice(0, 30);
               }
             } else {
-              const bulkTarget = Math.floor((isPsycho ? 10 : 6) + Math.random() * (isPsycho ? 30 : 18));
-              const warehouseSale = useBusinessStore.getState().sellWarehouseStock('weed', bulkTarget);
+              const customerName = getRandomCustomerName();
+              const warehouseRoll = Math.random() * 100;
+              let warehouseThreshold = 0;
 
-              if (warehouseSale.gramsSold > 0) {
-                const quality = warehouseSale.averageQuality || 50;
-                const availableChannels = state.salesChannels
-                  .filter(ch => ch.unlocked && quality >= ch.minQuality)
-                  .sort((a, b) => b.pricePerGram - a.pricePerGram);
-
-                if (availableChannels.length > 0) {
-                  const channel = availableChannels[0];
-                  const qualityMultiplier = 1 + (quality - 50) / 100;
-                  const psychoBonus = isPsycho ? 1.15 : 1;
-                  const revenue = Math.floor(warehouseSale.gramsSold * channel.pricePerGram * qualityMultiplier * psychoBonus);
-
-                  budcoins += revenue;
-                  totalCoinsEarned += revenue;
-                  totalGramsSold += warehouseSale.gramsSold;
-                  totalSalesRevenue += revenue;
-
-                  dealerActivities.unshift({
-                    id: `act-${Date.now()}-${Math.random()}`,
-                    timestamp: Date.now(),
-                    type: 'sale',
-                    message: `📦 Import-Weed verkauft: ${warehouseSale.gramsSold}g (${quality}% Q) = ${revenue}$`,
-                    grams: warehouseSale.gramsSold,
-                    revenue,
-                    dealerId,
-                  });
-
-                  if (dealerActivities.length > 30) {
-                    dealerActivities = dealerActivities.slice(0, 30);
-                  }
-                }
-              } else if (Math.random() < 0.15) {
-                const waitMessages = isPsycho ? [
-                  '😤 Wartet. Ungeduldig. Sehr ungeduldig.',
-                  '🔪 Spielt mit dem Messer. Langweilt sich.',
-                  '👊 Boxt gegen die Wand. Frustabbau.',
-                  '😈 Starrt Passanten an. Die gehen schneller.',
-                  '🚬 Raucht und flucht vor sich hin.',
-                  '💀 Plant den nächsten Überfall. Langeweile.',
-                  '🔥 Hat einen Mülleimer angezündet. Zum Spaß.',
-                  '🗡️ Schnitzt was in eine Parkbank. Drohungen.',
-                ] : [
-                  '⏳ Wartet auf Ware...',
-                  '📱 Scrollt durch TikTok. Schon 3 Stunden.',
-                  '🚬 Raucht eine. Und noch eine. Und noch eine.',
-                  '😴 Nickerchen auf der Parkbank.',
-                  '🍕 Bestellt die 4. Pizza heute.',
-                  '📝 Schreibt SMS. Wird nicht geantwortet.',
-                  '🐦 Beobachtet Tauben. Die beobachten zurück.',
-                ];
-                
+              if (warehouseRoll < (warehouseThreshold += meetingChance)) {
+                const meetingMessages = getMeetingMessages(customerName);
                 dealerActivities.unshift({
                   id: `act-${Date.now()}-${Math.random()}`,
                   timestamp: Date.now(),
-                  type: 'waiting',
-                  message: waitMessages[Math.floor(Math.random() * waitMessages.length)],
+                  type: 'meeting',
+                  message: meetingMessages[Math.floor(Math.random() * meetingMessages.length)],
+                  customerName,
                   dealerId,
                 });
-                
-                if (dealerActivities.length > 30) {
-                  dealerActivities = dealerActivities.slice(0, 30);
+              } else if (warehouseRoll < (warehouseThreshold += randomChance)) {
+                const absurdMessages = getRandomEventMessages();
+                dealerActivities.unshift({
+                  id: `act-${Date.now()}-${Math.random()}`,
+                  timestamp: Date.now(),
+                  type: 'random',
+                  message: absurdMessages[Math.floor(Math.random() * absurdMessages.length)],
+                  dealerId,
+                });
+              } else {
+                const bulkTarget = Math.floor((isPsycho ? 10 : 6) + Math.random() * (isPsycho ? 30 : 18));
+                const warehouseSale = useBusinessStore.getState().sellWarehouseStock('weed', bulkTarget);
+
+                if (warehouseSale.gramsSold > 0) {
+                  const quality = warehouseSale.averageQuality || 50;
+                  const availableChannels = state.salesChannels
+                    .filter(ch => ch.unlocked && quality >= ch.minQuality)
+                    .sort((a, b) => b.pricePerGram - a.pricePerGram);
+
+                  if (availableChannels.length > 0) {
+                    const channel = availableChannels[0];
+                    const qualityMultiplier = 1 + (quality - 50) / 100;
+                    const psychoBonus = isPsycho ? 1.15 : 1;
+                    const territoryMultiplier = getTerritorySalesMultiplier('weed');
+                    const revenue = Math.floor(warehouseSale.gramsSold * channel.pricePerGram * qualityMultiplier * psychoBonus * territoryMultiplier);
+
+                    budcoins += revenue;
+                    totalCoinsEarned += revenue;
+                    totalGramsSold += warehouseSale.gramsSold;
+                    totalSalesRevenue += revenue;
+                    grantXp(getDealerSaleXp(warehouseSale.gramsSold));
+                    recordWeedSale(revenue);
+
+                    const importSaleMessages = isPsycho ? [
+                      `📦 ${warehouseSale.gramsSold}g Import-Weed an ${customerName}. "Kein Wort." ${revenue}$`,
+                      `💀 ${customerName} kriegt ${warehouseSale.gramsSold}g Import. ${revenue}$ und weg.`,
+                      `🗡️ ${warehouseSale.gramsSold}g Import-Weed gedrückt. ${customerName} sagt nix. ${revenue}$`,
+                      `🧨 Import-Deal mit ${customerName}: ${warehouseSale.gramsSold}g. ${revenue}$`,
+                      `🚫 ${customerName} nimmt Import. Kein Gerede. ${revenue}$`,
+                    ] : isDejan ? [
+                      `🎰 ${customerName} nimmt ${warehouseSale.gramsSold}g Import-Weed (${quality}% Q). ${revenue}$`,
+                      `🃏 Import-Deal: ${customerName} holt ${warehouseSale.gramsSold}g. ${revenue}$`,
+                      `🍒 ${warehouseSale.gramsSold}g Import-Weed weg. Dejan will "nur kurz zocken". ${revenue}$`,
+                      `🎲 ${customerName} kriegt ${warehouseSale.gramsSold}g Import. "Glück bringt's." ${revenue}$`,
+                      `💸 Import-Deal durch. Dejan direkt weiter zum Automaten. ${revenue}$`,
+                    ] : [
+                      `🤝 ${customerName} nimmt ${warehouseSale.gramsSold}g Import-Weed (${quality}% Q). ${revenue}$`,
+                      `📦 Import-Deal mit ${customerName}: ${warehouseSale.gramsSold}g für ${revenue}$`,
+                      `💵 ${warehouseSale.gramsSold}g Import-Weed an ${customerName}. ${revenue}$`,
+                      `✅ Import-Ware weg: ${warehouseSale.gramsSold}g an ${customerName}. ${revenue}$`,
+                      `📈 ${customerName} holt ${warehouseSale.gramsSold}g Import. ${revenue}$`,
+                    ];
+
+                    dealerActivities.unshift({
+                      id: `act-${Date.now()}-${Math.random()}`,
+                      timestamp: Date.now(),
+                      type: 'sale',
+                      message: importSaleMessages[Math.floor(Math.random() * importSaleMessages.length)],
+                      grams: warehouseSale.gramsSold,
+                      revenue,
+                      customerName,
+                      dealerId,
+                    });
+                  }
+                } else if (Math.random() < 0.15) {
+                  const waitMessages = isPsycho ? [
+                    '😤 Wartet. Ungeduldig. Sehr ungeduldig.',
+                    '🔪 Spielt mit dem Messer. Langweilt sich.',
+                    '👊 Boxt gegen die Wand. Frustabbau.',
+                    '😈 Starrt Passanten an. Die gehen schneller.',
+                    '🚬 Raucht und flucht vor sich hin.',
+                    '💀 Plant den nächsten Überfall. Langeweile.',
+                    '🔥 Hat einen Mülleimer angezündet. Zum Spaß.',
+                    '🗡️ Schnitzt was in eine Parkbank. Drohungen.',
+                    '🧨 Zündet Böller. Einfach so.',
+                    '👁️ Glotzt jeden an. Keiner traut sich.',
+                  ] : isDejan ? [
+                    '🎰 Hängt am Automaten. "Nur noch ein Spin."',
+                    '🧾 Rechnet seine Schulden durch. Wird nicht besser.',
+                    '🍻 Sitzt vorm Kiosk. "Ich wart nur kurz."',
+                    '🎲 Würfelt gegen die Zeit. Zeit gewinnt.',
+                    '😵‍💫 Zieht eine Line. Vergisst, warum er hier steht.',
+                    '📉 Hat alles verzockt. Wartet trotzdem auf Ware.',
+                    '👀 Checkt Leute ab. Keiner kauft. Schade.',
+                    '🃏 Karten mischen, kein Kunde in Sicht.',
+                    '🪙 Zählt Münzen. Sind zu wenig.',
+                  ] : [
+                    '⏳ Wartet auf Ware...',
+                    '📱 Scrollt durch TikTok. Schon 3 Stunden.',
+                    '🚬 Raucht eine. Und noch eine. Und noch eine.',
+                    '😴 Nickerchen auf der Parkbank.',
+                    '🍕 Bestellt die 4. Pizza heute.',
+                    '📝 Schreibt SMS. Wird nicht geantwortet.',
+                    '🐦 Beobachtet Tauben. Die beobachten zurück.',
+                    '🎧 Hört Musik. Keine Deals.',
+                    '🧋 Holt sich nen Bubble Tea. Wartet weiter.',
+                  ];
+                  
+                  dealerActivities.unshift({
+                    id: `act-${Date.now()}-${Math.random()}`,
+                    timestamp: Date.now(),
+                    type: 'waiting',
+                    message: waitMessages[Math.floor(Math.random() * waitMessages.length)],
+                    dealerId,
+                  });
                 }
+              }
+
+              if (dealerActivities.length > 30) {
+                dealerActivities = dealerActivities.slice(0, 30);
               }
             }
           }
         }
+
+        const pruneTimestamp = Date.now();
+        weedSalesWindow = weedSalesWindow.filter(entry => pruneTimestamp - entry.timestamp <= SALES_WINDOW_MS);
 
         return {
           growSlots,
@@ -2026,6 +2479,11 @@ export const useGameStore = create<GameState>()(
           totalGramsSold,
           totalSalesRevenue,
           dealerActivities,
+          weedSalesWindow,
+          lastWeedSalesMinute,
+          xp,
+          level,
+          skillPoints,
         };
       }),
 
@@ -2113,7 +2571,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 8, // Increment to trigger migration
+      version: 11, // Increment to trigger migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -2233,6 +2691,71 @@ export const useGameStore = create<GameState>()(
           }
           if (persistedState.advanceGameTime !== undefined) {
             delete persistedState.advanceGameTime;
+          }
+        }
+
+        if (version < 9) {
+          if (!Number.isFinite(persistedState.level)) {
+            persistedState.level = 1;
+          }
+        }
+
+        if (version < 10) {
+          const dejanWorker = {
+            id: 'dealer-dejan',
+            name: 'Dejan',
+            description: 'Spielsüchtiger, drogensüchtiger Dealer. Zockt ständig, verkauft trotzdem weiter.',
+            icon: '🎰',
+            cost: 35000,
+            costKoksGrams: 10,
+            owned: false,
+            paused: false,
+            level: 1,
+            maxLevel: 6,
+            slotsManaged: 6,
+            abilities: ['sell'],
+          };
+
+          if (Array.isArray(persistedState.workers)) {
+            const existing = persistedState.workers.find((worker: any) => worker.id === 'dealer-dejan');
+            if (!existing) {
+              persistedState.workers.push(dejanWorker);
+            } else if (!Number.isFinite(existing.costKoksGrams)) {
+              existing.costKoksGrams = 10;
+            }
+          } else {
+            persistedState.workers = [...initialWorkers];
+          }
+        }
+
+        if (version < 11) {
+          if (!Array.isArray(persistedState.weedSalesWindow)) {
+            persistedState.weedSalesWindow = [];
+          }
+          if (!Number.isFinite(persistedState.lastWeedSalesMinute)) {
+            persistedState.lastWeedSalesMinute = 0;
+          }
+          if (!persistedState.autoSellSettings) {
+            persistedState.autoSellSettings = {
+              enabled: false,
+              minQuality: 60,
+              preferredChannel: 'auto',
+              onlyWhenFull: false,
+            };
+          } else {
+            persistedState.autoSellSettings = {
+              enabled: Boolean(persistedState.autoSellSettings.enabled),
+              minQuality: Number.isFinite(persistedState.autoSellSettings.minQuality)
+                ? persistedState.autoSellSettings.minQuality
+                : 60,
+              preferredChannel: typeof persistedState.autoSellSettings.preferredChannel === 'string'
+                ? persistedState.autoSellSettings.preferredChannel
+                : 'auto',
+              onlyWhenFull: Boolean(persistedState.autoSellSettings.onlyWhenFull),
+            };
+          }
+          if (!Number.isFinite(persistedState.lastAutoSellAt)) {
+            persistedState.lastAutoSellAt = 0;
           }
         }
         

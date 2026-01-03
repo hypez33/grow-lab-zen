@@ -1,671 +1,454 @@
-# 🚀 Weed Clicker - Entwicklungsplan & Roadmap
-
-> Umfassender Plan für zukünftige Features, Verbesserungen und Erweiterungen
-
-**Letzte Aktualisierung:** 2026-01-02
-
----
-
-## 📊 Übersicht
-
-Dieser Plan enthält über **50 Feature-Vorschläge** organisiert nach Priorität und Implementierungs-Komplexität.
-
-**Wichtiger Grundsatz:** Alle Vorschläge sind **additiv** - kein bestehendes Feature wird ersetzt oder entfernt!
-
----
-
-## 🎯 Prioritäten-Matrix
-
-### Legende
-- ⭐⭐⭐ = Sehr hohe Priorität (Quick Wins, großer Impact)
-- ⭐⭐ = Mittlere Priorität (Guter ROI)
-- ⭐ = Niedrige Priorität (Nice-to-have)
-- 🔥 = Hot Feature (Community-Wunsch)
-- 💎 = Premium Feature (Monetization)
-- 🎮 = Gameplay-Verbesserung
-- 🎨 = Visuell/UX
-- ⚡ = Performance
-- 🌐 = Multiplayer/Social
-
----
-
-## 📅 Phasen-Plan
-
-### **PHASE 1: Quick Wins** (1-2 Wochen)
-*Schnell umsetzbare Features mit hohem Impact*
-
-#### 1.1 Coca Breeding System ⭐⭐⭐ 🔥 🎮
-**Problem:** Coca hat kein Breeding, nur Weed
-**Lösung:** Analog zum Weed-System implementieren
-
-**Tasks:**
-- [ ] Coca Trait-System definieren (HighPurity, FastProcess, BulkYield, DoubleRefine, etc.)
-- [ ] Breeding-Logik für Coca in cocaStore.ts
-- [ ] UI in KoksScreen für "Breed" Button
-- [ ] Hybrid-Namensgenerator für Coca (z.B. "Boliviana Premium", "Pablo's Gold")
-- [ ] Breeding-Ergebnisse (Fail → Godtier) mit Purity-Boni
-- [ ] Generation-Tracking analog zu Weed
-
-**Geschätzter Aufwand:** 6-8 Stunden
-**Impact:** Verdoppelt Coca-Langzeit-Content
-
----
-
-#### 1.2 Auto-Sell Rules & Smart Automation ⭐⭐⭐ 🎮
-**Problem:** Spieler müssen manuell alles verkaufen/verarbeiten
-**Lösung:** Konfigurierbare Automatisierungs-Regeln
-
-**Tasks:**
-- [ ] Auto-Sell Config UI (Toggle + Quality-Threshold Slider)
-- [ ] "Verkaufe alles unter Quality X" Logic
-- [ ] Smart Planting: "Pflanze beste Seeds automatisch"
-- [ ] Worker Priority System (Was soll zuerst gemacht werden?)
-- [ ] Settings-Persistence für Automation Rules
-
-**Geschätzter Aufwand:** 4-6 Stunden
-**Impact:** Massive QoL-Verbesserung für Endgame
-
----
-
-#### 1.3 Statistics Dashboard ⭐⭐⭐ 🎨
-**Problem:** Keine detaillierten Statistiken/Charts
-**Lösung:** Recharts Integration mit Analytics
-
-**Tasks:**
-- [ ] Neue "Stats" Section in Settings
-- [ ] Recharts Library integrieren
-- [ ] Line Chart: Coins/h über Zeit
-- [ ] Bar Chart: Harvests pro Strain
-- [ ] Pie Chart: Revenue-Breakdown (Weed vs Coca)
-- [ ] $/h Calculator (Aktuell vs Durchschnitt)
-- [ ] ROI-Metriken für Upgrades ("Lohnt sich in X Stunden")
-- [ ] Efficiency Score (Wie gut spielt der User?)
-
-**Geschätzter Aufwand:** 8-10 Stunden
-**Impact:** Spieler sehen Fortschritt besser, motiviert Optimierung
-
----
-
-#### 1.4 Random Worker Events ⭐⭐ 🎮 🔥
-**Problem:** Worker sind statisch, kein Risiko/Reward
-**Lösung:** Random Events mit Konsequenzen
-
-**Tasks:**
-- [ ] Event-System in gameStore/cocaStore
-- [ ] Event-Types definieren:
-  - Polizeirazzia (Verliere 20% Inventory, Worker pausiert 60s)
-  - Mega-Deal (3x Verkaufspreis für 30s)
-  - Konkurrenz-Angriff (Verliere $ oder Fight-Mini-Game)
-  - Quality Boost (Nächste 10 Harvests +20 Quality)
-  - Worker-Krankheit (Pausiert 5min, muss "heilen")
-- [ ] Event-Notifications mit Toast
-- [ ] Event-Log in Activity Feed
-- [ ] Probability-System (selten aber impactful)
-
-**Geschätzter Aufwand:** 6-8 Stunden
-**Impact:** Macht Idle-Game dynamischer, mehr Engagement
-
----
-
-### **PHASE 2: Core Additions** (2-4 Wochen)
-*Substantielle Features, die Gameplay vertiefen*
-
-#### 2.1 Market Dynamics ⭐⭐⭐ 🎮
-**Problem:** Statische Preise, kein Market-Gameplay
-**Lösung:** Dynamisches Preis-System
-
-**Tasks:**
-- [ ] Supply/Demand Mechanik
-  - Preis sinkt wenn viel verkauft wird
-  - Preis steigt wenn lange nicht verkauft
-- [ ] Black Market Events (2x-5x Preise für 10min)
-- [ ] Risk/Reward Channels
-  - "Dark Web" - 3x Preis aber 10% Bust-Chance
-  - "Celebrity Client" - 5x Preis aber nur 1x/Tag
-- [ ] Price History Chart
-- [ ] Market Prediction (Hints wann Preise steigen)
-
-**Geschätzter Aufwand:** 12-16 Stunden
-**Impact:** Strategische Tiefe, mehr Entscheidungen
-
----
-
-#### 2.2 Enhanced Worker System ⭐⭐⭐ 🎮
-**Problem:** Worker sind simpel, nur Level-Upgrades
-**Lösung:** Komplexes Worker-Progression-System
-
-**Tasks:**
-- [ ] Worker Skills (3 Skills pro Worker)
-  - Speed Demon (+30% Geschwindigkeit)
-  - Quality Expert (+15 Quality auf Output)
-  - Bulk Master (+20% Yield)
-  - Lucky Hand (2x Crit Chance)
-- [ ] Worker Equipment Shop
-  - Bessere Tools (Gold Trimmer, UV Scanner)
-  - Schutzausrüstung (reduziert Event-Schaden)
-  - Cosmetics (rein visuell)
-- [ ] Worker Mood System
-  - Happiness 0-100%
-  - Sinkt über Zeit, steigt durch "Boni geben"
-  - Niedrige Mood = -50% Effizienz
-  - Hohe Mood = +25% Effizienz
-- [ ] Worker Synergien
-  - "Dream Team" Bonus (bestimmte Kombinationen)
-  - "Rivalry" Penalty (bestimmte Worker mögen sich nicht)
-
-**Geschätzter Aufwand:** 16-20 Stunden
-**Impact:** Worker werden Charaktere statt Tools
-
----
-
-#### 2.3 Prestige Tiers ⭐⭐ 🎮
-**Problem:** Nur 1 Prestige-Stufe, Endgame leer
-**Lösung:** Multiple Prestige-Tiers mit Unique-Boni
-
-**Tasks:**
-- [ ] Prestige Tier 1-5 System
-- [ ] Tier 1: Aktuelles System
-- [ ] Tier 2: Unlock bei 10 Prestige Points
-  - Neue Boni: "Time Warp" (2x Speed für 1h/Tag)
-- [ ] Tier 3: Unlock bei 50 PP
-  - "Golden Seeds" (garantiert Legendary bei Breeding)
-- [ ] Tier 4: Unlock bei 150 PP
-  - "Master Grower" (alle Pflanzen instant harvest)
-- [ ] Tier 5: Unlock bei 500 PP
-  - "Tycoon Mode" (Passive Income ohne Workers)
-- [ ] Prestige-exklusive Upgrades
-
-**Geschätzter Aufwand:** 10-12 Stunden
-**Impact:** Langzeit-Progression, mehr Replay-Value
-
----
-
-#### 2.4 Dealer Mini-Game ⭐⭐ 🎮
-**Problem:** Verkaufen ist passiv, kein aktives Gameplay
-**Lösung:** Optional aktives Dealer-Mini-Game
-
-**Tasks:**
-- [ ] "Street Dealing" Mode Button in Sales Screen
-- [ ] Timer-basiertes Matching-Game
-  - Zeige Kunden mit Requests
-  - Match Request mit deinem Inventory
-  - Schneller = höhere Preise
-- [ ] Combo-System (Streak = Bonus)
-- [ ] Risk-Events (Cop erscheint, escape drücken)
-- [ ] Rewards: 1.5x Coins, Bonus-XP
-- [ ] Leaderboard: Beste Streak
-
-**Geschätzter Aufwand:** 12-14 Stunden
-**Impact:** Aktives Gameplay für aktive Spieler
-
----
-
-### **PHASE 3: Major Features** (1-3 Monate)
-*Große Content-Drops und System-Overhauls*
-
-#### 3.1 Territory/Location System ⭐⭐⭐ 🎮
-**Tasks:**
-- [ ] Multiple Locations (Amsterdam, California, Colombia, Jamaica)
-- [ ] Location-spezifische Boni
-  - Amsterdam: +20% Quality
-  - California: +30% Growth Speed
-  - Colombia: Coca +50% Purity
-  - Jamaica: Sativa-Strains +2 Rarity
-- [ ] Location-Upgrades (Sicherheit, Klima, Ausstattung)
-- [ ] Travel-System (Wechsel kostet $)
-- [ ] Territory Control (erobere Gebiete für permanente Boni)
-
-**Geschätzter Aufwand:** 20-25 Stunden
-**Impact:** Strategische Tiefe, Map-Gameplay
-
----
-
-#### 3.2 Coca-Weed Crossover ⭐⭐ 🎮 🔥
-**Tasks:**
-- [ ] Mixed Products erstellen
-  - "Cocain-laced Weed" (Weed + Powder)
-  - "Speedball Joints" (Premium Crossover)
-- [ ] Dual-Processing Station
-- [ ] Combined Workers (arbeiten an beiden Modi)
-- [ ] Synergy Bonuses
-  - 10% Bonus wenn beide Modi aktiv gespielt
-  - "Diversification" Achievement
-- [ ] Cartel Wars Event (Weed vs Coca Faction)
-
-**Geschätzter Aufwand:** 16-20 Stunden
-**Impact:** Verbindet beide Spielmodi stärker
-
----
-
-#### 3.3 Social Features (Leaderboards) ⭐⭐⭐ 🌐
-**Tasks:**
-- [ ] Backend: Supabase/Firebase Integration
-- [ ] Global Leaderboards:
-  - Total $ Earned
-  - Total Harvests
-  - Prestige Points
-  - Fastest Level 50
-  - Biggest Single Sale
-- [ ] Weekly Competitions
-- [ ] Friends System (Add friends, compare stats)
-- [ ] "Show-Off" Feature (teile deine besten Züchtungen)
-- [ ] Trade System (tausche Seeds mit anderen)
-
-**Geschätzter Aufwand:** 30-40 Stunden (Backend + Frontend)
-**Impact:** Community, Retention, Competitiveness
-
----
-
-#### 3.4 Neue Drug-Typen ⭐⭐ 🎮
-**Option A: Mushrooms Mode**
-- Psychedelic Mushrooms
-- Trip-Mechanik (visuelle Effekte während Ernte)
-- Spore-Breeding
-- Multiple Strains (Psilocybe, Amanita, etc.)
-
-**Option B: Meth Lab**
-- Breaking Bad inspired
-- Chemistry Mini-Game
-- Danger-Mechanik (Explosions-Risk)
-- RV-Upgrade-System
-
-**Option C: Pharma Branch**
-- Legale Medikamente
-- FDA-Approval Mechanik
-- Clinical Trials
-- Patent-System
-
-**Geschätzter Aufwand:** 40-50 Stunden pro Drug-Typ
-**Impact:** Massiver Content-Zuwachs
-
----
-
-### **PHASE 4: Long-Term Vision** (6+ Monate)
-*Ambitionierte Features für langfristige Entwicklung*
-
-#### 4.1 Story Mode ⭐⭐ 🎮
-**Konzept:** Narrative Campaign vom Street Dealer zum Kingpin
-
-**Tasks:**
-- [ ] Story-Struktur (10+ Kapitel)
-- [ ] Charaktere & Dialoge
-- [ ] Choice-System (Entscheidungen beeinflussen Verlauf)
-- [ ] Multiple Endings (Good, Bad, Legendary)
-- [ ] Cutscenes (Illustrationen oder Animationen)
-- [ ] Voice-Acting (optional)
-- [ ] Story-exklusive Items/Workers
-- [ ] Achievement: "Story Complete"
-
-**Geschätzter Aufwand:** 80-100 Stunden
-**Impact:** Single-Player Depth, Immersion
-
----
-
-#### 4.2 Full Multiplayer ⭐⭐⭐ 🌐
-**Konzept:** Realtime Multiplayer mit Trading & PvP
-
-**Tasks:**
-- [ ] Realtime Database (Firebase/Supabase)
-- [ ] Player Profiles & Authentication
-- [ ] Trade System
-  - Item-Trading
-  - Auction House
-  - Trade History
-- [ ] Cooperative Grows
-  - Shared Farms
-  - Resource Pooling
-  - Team Achievements
-- [ ] PvP Raids
-  - Überfälle auf andere Spieler
-  - Defense-System
-  - Revenge-Mechanik
-- [ ] Alliance Wars
-  - Clan vs Clan
-  - Territory Control
-  - War Rewards
-
-**Geschätzter Aufwand:** 200+ Stunden
-**Impact:** Komplett neues Game-Paradigma
-
----
-
-#### 4.3 3D Graphics Overhaul ⭐ 🎨
-**Konzept:** Three.js 3D Plant Models & Environments
-
-**Tasks:**
-- [ ] Three.js Integration
-- [ ] 3D Plant Models (Blender → glTF)
-- [ ] Animated Growth Stages
-- [ ] Camera Controls (Rotate, Zoom)
-- [ ] WebGL Particle Systems
-- [ ] Day/Night Cycle
-- [ ] Weather Effects (Regen, Sonne)
-- [ ] Performance Optimization (LOD)
-
-**Geschätzter Aufwand:** 100+ Stunden
-**Impact:** Visuelles AAA-Upgrade
-
----
-
-#### 4.4 Seasonal Content Pipeline ⭐⭐ 🎮 💎
-**Konzept:** Battle Pass & Events System
-
-**Tasks:**
-- [ ] Season System (3 Monate pro Season)
-- [ ] Battle Pass (Free + Premium)
-  - 50 Tiers mit Rewards
-  - Exclusive Cosmetics
-  - Limited Seeds
-- [ ] Holiday Events
-  - 420 Event (April)
-  - Halloween (Oktober)
-  - Christmas (Dezember)
-- [ ] Event-Quests mit Mega-Rewards
-- [ ] Limited-Time Workers
-- [ ] Event-Shop mit exklusiven Items
-
-**Geschätzter Aufwand:** 60+ Stunden (Setup + Content pro Season)
-**Impact:** Wiederkehrende Motivation, FOMO, Monetization
-
----
-
-## 🛠️ Technische Verbesserungen
-
-### Performance Optimizations ⚡
-
-#### P1: Virtualized Lists ⭐⭐
-**Problem:** Bei 1000+ Items laggt UI
-**Lösung:** react-window/react-virtualized
-
-**Tasks:**
-- [ ] Installiere react-window
-- [ ] Virtualisiere Inventory-Listen
-- [ ] Virtualisiere Worker-Liste
-- [ ] Virtualisiere Collection-Grid
-
-**Aufwand:** 4-6 Stunden
-
----
-
-#### P2: Web Workers ⭐⭐ ⚡
-**Problem:** Heavy Berechnungen blockieren UI
-**Lösung:** Background-Thread Processing
-
-**Tasks:**
-- [ ] Web Worker Setup
-- [ ] Breeding-Calculations in Worker
-- [ ] Market-Price-Calculations in Worker
-- [ ] Statistics-Aggregation in Worker
-
-**Aufwand:** 8-10 Stunden
-
----
-
-#### P3: IndexedDB Storage ⭐ ⚡
-**Problem:** LocalStorage zu klein für große Saves
-**Lösung:** IndexedDB für unbegrenzte Storage
-
-**Tasks:**
-- [ ] idb Library Integration
-- [ ] Migration von LocalStorage → IndexedDB
-- [ ] Compression für Saves
-- [ ] Auto-Backup System
-
-**Aufwand:** 6-8 Stunden
-
----
-
-#### P4: Lazy Loading ⭐ ⚡
-**Problem:** Initiales Bundle zu groß
-**Lösung:** Code-Splitting & Lazy Loading
-
-**Tasks:**
-- [ ] React.lazy() für Screens
-- [ ] Dynamic Imports
-- [ ] Route-based Code-Splitting
-- [ ] Preload-Strategie
-
-**Aufwand:** 4-6 Stunden
-
----
-
-### Analytics & Balance ⭐⭐
-
-#### A1: Balance Calculator
-**Tasks:**
-- [ ] $/h Calculator (Realtime)
-- [ ] Efficiency-Metriken
-- [ ] ROI-Calculator für Upgrades
-- [ ] "Optimal Path" Suggestions
-  - "Du solltest X upgraden für beste ROI"
-  - "Verkaufe durch Kanal Y für +30% Gewinn"
-- [ ] Progress Heatmap (Wo verbringt User Zeit?)
-
-**Aufwand:** 10-12 Stunden
-
----
-
-### Monetization (Optional) 💎
-
-#### M1: Gems Shop
-**Tasks:**
-- [ ] In-App-Purchase Integration (Stripe/PayPal)
-- [ ] Gem-Packages (100, 500, 1000, 5000)
-- [ ] "Remove Ads" Option
-- [ ] Legal: Terms of Service, Privacy Policy
-
-**Aufwand:** 12-16 Stunden
-
----
-
-#### M2: Premium Pass
-**Tasks:**
-- [ ] Monthly Subscription System
-- [ ] Premium Perks:
-  - 2x Offline Earnings
-  - Exclusive Workers
-  - Ad-Free
-  - Priority Support
-- [ ] Subscription Management
-
-**Aufwand:** 16-20 Stunden
-
----
-
-#### M3: Cosmetic Shop
-**Tasks:**
-- [ ] Skin-System für Pflanzen
-- [ ] Custom Themes (Dark, Neon, Retro)
-- [ ] Particle Effects kaufbar
-- [ ] Icon Packs
-- [ ] Custom Backgrounds
-
-**Aufwand:** 20-30 Stunden
-
----
-
-## 🎨 Quality of Life Improvements
-
-### QoL-1: UI/UX Enhancements ⭐⭐⭐
-
-**Tasks:**
-- [ ] Quick Actions Bar (häufige Aktionen)
-- [ ] Batch Operations ("Verkaufe alle Common Seeds")
-- [ ] Filter System (nach Rarity, Quality, Type)
-- [ ] Search Function
-- [ ] Tooltips mit ausführlichen Infos
-- [ ] Customizable HUD (UI-Elemente verschieben)
-- [ ] Keyboard Shortcuts (H = Harvest All, S = Sell All)
-
-**Aufwand:** 12-16 Stunden
-
----
-
-### QoL-2: Notification System ⭐⭐
-
-**Tasks:**
-- [ ] Push Notifications (Browser API)
-- [ ] Notifications für:
-  - "Ernte fertig!"
-  - "Verarbeitung abgeschlossen!"
-  - "Worker Event!"
-  - "Black Market offen!"
-- [ ] Notification Settings (granular control)
-- [ ] Sound Alerts
-
-**Aufwand:** 6-8 Stunden
-
----
-
-### QoL-3: Accessibility ⭐
-
-**Tasks:**
-- [ ] Colorblind Modes (Deuteranopia, Protanopia, Tritanopia)
-- [ ] Font Size Options (Small, Medium, Large)
-- [ ] High Contrast Mode
-- [ ] Keyboard Navigation (Tab-Index)
-- [ ] Screen Reader Support (ARIA-Labels)
-- [ ] Dyslexia-Friendly Font Option
-
-**Aufwand:** 10-12 Stunden
-
----
-
-### QoL-4: Data Management ⭐⭐
-
-**Tasks:**
-- [ ] Cloud Saves (Firebase/Supabase)
-- [ ] Multiple Save Slots (3 Slots)
-- [ ] Import/Export verbessern (QR-Code)
-- [ ] Auto-Backup (täglich)
-- [ ] Partial Reset Options
-  - "Reset nur Weed"
-  - "Reset nur Coca"
-  - "Reset nur Prestige"
-- [ ] Progress Milestones (Snapshots bei Level 10, 25, 50)
-
-**Aufwand:** 12-14 Stunden
-
----
-
-## 🎨 Visual Upgrades
-
-### V1: Advanced Animations ⭐
-
-**Tasks:**
-- [ ] Lottie Integration (JSON-Animationen)
-- [ ] Sprite Sheets für Worker-Animationen
-- [ ] Matter.js Physics Engine (realistische Bewegungen)
-- [ ] Skeleton Animations (Spine/DragonBones)
-- [ ] Cinematic Transitions zwischen Screens
-
-**Aufwand:** 16-20 Stunden
-
----
-
-### V2: Themes & Customization ⭐⭐
-
-**Tasks:**
-- [ ] Dark/Light Mode Toggle
-- [ ] Color Themes:
-  - Cyberpunk (Neon Pink/Blue)
-  - Retro (8-bit Green)
-  - Minimal (Grau/Weiß)
-  - Cannabis (Grün-Töne)
-- [ ] Custom Backgrounds (Upload eigene Bilder)
-- [ ] Icon Packs (Flat, Outlined, 3D)
-- [ ] Font Options (Roboto, Comic Sans, Mono)
-
-**Aufwand:** 10-12 Stunden
-
----
-
-### V3: Enhanced Graphics ⭐
-
-**Tasks:**
-- [ ] Canvas/WebGL Particle Systems
-- [ ] Animated Backgrounds (Parallax Clouds)
-- [ ] Weather Effects (Regen-Animation bei Wachstum)
-- [ ] Day/Night Cycle (Auto oder manuell)
-- [ ] Glow-Effekte für Legendary Items
-- [ ] Screen-Shake bei Events
-
-**Aufwand:** 14-18 Stunden
-
----
-
-## 📈 Success Metrics
-
-### KPIs zu tracken:
-- DAU/MAU (Daily/Monthly Active Users)
-- Retention Rate (Day 1, 7, 30)
-- Session Length
-- Prestige Rate (% der User die prestigen)
-- Monetization (wenn implementiert)
-- Feature Usage (welche Features werden genutzt?)
-
----
-
-## 🚦 Risiko-Management
-
-### Potenzielle Probleme:
-
-**1. Feature Creep**
-- **Risiko:** Zu viele Features, keine fertig
-- **Mitigation:** Strikte Phasen-Planung, ein Feature nach dem anderen
-
-**2. Performance-Degradation**
-- **Risiko:** Zu viele Features = Lag
-- **Mitigation:** Kontinuierliche Performance-Tests, Profiling
-
-**3. Balancing-Issues**
-- **Risiko:** Neue Features brechen Wirtschaft
-- **Mitigation:** Ausführliches Testing, Community-Feedback
-
-**4. Code-Debt**
-- **Risiko:** Quick-Fixes führen zu Technical Debt
-- **Mitigation:** Code-Reviews, Refactoring-Sprints
-
-**5. User-Confusion**
-- **Risiko:** Zu komplex für neue Spieler
-- **Mitigation:** Tutorial-Updates, Tooltips, Progressive Unlocks
-
----
-
-## 📝 Notizen & Ideen-Parking
-
-### Weitere Ideen (noch nicht priorisiert):
-
-- [ ] Breeding-Lab (dedizierter Breeding-Space mit Upgrades)
-- [ ] Worker-Relationships (Romance, Rivalry)
-- [ ] Pet System (Cat/Dog hilft im Grow)
-- [ ] Radio-Station (Custom Music Playlists)
-- [ ] Photo Mode (Screenshot-Tool für Pflanzen)
-- [ ] Genetics-Analyzer (DNA-Tree Visualisierung)
-- [ ] Achievement Showcase (Zeige Trophäen)
-- [ ] Daily Login Streak mit Mega-Rewards
-- [ ] Referral System (Freunde einladen)
-- [ ] Twitch Integration (Stream-Boni)
-- [ ] Discord Bot (Server-Stats)
-
----
-
-## 🎯 Next Steps
-
-**Sofort umsetzbar:**
-1. ✅ Coca Breeding System
-2. ✅ Auto-Sell Rules
-3. ✅ Statistics Dashboard
-4. ✅ Worker Events
-
-**Diskussion mit User:**
-- Welche Features sind Top-Priorität?
-- Monetization gewünscht?
-- Multiplayer interessant?
-- Grafik-Upgrade vs Gameplay-Features?
-
----
-
-**Erstellt am:** 2026-01-02
-**Version:** 1.0
-**Status:** Living Document (wird kontinuierlich aktualisiert)
+Plan: Customer Request System - Bug Fixes & Verbesserungen
+Status
+🐛 KRITISCHER BUG: Request-System funktioniert nicht - "Kunde will nicht so viel zahlen" obwohl Preis korrekt 🔨 JETZT: Bug-Fixes + System-Verbesserungen 📋 Später: Territory Control, Customer v3.0
+🐛 BUG-ANALYSE: Customer Request System
+Problem 1: Falsche Preisberechnung in fulfillRequest()
+Location: src/store/customerStore.ts Line 725-732 Aktueller Code:
+
+const territoryMultiplier = getTerritorySalesMultiplier('weed');
+const qualityMultiplier = 0.5 + (chosenBud.quality / 100) * 1.5;
+const previewRevenue = Math.floor(
+  calculateWeedSaleRevenue(customer, pending.gramsRequested, chosenBud.quality) * territoryMultiplier
+);
+const maxAllowed = Math.floor(pending.maxPrice * qualityMultiplier * territoryMultiplier);
+if (previewRevenue > maxAllowed) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+Problem:
+calculateWeedSaleRevenue() berechnet BEREITS den korrekten Preis mit:
+Loyalty-Bonus: 1 + (loyalty / 100) * 0.3
+Spending-Multiplier: 0.8 + (spendingPower / 100) * 0.6
+Quality-Multiplier: 0.5 + (quality / 100) * 1.5
+Base Price: 15 $/g
+Dann wird previewRevenue nochmal mit territoryMultiplier multipliziert → ZU HOCH
+maxAllowed basiert auf pending.maxPrice (der schon korrekt berechnet wurde in buildPurchaseRequest)
+Aber wird dann NOCHMAL mit qualityMultiplier * territoryMultiplier multipliziert
+ABER: pending.maxPrice wurde bereits MIT quality/urgency/loyalty berechnet!
+Result: previewRevenue ist fast immer > maxAllowed → Request fails
+FIX:
+
+// REMOVE all extra multipliers - just compare actual revenue vs maxPrice
+const previewRevenue = calculateWeedSaleRevenue(customer, pending.gramsRequested, chosenBud.quality);
+
+if (previewRevenue > pending.maxPrice) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+Grund: pending.maxPrice wurde in buildPurchaseRequest() bereits korrekt mit calculateMaxPrice() berechnet, der ALLE Multipliers berücksichtigt (urgency, loyalty, spending). Es gibt KEINEN Grund, nochmal zu multiplizieren.
+Problem 2: getTerritorySalesMultiplier() ruft nicht-existierenden Store auf
+Location: src/store/customerStore.ts Line 226-235 Aktueller Code:
+
+const getTerritorySalesMultiplier = (drug: DrugType) => {
+  const bonuses = useTerritoryStore.getState().getActiveBonuses();
+  const totalBonus = bonuses
+    .filter(b => b.type === 'sales-multiplier' && (b.drug === drug || b.drug === 'all'))
+    .reduce((sum, b) => sum + b.value, 0);
+  return 1 + totalBonus / 100;
+};
+Problem:
+useTerritoryStore existiert noch nicht (Territory System nicht implementiert)
+Code crasht oder gibt undefined zurück
+Wird in Line 725 aufgerufen → Bug
+FIX:
+
+const getTerritorySalesMultiplier = (drug: DrugType) => {
+  try {
+    // Check if territoryStore exists (feature not yet implemented)
+    if (typeof useTerritoryStore === 'undefined') {
+      return 1;
+    }
+    
+    const territoryState = useTerritoryStore.getState();
+    if (!territoryState || typeof territoryState.getActiveBonuses !== 'function') {
+      return 1;
+    }
+
+    const bonuses = territoryState.getActiveBonuses();
+    const totalBonus = bonuses
+      .filter(b => b.type === 'sales-multiplier' && (b.drug === drug || b.drug === 'all'))
+      .reduce((sum, b) => sum + b.value, 0);
+    return 1 + totalBonus / 100;
+  } catch {
+    // Fallback if Territory System not implemented yet
+    return 1;
+  }
+};
+ODER (besser): Entferne komplett, da System eh nicht implementiert:
+
+// DELETE Line 226-235
+// Territory-Bonus-System wird später implementiert
+Problem 3: Kein Cooldown nach Käufen
+Problem:
+Kunde kauft Weed/Koks/Meth
+Im nächsten Tick wird sofort wieder buildPurchaseRequest() aufgerufen
+Kunde spammt Requests
+Location: src/store/customerStore.ts Line 1111-1134 (runCustomerTick) Aktueller Code:
+
+if (
+  nextCustomer.status !== 'prospect' &&
+  !nextCustomer.pendingRequest &&
+  gameMinutes >= nextCustomer.nextRequestAtMinutes
+) {
+  const preferredDrug = getPreferredDrug(nextCustomer);
+  if (nextCustomer.drugPreferences[preferredDrug]) {
+    const request = buildPurchaseRequest(nextCustomer, preferredDrug);
+    // ... generate request
+  }
+}
+Problem:
+Check ist gameMinutes >= nextRequestAtMinutes
+ABER: nextRequestAtMinutes wird NUR in sellToCustomer & sellHardDrug gesetzt
+Wenn Request erfüllt wird via fulfillRequest, wird nextRequestAtMinutes NICHT gesetzt! (siehe Line 714)
+FIX 1: Set nextRequestAtMinutes nach fulfillRequest:
+
+// In fulfillRequest Line 709-722:
+const gameMinutes = useGameStore.getState().gameTimeMinutes;
+set((current) => ({
+  customers: current.customers.map(c => {
+    if (c.id !== customerId) return c;
+    const nextRequestAtMinutes = scheduleNextRequestMinutes(c, gameMinutes);  // ADD THIS
+    return {
+      ...c,
+      pendingRequest: null,
+      requestHistory: [...c.requestHistory, pending].slice(-20),
+      nextRequestAtMinutes,  // ADD THIS (existing code already has it for weed)
+    };
+  }),
+}));
+Aktuell: Line 712-716 setzt nur für Weed:
+
+const nextRequestAtMinutes =
+  pending.drug === 'weed'
+    ? scheduleNextRequestMinutes(c, gameMinutes)
+    : c.nextRequestAtMinutes;  // ← BUG: Koks/Meth behalten alte Zeit!
+FIX: Remove conditional:
+
+const nextRequestAtMinutes = scheduleNextRequestMinutes(c, gameMinutes);
+Problem 4: Requests generieren zu häufig
+Location: src/store/customerStore.ts Line 180-196 (getRequestIntervalRange) Aktueller Code:
+
+const getRequestIntervalRange = (customer: Customer): [number, number] => {
+  const addiction = getMaxAddiction(customer);
+  if (addiction > 80) return [12 * 60, 24 * 60];  // 12-24h
+  if (addiction > 50) return [24 * 60, 48 * 60];  // 24-48h
+  if (addiction > 20) return [48 * 60, 96 * 60];  // 48-96h
+
+  switch (customer.personalityType) {
+    case 'hardcore':
+      return [24 * 60, 72 * 60];  // 24-72h
+    case 'adventurous':
+      return [2 * 24 * 60, 5 * 24 * 60];  // 2-5 days
+    case 'paranoid':
+      return [4 * 24 * 60, 8 * 24 * 60];  // 4-8 days
+    default:
+      return [3 * 24 * 60, 7 * 24 * 60];  // 3-7 days
+  }
+};
+Problem:
+Casual Customers kaufen nur alle 3-7 TAGE → ZU SELTEN für Gameplay
+Addicts kaufen alle 12-24h → OK
+Zu große Varianz zwischen Personalities
+FIX: Reduziere Intervalle für besseres Gameplay:
+
+const getRequestIntervalRange = (customer: Customer): [number, number] => {
+  const addiction = getMaxAddiction(customer);
+  
+  // Addicts kaufen häufiger
+  if (addiction > 80) return [60, 120];  // 1-2h (desperate!)
+  if (addiction > 50) return [3 * 60, 6 * 60];  // 3-6h
+  if (addiction > 20) return [6 * 60, 12 * 60];  // 6-12h
+
+  // Personalities ohne Addiction
+  switch (customer.personalityType) {
+    case 'hardcore':
+      return [12 * 60, 24 * 60];  // 12-24h
+    case 'adventurous':
+      return [24 * 60, 48 * 60];  // 1-2 days
+    case 'paranoid':
+      return [48 * 60, 96 * 60];  // 2-4 days
+    default:  // casual
+      return [24 * 60, 48 * 60];  // 1-2 days (nicht mehr 3-7!)
+  }
+};
+Problem 5: Same bugs in Koks/Meth fulfillRequest
+Location: src/store/customerStore.ts Line 656-701 Aktueller Code für Koks:
+
+if (pending.drug === 'koks') {
+  const cocaState = useCocaStore.getState();
+  const bestProduct = [...cocaState.cocaProducts]
+    .filter(p => p.stage === 'powder' && p.grams >= pending.gramsRequested)
+    .sort((a, b) => b.purity + b.quality - (a.purity + a.quality))[0];
+  
+  if (!bestProduct) {
+    return { success: false, message: 'Kein Koks-Pulver verfuegbar.' };
+  }
+  
+  const qualityScore = (bestProduct.quality + bestProduct.purity) / 2;
+  const qualityMultiplier = 0.6 + (qualityScore / 100) * 1.2;
+  const loyaltyMultiplier = 1 + (customer.loyalty / 100) * 0.3;
+  const spendingMultiplier = 0.8 + (customer.spendingPower / 100) * 0.6;
+  previewRevenue = Math.floor(
+    pending.gramsRequested * BASE_KOKS_PRICE * qualityMultiplier * loyaltyMultiplier * spendingMultiplier
+  );
+}
+
+// Later...
+if (previewRevenue > pending.maxPrice) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+Problem:
+Hier wird previewRevenue korrekt berechnet (ohne extra Multipliers)
+Aber es wird direkt gegen pending.maxPrice verglichen → SOLLTE funktionieren
+ABER: pending.maxPrice wurde mit calculateMaxPrice() berechnet, das AUCH die gleichen Multipliers verwendet
+→ Preis ist identisch oder fast identisch → OK!
+Mögliches Problem: Rounding-Fehler oder Qualitäts-Unterschied zwischen Request-Zeit und Fulfill-Zeit FIX: Add tolerance:
+
+const PRICE_TOLERANCE = 1.05;  // 5% tolerance
+if (previewRevenue > pending.maxPrice * PRICE_TOLERANCE) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+📝 ZUSAMMENFASSUNG: Alle Fixes
+Fix 1: fulfillRequest für Weed (Line 711-739)
+REPLACE:
+
+if (pending.drug === 'weed') {
+  const gameState = useGameStore.getState();
+  const driedBuds = gameState.inventory.filter(bud => bud.state === 'dried');
+  const chosenBud =
+    driedBuds.find(bud => bud.id === options.budId) ??
+    [...driedBuds].sort((a, b) => b.quality - a.quality)[0];
+
+  if (!chosenBud) {
+    return { success: false, message: 'Keine getrockneten Buds verfuegbar.' };
+  }
+  if (chosenBud.grams < pending.gramsRequested) {
+    return { success: false, message: 'Nicht genug Gramm fuer die Anfrage.' };
+  }
+
+  // REMOVE all this broken price checking:
+  const territoryMultiplier = getTerritorySalesMultiplier('weed');
+  const qualityMultiplier = 0.5 + (chosenBud.quality / 100) * 1.5;
+  const previewRevenue = Math.floor(
+    calculateWeedSaleRevenue(customer, pending.gramsRequested, chosenBud.quality) * territoryMultiplier
+  );
+  const maxAllowed = Math.floor(pending.maxPrice * qualityMultiplier * territoryMultiplier);
+  if (previewRevenue > maxAllowed) {
+    return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+  }
+
+  const sale = get().sellToCustomer(customerId, chosenBud.id, pending.gramsRequested);
+  if (!sale.success) {
+    return { success: false, message: sale.message };
+  }
+  result = { success: true, revenue: sale.revenue, message: sale.message };
+}
+WITH:
+
+if (pending.drug === 'weed') {
+  const gameState = useGameStore.getState();
+  const driedBuds = gameState.inventory.filter(bud => bud.state === 'dried');
+  const chosenBud =
+    driedBuds.find(bud => bud.id === options.budId) ??
+    [...driedBuds].sort((a, b) => b.quality - a.quality)[0];
+
+  if (!chosenBud) {
+    return { success: false, message: 'Keine getrockneten Buds verfuegbar.' };
+  }
+  if (chosenBud.grams < pending.gramsRequested) {
+    return { success: false, message: 'Nicht genug Gramm fuer die Anfrage.' };
+  }
+
+  // SIMPLIFIED price check - just compare actual revenue vs customer's max price
+  const previewRevenue = calculateWeedSaleRevenue(customer, pending.gramsRequested, chosenBud.quality);
+  const PRICE_TOLERANCE = 1.1;  // 10% tolerance for quality fluctuations
+  
+  if (previewRevenue > pending.maxPrice * PRICE_TOLERANCE) {
+    return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+  }
+
+  const sale = get().sellToCustomer(customerId, chosenBud.id, pending.gramsRequested);
+  if (!sale.success) {
+    return { success: false, message: sale.message };
+  }
+  result = { success: true, revenue: sale.revenue, message: sale.message };
+}
+Fix 2: fulfillRequest cooldown (Line 709-723)
+REPLACE:
+
+const gameMinutes = useGameStore.getState().gameTimeMinutes;
+set((current) => ({
+  customers: current.customers.map(c => {
+    if (c.id !== customerId) return c;
+    const nextRequestAtMinutes =
+      pending.drug === 'weed'
+        ? scheduleNextRequestMinutes(c, gameMinutes)
+        : c.nextRequestAtMinutes;  // BUG: Koks/Meth keep old time!
+    return {
+      ...c,
+      pendingRequest: null,
+      requestHistory: [...c.requestHistory, pending].slice(-20),
+      nextRequestAtMinutes,
+    };
+  }),
+}));
+WITH:
+
+const gameMinutes = useGameStore.getState().gameTimeMinutes;
+set((current) => ({
+  customers: current.customers.map(c => {
+    if (c.id !== customerId) return c;
+    // FIX: ALWAYS schedule next request for all drug types
+    const nextRequestAtMinutes = scheduleNextRequestMinutes(c, gameMinutes);
+    return {
+      ...c,
+      pendingRequest: null,
+      requestHistory: [...c.requestHistory, pending].slice(-20),
+      nextRequestAtMinutes,
+    };
+  }),
+}));
+Fix 3: Delete getTerritorySalesMultiplier (Line 226-235)
+DELETE completely:
+
+const getTerritorySalesMultiplier = (drug: DrugType) => {
+  const bonuses = useTerritoryStore.getState().getActiveBonuses();
+  const totalBonus = bonuses
+    .filter(b => b.type === 'sales-multiplier' && (b.drug === drug || b.drug === 'all'))
+    .reduce((sum, b) => sum + b.value, 0);
+  return 1 + totalBonus / 100;
+};
+Reason: Territory System nicht implementiert, crasht Code.
+Fix 4: Reduce Request Intervals (Line 180-196)
+REPLACE:
+
+const getRequestIntervalRange = (customer: Customer): [number, number] => {
+  const addiction = getMaxAddiction(customer);
+  if (addiction > 80) return [12 * 60, 24 * 60];
+  if (addiction > 50) return [24 * 60, 48 * 60];
+  if (addiction > 20) return [48 * 60, 96 * 60];
+
+  switch (customer.personalityType) {
+    case 'hardcore':
+      return [24 * 60, 72 * 60];
+    case 'adventurous':
+      return [2 * 24 * 60, 5 * 24 * 60];
+    case 'paranoid':
+      return [4 * 24 * 60, 8 * 24 * 60];
+    default:
+      return [3 * 24 * 60, 7 * 24 * 60];
+  }
+};
+WITH:
+
+const getRequestIntervalRange = (customer: Customer): [number, number] => {
+  const addiction = getMaxAddiction(customer);
+  
+  // Addicts request more frequently
+  if (addiction > 80) return [60, 120];  // 1-2h (desperate)
+  if (addiction > 50) return [3 * 60, 6 * 60];  // 3-6h
+  if (addiction > 20) return [6 * 60, 12 * 60];  // 6-12h
+
+  // Non-addicted customers
+  switch (customer.personalityType) {
+    case 'hardcore':
+      return [12 * 60, 24 * 60];  // 12-24h
+    case 'adventurous':
+      return [24 * 60, 48 * 60];  // 1-2 days
+    case 'paranoid':
+      return [48 * 60, 96 * 60];  // 2-4 days
+    default:  // casual
+      return [24 * 60, 48 * 60];  // 1-2 days (better than 3-7!)
+  }
+};
+Fix 5: Add Price Tolerance für Koks/Meth (Line 692-694)
+REPLACE:
+
+if (previewRevenue > pending.maxPrice) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+WITH:
+
+const PRICE_TOLERANCE = 1.1;  // 10% tolerance
+if (previewRevenue > pending.maxPrice * PRICE_TOLERANCE) {
+  return { success: false, message: 'Kunde will nicht so viel zahlen.' };
+}
+🎯 ZUSÄTZLICHE VERBESSERUNGEN
+Improvement 1: Add Purchase Cooldown Check
+Location: src/store/customerStore.ts Line 1111-1134 (runCustomerTick) ADD before request generation:
+
+// Don't spam requests - minimum 30 minutes since last purchase
+const minutesSinceLastPurchase = gameMinutes - nextCustomer.lastPurchaseAt;
+const MIN_COOLDOWN = 30;  // 30 minutes
+
+if (
+  nextCustomer.status !== 'prospect' &&
+  !nextCustomer.pendingRequest &&
+  gameMinutes >= nextCustomer.nextRequestAtMinutes &&
+  minutesSinceLastPurchase >= MIN_COOLDOWN  // ADD THIS CHECK
+) {
+  const preferredDrug = getPreferredDrug(nextCustomer);
+  if (nextCustomer.drugPreferences[preferredDrug]) {
+    const request = buildPurchaseRequest(nextCustomer, preferredDrug);
+    nextCustomer = {
+      ...nextCustomer,
+      pendingRequest: request,
+      messages: pruneMessages([
+        ...nextCustomer.messages,
+        createMessage({
+          from: 'customer',
+          type: 'purchase-request',
+          message: request.message,
+        }),
+      ]),
+    };
+  } else {
+    nextCustomer.nextRequestAtMinutes = scheduleNextRequestMinutes(nextCustomer, gameMinutes);
+  }
+}
+Improvement 2: Log fulfilled requests
+Location: src/store/customerStore.ts Line 735-739 ADD after successful fulfill:
+
+const sale = get().sellToCustomer(customerId, chosenBud.id, pending.gramsRequested);
+if (!sale.success) {
+  return { success: false, message: sale.message };
+}
+
+// ADD: Log successful request fulfillment
+console.log(`✅ Request fulfilled: ${customer.name} bought ${pending.gramsRequested}g ${pending.drug} for $${sale.revenue}`);
+
+result = { success: true, revenue: sale.revenue, message: sale.message };
+📊 Testing Checklist
+Nach allen Fixes:
+ Weed-Request kann erfüllt werden (kein "will nicht zahlen" mehr)
+ Koks-Request kann erfüllt werden
+ Meth-Request kann erfüllt werden
+ Customer bekommt neuen Request erst nach Cooldown
+ nextRequestAtMinutes wird nach ALLEN Käufen gesetzt
+ Addicts (80+ addiction) bekommen Requests alle 1-2h
+ Casual customers bekommen Requests alle 1-2 Tage
+ Kein Spam von Requests (30min Minimum-Cooldown funktioniert)
+ Preis-Tolerance verhindert false negatives
+ Keine Crashes wegen territoryStore
+📝 Dateien zum Ändern
+1. src/store/customerStore.ts (MULTIPLE FIXES)
+Änderungen:
+Line 226-235: DELETE getTerritorySalesMultiplier
+Line 180-196: REDUCE request intervals
+Line 711-739: FIX fulfillRequest weed price check
+Line 692-694: ADD price tolerance for koks/meth
+Line 709-723: FIX nextRequestAtMinutes for all drugs
+Line 1111-1134: ADD purchase cooldown check (30min)
+Geschätzte Zeit: 2-3 Stunden
+⚖️ Balancing-Überlegungen
+Request-Frequenzen (NEU):
+Desperate Addicts (80+): 1-2h → 12-24 Requests/Tag
+Heavy Addicts (50+): 3-6h → 4-8 Requests/Tag
+Light Users (20+): 6-12h → 2-4 Requests/Tag
+Casual: 1-2 Tage → 0.5-1 Request/Tag
+Paranoid: 2-4 Tage → 0.25-0.5 Request/Tag
+Ist das zu viel?
+Bei 10 aktiven Customers: ~20-50 Requests/Tag
+Mit 30min Cooldown: Max 48 Requests/Tag pro Customer (unrealistisch)
+Real: ~2-5 Requests/Tag pro aktiven Customer → OK
+Price Tolerance:
+10% tolerance verhindert false negatives wegen Rounding/Quality-Schwankungen
+Customer zahlt max 10% mehr als ursprünglich bereit → Fair

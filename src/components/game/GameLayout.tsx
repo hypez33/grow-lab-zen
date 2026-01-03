@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, DollarSign, Snowflake, FlaskConical, Briefcase } from 'lucide-react';
+import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, DollarSign, Snowflake, FlaskConical, Briefcase, Users, Map } from 'lucide-react';
 import { GrowScreen } from './GrowScreen';
 import { ShopScreen } from './ShopScreen';
 import { SkillsScreen } from './SkillsScreen';
@@ -13,6 +13,8 @@ import { SalesScreen } from './SalesScreen';
 import { BusinessScreen } from './BusinessScreen';
 import { KoksScreen } from './KoksScreen';
 import { MethScreen } from './MethScreen';
+import { CustomersScreen } from './CustomersScreen';
+import { TerritoryScreen } from './TerritoryScreen';
 import { LevelUpPopup } from './LevelUpPopup';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore, Screen } from '@/store/navigationStore';
@@ -23,6 +25,9 @@ import { ParallaxClouds } from '@/components/effects/ParallaxClouds';
 import { useBusinessStore } from '@/store/businessStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
+import { useCustomerStore } from '@/store/customerStore';
+import { useTerritoryStore } from '@/store/territoryStore';
+import { toast } from 'sonner';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -38,6 +43,9 @@ export const GameLayout = () => {
 
   const updateDryingProgress = useGameStore(state => state.updateDryingProgress);
   const runWorkerTick = useGameStore(state => state.runWorkerTick);
+  const runAutoSellTick = useGameStore(state => state.runAutoSellTick);
+  const runCustomerTick = useCustomerStore(state => state.runCustomerTick);
+  const runTerritoryTick = useTerritoryStore(state => state.runTerritoryTick);
   const checkLevelUp = useGameStore(state => state.checkLevelUp);
   const tickBusiness = useBusinessStore(state => state.tickBusiness);
   const currentLevel = useGameStore(state => state.level);
@@ -60,6 +68,7 @@ export const GameLayout = () => {
     const interval = setInterval(() => {
       updateDryingProgress(1);
       runWorkerTick(); // Workers do their jobs every second
+      runAutoSellTick();
       const advanceGameTime = useGameStore.getState().advanceGameTime;
       const deltaMinutes = typeof advanceGameTime === 'function' ? advanceGameTime(1) : 0;
       const gameState = useGameStore.getState();
@@ -68,14 +77,50 @@ export const GameLayout = () => {
         Math.floor(gameState.level / 5) * 0.015 + Math.min(0.1, gameState.gems * 0.002)
       );
       const businessResult = tickBusiness(deltaMinutes, gameState.gameTimeMinutes, luckFactor);
-      const businessProfit = Math.floor(businessResult.profit);
-      if (businessProfit > 0) {
+      runCustomerTick(gameState.gameTimeMinutes);
+      const cocaState = useCocaStore.getState();
+      const turfDealers = [
+        ...gameState.workers
+          .filter(worker => worker.owned && !worker.paused && worker.abilities.includes('sell'))
+          .map(worker => ({ id: worker.id, level: worker.level, type: 'street' as const })),
+        ...cocaState.cocaWorkers
+          .filter(worker => worker.owned && !worker.paused && worker.type === 'dealer' && worker.abilities.includes('sell'))
+          .map(worker => ({ id: worker.id, level: worker.level, type: 'street' as const })),
+      ];
+      const turfResult = runTerritoryTick(deltaMinutes, gameState.gameTimeMinutes, turfDealers);
+      if (turfResult.passiveIncome > 0) {
         useGameStore.setState((state) => ({
-          budcoins: state.budcoins + businessProfit,
-          totalCoinsEarned: state.totalCoinsEarned + businessProfit,
+          budcoins: state.budcoins + turfResult.passiveIncome,
+          totalCoinsEarned: state.totalCoinsEarned + turfResult.passiveIncome,
         }));
       }
-      const cocaState = useCocaStore.getState();
+      if (turfResult.upkeepCost > 0) {
+        useGameStore.setState((state) => ({
+          budcoins: state.budcoins - turfResult.upkeepCost,
+        }));
+      }
+      if (turfResult.events.length > 0) {
+        turfResult.events.forEach((event) => {
+          if (event.result === 'win') {
+            toast.success(`${event.territoryName} verteidigt! +${event.controlChange}% Control`);
+          } else {
+            toast.error(`${event.territoryName} angegriffen! ${event.controlChange}% Control`);
+          }
+        });
+      }
+      if (businessResult.events.length > 0) {
+        businessResult.events.forEach((event) => {
+          if (event.profit > 0) {
+            useGameStore.setState((state) => ({
+              budcoins: state.budcoins + event.profit,
+              totalCoinsEarned: state.totalCoinsEarned + event.profit,
+            }));
+          }
+          const isNegative = event.type === 'raid' || event.type === 'seizure';
+          const notify = isNegative ? toast.error : toast.success;
+          notify(event.message);
+        });
+      }
       cocaState.updateCocaProgress(1);
       cocaState.updateProcessingProgress(1);
       cocaState.runCocaAutoWorkerTick();
@@ -87,7 +132,9 @@ export const GameLayout = () => {
         }));
       }
 
-      useMethStore.getState().updateMethProgress(1);
+      const methState = useMethStore.getState();
+      methState.updateMethProgress(1);
+      methState.runMethAutoWorkerTick();
       const cocaDealers = cocaState.cocaWorkers.filter(
         worker => worker.type === 'dealer' && worker.owned && !worker.paused && worker.abilities.includes('sell')
       );
@@ -171,6 +218,8 @@ export const GameLayout = () => {
     { id: 'grow' as Screen, icon: Home, label: 'Grow' },
     { id: 'dryroom' as Screen, icon: Wind, label: 'Dry' },
     { id: 'sales' as Screen, icon: DollarSign, label: 'Sales' },
+    { id: 'customers' as Screen, icon: Users, label: 'Kunden' },
+    { id: 'turf' as Screen, icon: Map, label: 'Turf' },
     { id: 'business' as Screen, icon: Briefcase, label: 'Business' },
     { id: 'koks' as Screen, icon: Snowflake, label: 'Koks' },
     { id: 'meth' as Screen, icon: FlaskConical, label: 'Meth' },
@@ -186,6 +235,8 @@ export const GameLayout = () => {
       case 'grow': return <GrowScreen />;
       case 'dryroom': return <DryRoomScreen />;
       case 'sales': return <SalesScreen />;
+      case 'customers': return <CustomersScreen />;
+      case 'turf': return <TerritoryScreen />;
       case 'business': return <BusinessScreen />;
       case 'koks': return <KoksScreen />;
       case 'meth': return <MethScreen />;

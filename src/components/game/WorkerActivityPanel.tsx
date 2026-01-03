@@ -73,7 +73,7 @@ export const WorkerActivityPanel = () => {
     }
 
     // Check selling activity - but don't show generic status for dealers (we have activity log)
-    if (worker.abilities.includes('sell') && !['sales-dealer', 'street-psycho'].includes(worker.id)) {
+    if (worker.abilities.includes('sell') && !['sales-dealer', 'street-psycho', 'dealer-dejan'].includes(worker.id)) {
       const driedBuds = inventory.filter(b => b.state === 'dried').length;
       const selling = driedBuds > 0;
       activities.push({
@@ -118,7 +118,7 @@ export const WorkerActivityPanel = () => {
   };
 
   // Check if worker is a dealer type
-  const isDealerType = (workerId: string) => ['sales-dealer', 'street-psycho'].includes(workerId);
+  const isDealerType = (workerId: string) => ['sales-dealer', 'street-psycho', 'dealer-dejan'].includes(workerId);
 
   return (
     <div className="game-card p-3 space-y-3">
@@ -134,6 +134,7 @@ export const WorkerActivityPanel = () => {
           const isDealer = isDealerType(worker.id);
           const isPaused = worker.paused;
           const isPsycho = worker.id === 'street-psycho';
+          const isDejan = worker.id === 'dealer-dejan';
           
           // Get activities for this specific dealer
           const dealerSpecificActivities = isDealer 
@@ -154,16 +155,18 @@ export const WorkerActivityPanel = () => {
                   ? 'bg-neon-orange/10 border-neon-orange/30 opacity-60'
                   : isPsycho
                     ? 'bg-red-500/10 border-red-500/30'
-                    : isWorking || (isDealer && dealerSpecificActivities.length > 0)
-                      ? 'bg-primary/10 border-primary/30' 
-                      : 'bg-muted/30 border-border/50'
+                    : isDejan
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : isWorking || (isDealer && dealerSpecificActivities.length > 0)
+                        ? 'bg-primary/10 border-primary/30' 
+                        : 'bg-muted/30 border-border/50'
               }`}
             >
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-lg">{worker.icon}</span>
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-sm font-semibold ${isPsycho ? 'text-red-400' : ''}`}>
+                    <span className={`text-sm font-semibold ${isPsycho ? 'text-red-400' : isDejan ? 'text-amber-300' : ''}`}>
                       {worker.name}
                     </span>
                     <span className="text-xs text-muted-foreground">Lv.{worker.level}</span>
@@ -175,7 +178,7 @@ export const WorkerActivityPanel = () => {
                       <motion.div
                         animate={{ scale: [1, 1.2, 1] }}
                         transition={{ repeat: Infinity, duration: isPsycho ? 0.5 : 1.5 }}
-                        className={`w-2 h-2 rounded-full ${isPsycho ? 'bg-red-500' : 'bg-primary'}`}
+                        className={`w-2 h-2 rounded-full ${isPsycho ? 'bg-red-500' : isDejan ? 'bg-amber-400' : 'bg-primary'}`}
                       />
                     ) : (
                       <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
@@ -183,6 +186,11 @@ export const WorkerActivityPanel = () => {
                     {isPsycho && !isPaused && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">
                         ☠️ Gefährlich
+                      </span>
+                    )}
+                    {isDejan && !isPaused && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                        🎰 Süchtig
                       </span>
                     )}
                   </div>
@@ -238,7 +246,11 @@ export const WorkerActivityPanel = () => {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className={`mt-2 p-2 rounded-lg text-xs ${
-                    isPsycho ? 'bg-red-500/30 border border-red-500/40' : 'bg-red-500/20 border border-red-500/30'
+                    isPsycho
+                      ? 'bg-red-500/30 border border-red-500/40'
+                      : isDejan
+                        ? 'bg-amber-500/20 border border-amber-500/30'
+                        : 'bg-red-500/20 border border-red-500/30'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -254,10 +266,12 @@ export const WorkerActivityPanel = () => {
               {isDealer && !isPaused && (
                 <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
                   {dealerSpecificActivities.length === 0 ? (
-                    <div className={`text-xs text-center py-2 ${isPsycho ? 'text-red-300' : 'text-muted-foreground'}`}>
-                      {isPsycho 
-                        ? 'Wartet ungeduldig auf Ware... Spielt mit dem Messer.' 
-                        : 'Keine Aktivitäten - Warte auf getrocknete Buds'}
+                    <div className={`text-xs text-center py-2 ${isPsycho ? 'text-red-300' : isDejan ? 'text-amber-200' : 'text-muted-foreground'}`}>
+                      {isPsycho
+                        ? 'Wartet ungeduldig auf Ware... Spielt mit dem Messer.'
+                        : isDejan
+                          ? 'Keine Aktivitäten - Hängt am Automaten, wartet auf Ware.'
+                          : 'Keine Aktivitäten - Warte auf getrocknete Buds'}
                     </div>
                   ) : (
                     <AnimatePresence mode="popLayout">

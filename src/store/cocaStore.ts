@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { breedCocaSeeds as breedCocaSeedsLib } from '@/lib/cocaBreedingSystem';
 import { useBusinessStore } from '@/store/businessStore';
+import { useGameStore } from '@/store/gameStore';
+import { useTerritoryStore } from '@/store/territoryStore';
 
 // Types
 export type CocaRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -100,6 +102,19 @@ export interface CocaActivityLog {
 }
 
 type CartelShift = 'morning' | 'day' | 'evening' | 'night';
+
+const SALES_WINDOW_MS = 60 * 60 * 1000;
+
+const pruneSalesWindow = (entries: Array<{ timestamp: number; revenue: number }>, now: number) =>
+  entries.filter(entry => now - entry.timestamp <= SALES_WINDOW_MS);
+
+const getTerritorySalesMultiplier = (drug: 'koks') => {
+  const bonuses = useTerritoryStore.getState().getActiveBonuses();
+  const totalBonus = bonuses
+    .filter(bonus => bonus.type === 'sales-multiplier' && (bonus.drug === drug || bonus.drug === 'all'))
+    .reduce((sum, bonus) => sum + bonus.value, 0);
+  return 1 + totalBonus / 100;
+};
 
 // Coca Workers - even more messed up than the Psycho
 export const COCA_WORKERS: CocaWorker[] = [
@@ -221,24 +236,32 @@ const CARTEL_SHIFT_ACTIVITIES: Record<CartelShift, string[]> = {
     'zählt die Nachtkasse und lädt neue Burner-Phones.',
     'koordiniert Routen für die erste Lieferung.',
     'überprüft Funkkanäle und wechselt Treffpunkte.',
+    'misst Lagerbestände und verteilt neue Codes.',
+    'plant die ersten Drops des Tages.',
   ],
   day: [
     'klappert Hotspots ab und bedient Stammkunden.',
     'liefert Nachschub an Runner.',
     'brieft die Crew zu neuen Regeln.',
     'sichtet Streifen und lenkt sie um.',
+    'organisiert Übergaben in Parkhäusern.',
+    'legt neue Backup-Stashes an.',
   ],
   evening: [
     'sammelt Cash ein und klärt offene Schulden.',
     'verlegt Ware in Nachtverstecke.',
     'trifft Zwischenhändler im Hinterhof.',
     'organisiert Schutz für die Nachtschicht.',
+    'tauscht Burner-Phones und rotiert Codes.',
+    'stellt Fahrer für die Nacht bereit.',
   ],
   night: [
     'fährt Schleichwege, meidet Checkpoints.',
     'führt stille Übergaben in Hintergassen durch.',
     'wechselt Kennzeichen und Lagerorte.',
     'zählt Cash im Safehouse und zieht Bilanz.',
+    'zieht die Crew aus dem Kiez zurück.',
+    'checkt Hinterhöfe für mögliche Streifen.',
   ],
 };
 
@@ -247,21 +270,25 @@ const CARTEL_IDLE_ACTIVITIES: Record<CartelShift, string[]> = {
     'hat keinen Stoff. Organisiert Nachschub.',
     'wartet auf die erste Lieferung des Tages.',
     'sitzt im Safehouse und checkt die Lage.',
+    'hält Funkdisziplin, aber Ware fehlt.',
   ],
   day: [
     'kein Produkt – hält die Gegend ruhig.',
     'wartet auf den nächsten Drop.',
     'verschiebt Deals wegen leeren Vorräten.',
+    'zieht sich zurück, bis Ware auftaucht.',
   ],
   evening: [
     'Ware knapp – Kunden werden vertröstet.',
     'hält sich bedeckt, bis Nachschub kommt.',
     'checkt Lager, aber es ist leer.',
+    'schickt Runner ohne Ware nach Hause.',
   ],
   night: [
     'trocken – legt sich in den Schatten.',
     'verzieht sich, bis die Lieferung da ist.',
     'hält Nachtwache ohne Ware.',
+    'bleibt auf Funk, aber niemand liefert.',
   ],
 };
 
@@ -270,70 +297,85 @@ const CARTEL_DEALER_ACTIVITIES: Record<string, Partial<Record<CartelShift, strin
     morning: [
       'trainiert die Schluckrouten für die Grenze.',
       'prüft Bodypacks und Kontaktpunkte.',
+      'testet neue Verstecke im Gepäck.',
     ],
     day: [
       'kundschaftet Grenzübergänge aus.',
       'übergibt Päckchen an Kuriere.',
+      'wechselt Routen nach Funkwarnung.',
     ],
     night: [
       'schleicht über Nebenrouten an der Grenze vorbei.',
       'taktet den nächsten Schmuggel-Run.',
+      'versteckt Ware in falschen Koffern.',
     ],
   },
   'cartel-sicario': {
     morning: [
       'checkt Waffen, Magazine, Ausrüstung.',
       'sichert die Route der Crew.',
+      'prüft Fluchtwege für die Abholung.',
     ],
     day: [
       'zieht Schutzgeld ein.',
       'schickt eine klare Botschaft an die Konkurrenz.',
+      'begleitet den Geldtransport.',
     ],
     evening: [
       'beobachtet ein Ziel und wartet auf Signal.',
       'klärt ein "Problem" diskret.',
+      'sichert den Hintereingang beim Drop.',
     ],
   },
   'corrupt-cop': {
     morning: [
       'scannt Funkverkehr und Polizeipläne.',
       'markiert sichere Routen im Streifenplan.',
+      'verschiebt eine Kontrolle auf später.',
     ],
     day: [
       'lenkt Kontrollen um.',
       'nimmt Schutzgeld von Dealern.',
+      'räumt eine Straße "frei".',
     ],
     evening: [
       'schiebt eine Razzia auf morgen.',
       'lässt Beweise verschwinden.',
+      'legt eine falsche Spur für die Behörden.',
     ],
   },
   'chemist-zombie': {
     morning: [
       'kalibriert die Laborgeräte.',
       'testet Reinheit mit eigener Nase.',
+      'notiert Mischungsverhältnisse auf dem Tisch.',
     ],
     day: [
       'führt Laborchecks durch.',
       'reinigt Filter und reagiert nervös.',
+      'prüft Temperatur und pH-Werte.',
     ],
     night: [
       'schläft nicht und kocht weiter.',
       'schleppt Proben in den Keller.',
+      'arbeitet im Halbdunkel weiter.',
     ],
   },
   'ghost-dealer': {
     morning: [
       'taucht kurz auf, keiner sieht ihn.',
       'prüft leise die Übergabepunkte.',
+      'hinterlässt keine Spuren am Drop.',
     ],
     evening: [
       'folgt Schatten durch leere Gassen.',
       'bereitet lautlose Drops vor.',
+      'beobachtet aus der Dunkelheit.',
     ],
     night: [
       'macht einen unsichtbaren Nacht-Deal.',
       'verschwindet ohne Spuren.',
+      'lässt nur eine leere Hülle zurück.',
     ],
   },
 };
@@ -468,6 +510,8 @@ export interface CocaState {
   totalCocaSales: number;
   totalCocaRevenue: number;
   totalProcessed: number;
+  cocaSalesWindow: Array<{ timestamp: number; revenue: number }>;
+  lastCocaSalesMinute: number;
   
   // Actions
   cocaTap: () => void;
@@ -522,6 +566,8 @@ export const useCocaStore = create<CocaState>()(
       totalCocaSales: 0,
       totalCocaRevenue: 0,
       totalProcessed: 0,
+      cocaSalesWindow: [],
+      lastCocaSalesMinute: 0,
 
       // Tap to boost growth
       cocaTap: () => set((state) => {
@@ -854,6 +900,7 @@ export const useCocaStore = create<CocaState>()(
         const state = get();
         const product = state.cocaProducts.find(p => p.id === productId);
         if (!product) return { success: false, revenue: 0 };
+        const now = Date.now();
         
         // Price per gram based on processing stage and purity
         const stagePrices: Record<CocaProcessingStage, number> = {
@@ -867,7 +914,8 @@ export const useCocaStore = create<CocaState>()(
         const purityMultiplier = 0.5 + (product.purity / 100) * 1.5; // 0.5x at 0% purity, 2x at 100%
         const qualityMultiplier = 0.8 + (product.quality / 100) * 0.4;
         const pricePerGram = basePrice * purityMultiplier * qualityMultiplier;
-        const revenue = Math.floor(product.grams * pricePerGram);
+        const territoryMultiplier = getTerritorySalesMultiplier('koks');
+        const revenue = Math.floor(product.grams * pricePerGram * territoryMultiplier);
         
         // Update quest progress for sales and achievements
         const cocaQuests = state.cocaQuests.map(q => {
@@ -895,6 +943,11 @@ export const useCocaStore = create<CocaState>()(
           totalCocaSales: state.totalCocaSales + 1,
           totalCocaRevenue: state.totalCocaRevenue + revenue,
           cocaQuests,
+          cocaSalesWindow: pruneSalesWindow(
+            [...state.cocaSalesWindow, { timestamp: now, revenue }],
+            now
+          ),
+          lastCocaSalesMinute: now,
         });
         
         return { success: true, revenue };
@@ -1010,6 +1063,8 @@ export const useCocaStore = create<CocaState>()(
         const state = get();
         let totalSoldGrams = 0;
         let totalRevenue = 0;
+        let xpFromSales = 0;
+        const saleEntries: Array<{ timestamp: number; revenue: number }> = [];
         
         const activeWorkers = state.cocaWorkers.filter(w => w.owned && !w.paused && w.abilities.includes('sell'));
         
@@ -1020,6 +1075,8 @@ export const useCocaStore = create<CocaState>()(
         const now = Date.now();
         const shift = getCartelShift(now);
         const shiftLabel = CARTEL_SHIFT_LABELS[shift];
+
+        const territoryMultiplier = getTerritorySalesMultiplier('koks');
 
         const logRoutine = (worker: CocaWorker, hasStock: boolean, salesMade: number) => {
           const lastActivityAt = get().cocaDealerLastActivityAt?.[worker.id] ?? 0;
@@ -1068,12 +1125,14 @@ export const useCocaStore = create<CocaState>()(
               const qualityMultiplier = 0.8 + (warehouseSale.averageQuality / 100) * 0.4;
               const workerBonus = 1 + worker.level * 0.1;
               const revenue = Math.floor(
-                warehouseSale.gramsSold * basePrice * purityMultiplier * qualityMultiplier * workerBonus
+                warehouseSale.gramsSold * basePrice * purityMultiplier * qualityMultiplier * workerBonus * territoryMultiplier
               );
 
+              saleEntries.push({ timestamp: now, revenue });
               totalSoldGrams += warehouseSale.gramsSold;
               totalRevenue += revenue;
               salesMade += 1;
+              xpFromSales += Math.max(1, Math.floor(warehouseSale.gramsSold / 20));
 
               get().addCocaActivityLog({
                 workerId: worker.id,
@@ -1103,11 +1162,19 @@ export const useCocaStore = create<CocaState>()(
           }
 
           if (totalRevenue > 0) {
-            set({
-              cocaCoins: state.cocaCoins + totalRevenue,
-              totalCocaSales: state.totalCocaSales + totalRevenue,
-              totalCocaRevenue: state.totalCocaRevenue + totalRevenue,
-            });
+            set((current) => ({
+              cocaCoins: current.cocaCoins + totalRevenue,
+              totalCocaSales: current.totalCocaSales + totalRevenue,
+              totalCocaRevenue: current.totalCocaRevenue + totalRevenue,
+              cocaSalesWindow: saleEntries.length > 0
+                ? pruneSalesWindow([...current.cocaSalesWindow, ...saleEntries], now)
+                : current.cocaSalesWindow,
+              lastCocaSalesMinute: saleEntries.length > 0 ? now : current.lastCocaSalesMinute,
+            }));
+          }
+
+          if (xpFromSales > 0) {
+            useGameStore.getState().addXp(xpFromSales);
           }
 
           return { soldGrams: totalSoldGrams, revenue: totalRevenue };
@@ -1155,11 +1222,13 @@ export const useCocaStore = create<CocaState>()(
             const qualityMultiplier = 0.8 + (product.quality / 100) * 0.4;
             const workerBonus = 1 + worker.level * 0.1;
             const pricePerGram = basePrice * purityMultiplier * qualityMultiplier * workerBonus;
-            const revenue = Math.floor(dealGrams * pricePerGram);
+            const revenue = Math.floor(dealGrams * pricePerGram * territoryMultiplier);
             
+            saleEntries.push({ timestamp: now, revenue });
             totalSoldGrams += dealGrams;
             totalRevenue += revenue;
             salesMade += 1;
+            xpFromSales += Math.max(1, Math.floor(dealGrams / 20));
 
             if (dealGrams >= product.grams) {
               remainingProducts.splice(targetIndex, 1);
@@ -1176,6 +1245,8 @@ export const useCocaStore = create<CocaState>()(
                 `wurde vom Zoll durchsucht - alles sauber, ${soldGrams}g verkauft 🚔`,
                 `kotzte ${soldGrams}g aus und verkaufte sie trotzdem 🤮`,
                 `überquerte 3 Grenzen mit ${soldGrams}g im Bauch 🫃`,
+                `lief unterm Radar und setzte ${soldGrams}g ab 🕶️`,
+                `tauschte ${soldGrams}g im Kofferraum gegen Cash 🚗`,
               ],
               'cartel-sicario': [
                 `verkaufte ${soldGrams}g und kaltstellte den Käufer. Doppelt verdient 💀`,
@@ -1184,6 +1255,8 @@ export const useCocaStore = create<CocaState>()(
                 `${soldGrams}g verkauft. Kunde zahlt oder wird begraben 🪦`,
                 `verkaufte ${soldGrams}g am Tatort des letzten Deals 💥`,
                 `löschte Polizeizeugen aus und vertickte ${soldGrams}g 🩸`,
+                `nahm ${soldGrams}g Cash, ließ keine Fragen offen 🔪`,
+                `verteilte ${soldGrams}g und setzte ein Zeichen 💣`,
               ],
               'corrupt-cop': [
                 `beschlagnahmte ${soldGrams}g und verkaufte es selbst 🐷`,
@@ -1192,6 +1265,8 @@ export const useCocaStore = create<CocaState>()(
                 `fälschte Beweismittel und klaute ${soldGrams}g aus Asservatenkammer 🔒`,
                 `tauschte ${soldGrams}g gegen Straffreiheit. Win-win! 🤝`,
                 `verriet Kartell-Konkurrenz an FBI und verkaufte ${soldGrams}g selbst 🎖️`,
+                `schob eine Akte in die Schublade und verkaufte ${soldGrams}g 📁`,
+                `lenkte Streife ab, Deal mit ${soldGrams}g lief sauber 🚔`,
               ],
               'chemist-zombie': [
                 `zitterte ${soldGrams}g zusammen und vertickte sie sabbernd 🧟`,
@@ -1200,6 +1275,8 @@ export const useCocaStore = create<CocaState>()(
                 `halluzinierte rosa Elefanten aber verkaufte trotzdem ${soldGrams}g 🐘`,
                 `kochte versehentlich Meth, verkaufte aber ${soldGrams}g Koks 🧪`,
                 `hat seit 4 Tagen nicht geschlafen, ${soldGrams}g vertickt 😵`,
+                `kippte was daneben und verkaufte trotzdem ${soldGrams}g 🧫`,
+                `mischte schneller als sein Schatten, ${soldGrams}g weg 🧪`,
               ],
               'ghost-dealer': [
                 `erschien aus dem Nichts, verkaufte ${soldGrams}g, verschwand wieder 👻`,
@@ -1208,6 +1285,8 @@ export const useCocaStore = create<CocaState>()(
                 `war nie da. Trotzdem sind ${soldGrams}g weg und das Geld da 💸`,
                 `liquidierte die Konkurrenz-Familie und verkaufte ${soldGrams}g 🗡️`,
                 `Dealer verschwanden spurlos. ${soldGrams}g auch. Niemand spricht darüber 🤫`,
+                `flüsterte den Preis, ${soldGrams}g verschwanden im Nebel 🌁`,
+                `niemand sah den Deal, ${soldGrams}g waren weg 🌑`,
               ],
             };
 
@@ -1242,11 +1321,19 @@ export const useCocaStore = create<CocaState>()(
         }
 
         if (totalRevenue > 0) {
-          set({
+          set((current) => ({
             cocaProducts: remainingProducts,
-            cocaCoins: state.cocaCoins + totalRevenue,
-            totalCocaSales: state.totalCocaSales + totalRevenue,
-          });
+            cocaCoins: current.cocaCoins + totalRevenue,
+            totalCocaSales: current.totalCocaSales + totalRevenue,
+            cocaSalesWindow: saleEntries.length > 0
+              ? pruneSalesWindow([...current.cocaSalesWindow, ...saleEntries], now)
+              : current.cocaSalesWindow,
+            lastCocaSalesMinute: saleEntries.length > 0 ? now : current.lastCocaSalesMinute,
+          }));
+        }
+
+        if (xpFromSales > 0) {
+          useGameStore.getState().addXp(xpFromSales);
         }
 
         return { soldGrams: totalSoldGrams, revenue: totalRevenue };
@@ -1297,6 +1384,7 @@ export const useCocaStore = create<CocaState>()(
         const state = get();
         const farmer = state.cocaWorkers.find(w => w.id === 'coca-farmer' && w.owned && !w.paused);
         const processor = state.cocaWorkers.find(w => w.id === 'coca-processor' && w.owned && !w.paused);
+        let harvestXp = 0;
         
         // FARMER: Auto-plant and auto-harvest
         if (farmer) {
@@ -1336,6 +1424,7 @@ export const useCocaStore = create<CocaState>()(
             const yieldMultiplier = (1 + yieldBonusLevel * 0.10) * farmerBonus;
             const baseGrams = seed.baseYield * yieldMultiplier;
             const actualGrams = Math.floor(baseGrams * (0.9 + Math.random() * 0.2));
+            harvestXp += Math.max(1, Math.floor(actualGrams / 20));
             
             const rarityQuality: Record<CocaRarity, number> = {
               common: 50, uncommon: 65, rare: 75, epic: 85, legendary: 95,
@@ -1420,11 +1509,15 @@ export const useCocaStore = create<CocaState>()(
             }
           }
         }
+
+        if (harvestXp > 0) {
+          useGameStore.getState().addXp(harvestXp);
+        }
       },
     }),
     {
       name: 'coca-lab-save',
-      version: 6,
+      version: 7,
       migrate: (persistedState: any, version: number) => {
         // Always ensure all COCA_WORKERS are in the state
         const existingWorkers = persistedState.cocaWorkers || [];
@@ -1442,12 +1535,23 @@ export const useCocaStore = create<CocaState>()(
           return templateWorker;
         });
         
-        return {
+        const nextState = {
           ...persistedState,
           cocaActivityLogs: persistedState.cocaActivityLogs || [],
           cocaDealerLastActivityAt: persistedState.cocaDealerLastActivityAt || {},
           cocaWorkers: mergedWorkers,
         };
+
+        if (version < 7) {
+          if (!Array.isArray(nextState.cocaSalesWindow)) {
+            nextState.cocaSalesWindow = [];
+          }
+          if (!Number.isFinite(nextState.lastCocaSalesMinute)) {
+            nextState.lastCocaSalesMinute = 0;
+          }
+        }
+
+        return nextState;
       },
     }
   )
