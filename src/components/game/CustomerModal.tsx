@@ -312,7 +312,11 @@ export const CustomerModal = ({
   };
 
   const handleFulfillRequest = () => {
-    if (!customer || !pendingRequest) return;
+    if (!customer || !pendingRequest) {
+      console.log('handleFulfillRequest: no customer or pendingRequest', { customer, pendingRequest });
+      return;
+    }
+    console.log('handleFulfillRequest: calling onFulfillRequest', { customerId: customer.id, pendingRequest });
     // Let the store automatically choose the best product
     onFulfillRequest(customer, undefined);
   };
