@@ -222,6 +222,9 @@ export const CustomerModal = ({
   const [sellOpen, setSellOpen] = useState(true);
   const [offerOpen, setOfferOpen] = useState(false);
 
+  // Chat auto-scroll ref
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!customer) return;
     setSampleBudId(sampleOptions[0]?.id ?? '');
@@ -235,6 +238,13 @@ export const CustomerModal = ({
     setSellOpen(true);
     setOfferOpen(false);
   }, [customer?.id]);
+
+  // Auto-scroll chat to newest message
+  useEffect(() => {
+    if (chatContainerRef.current && customer?.messages?.length) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [customer?.messages?.length, messagesOpen]);
 
   useEffect(() => {
     if (!customer) return;
@@ -642,7 +652,10 @@ export const CustomerModal = ({
                     </div>
                     
                     {/* Messages Container */}
-                    <div className="max-h-[280px] overflow-y-auto p-3 space-y-3 scrollbar-hide">
+                    <div 
+                      ref={chatContainerRef}
+                      className="max-h-[280px] overflow-y-auto p-3 space-y-3 scrollbar-hide"
+                    >
                       {customer.messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                           <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
