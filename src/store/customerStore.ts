@@ -729,15 +729,21 @@ export const useCustomerStore = create<CustomerState>()(
         if (pending.drug === 'weed') {
           const gameState = useGameStore.getState();
           const driedBuds = gameState.inventory.filter(bud => bud.state === 'dried');
-          const chosenBud =
-            driedBuds.find(bud => bud.id === options.budId) ??
-            [...driedBuds].sort((a, b) => b.quality - a.quality)[0];
+          
+          // First try to find the specified bud if it has enough grams
+          let chosenBud = options.budId
+            ? driedBuds.find(bud => bud.id === options.budId && bud.grams >= pending.gramsRequested)
+            : null;
+          
+          // If not found or not enough, find the best quality bud with enough grams
+          if (!chosenBud) {
+            chosenBud = [...driedBuds]
+              .filter(bud => bud.grams >= pending.gramsRequested)
+              .sort((a, b) => b.quality - a.quality)[0] ?? null;
+          }
 
           if (!chosenBud) {
-            return { success: false, message: 'Keine getrockneten Buds verfuegbar.' };
-          }
-          if (chosenBud.grams < pending.gramsRequested) {
-            return { success: false, message: 'Nicht genug Gramm fuer die Anfrage.' };
+            return { success: false, message: 'Keine getrockneten Buds mit genug Gramm verfuegbar.' };
           }
 
           const customPrice = pending.maxPrice / pending.gramsRequested;
