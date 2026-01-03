@@ -242,9 +242,15 @@ export const CustomerModal = ({
   // Auto-scroll chat to newest message
   useEffect(() => {
     if (chatContainerRef.current && customer?.messages?.length) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      // Use setTimeout to ensure DOM has rendered
+      const timer = setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [customer?.messages?.length, messagesOpen]);
+  }, [customer?.messages?.length, messagesOpen, customer?.id]);
 
   useEffect(() => {
     if (!customer) return;
