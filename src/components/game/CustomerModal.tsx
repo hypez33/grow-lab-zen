@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap } from 'lucide-react';
+import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
@@ -42,12 +42,38 @@ const DEFAULT_PRICE_PER_GRAM: Record<DrugType, number> = {
 const formatTime = (timestamp: number) => {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'gerade eben';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return 'Gerade eben';
+  if (minutes < 60) return `Vor ${minutes} Min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return `Vor ${hours} Std`;
   const days = Math.floor(hours / 24);
-  return `${days}d`;
+  return `Vor ${days} Tag${days > 1 ? 'en' : ''}`;
+};
+
+// Message type display helpers
+const getMessageTypeLabel = (type: string): { label: string; color: string; icon: React.ElementType } => {
+  const types: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+    'sample-request': { label: 'Sample Anfrage', color: 'text-blue-400', icon: Gift },
+    'sample-response': { label: 'Sample Feedback', color: 'text-emerald-400', icon: CheckCircle2 },
+    'purchase': { label: 'Kauf', color: 'text-emerald-400', icon: DollarSign },
+    'purchase-request': { label: 'Bestellung', color: 'text-amber-400', icon: Package },
+    'request': { label: 'Anfrage', color: 'text-amber-400', icon: MessageSquare },
+    'offer': { label: 'Angebot', color: 'text-purple-400', icon: Sparkles },
+    'complaint': { label: 'Beschwerde', color: 'text-red-400', icon: AlertCircle },
+    'praise': { label: 'Lob', color: 'text-emerald-400', icon: Heart },
+    'casual': { label: 'Chat', color: 'text-muted-foreground', icon: MessageSquare },
+    'timeout': { label: 'Timeout', color: 'text-orange-400', icon: Clock },
+    'timeout-angry': { label: 'Verärgert', color: 'text-red-400', icon: AlertCircle },
+    'drug-rejection': { label: 'Ablehnung', color: 'text-red-400', icon: X },
+    'drug-rejection-soft': { label: 'Ablehnung', color: 'text-orange-400', icon: AlertCircle },
+    'drug-rejection-angry': { label: 'Ablehnung', color: 'text-red-500', icon: AlertCircle },
+    'drug-acceptance': { label: 'Akzeptiert', color: 'text-emerald-400', icon: CheckCircle2 },
+    'addiction-plea': { label: 'Bitte', color: 'text-purple-400', icon: Heart },
+    'addiction-light': { label: 'Nachfrage', color: 'text-blue-400', icon: TrendingUp },
+    'addiction-medium': { label: 'Dringend', color: 'text-orange-400', icon: AlertCircle },
+    'addiction-desperate': { label: 'Verzweifelt', color: 'text-red-400', icon: AlertCircle },
+  };
+  return types[type] || { label: 'Nachricht', color: 'text-muted-foreground', icon: MessageSquare };
 };
 
 const formatTimeLeft = (timestamp: number) => {
@@ -587,54 +613,176 @@ export const CustomerModal = ({
                 </div>
               )}
 
-              {/* Messages Section */}
+              {/* Messages Section - Enhanced Chat UI */}
               <Collapsible open={messagesOpen} onOpenChange={setMessagesOpen}>
                 <CollapsibleTrigger asChild>
                   <button type="button" className="w-full">
                     <SectionHeader 
                       icon={MessageSquare} 
-                      title="Nachrichten" 
-                      badge={customer.messages.length > 0 ? `${customer.messages.length}` : undefined}
+                      title="Chat-Verlauf" 
+                      badge={customer.messages.filter(m => !m.read).length > 0 ? `${customer.messages.filter(m => !m.read).length} neu` : undefined}
                       isOpen={messagesOpen}
                     />
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="mt-2 max-h-[200px] overflow-y-auto space-y-2 pr-1 rounded-lg bg-muted/10 p-2">
-                    {customer.messages.length === 0 ? (
-                      <div className="text-xs text-muted-foreground text-center py-4">Keine Nachrichten</div>
-                    ) : (
-                      customer.messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`flex ${msg.from === 'customer' ? 'justify-start' : 'justify-end'}`}
-                        >
-                          <div
-                            className={`max-w-[85%] rounded-xl px-3 py-2 text-xs break-words ${
-                              msg.from === 'customer'
-                                ? 'bg-muted/50 text-foreground rounded-tl-sm'
-                                : 'bg-primary/20 text-primary-foreground rounded-tr-sm'
-                            }`}
-                          >
-                            <div>{msg.message}</div>
-                            <div className="mt-1 text-[10px] text-muted-foreground">{formatTime(msg.timestamp)}</div>
-                            {msg.actions && !msg.actionsUsed && (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {msg.actions.map(action => (
-                                  <button
-                                    key={action.id}
-                                    type="button"
-                                    onClick={() => handleMessageAction(msg.id, action)}
-                                    className="btn-neon px-2 py-1 text-[10px]"
-                                  >
-                                    {action.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                  <div className="mt-2 rounded-xl border border-border/30 bg-gradient-to-b from-card/80 to-card/40 overflow-hidden">
+                    {/* Chat Header */}
+                    <div className="px-3 py-2 border-b border-border/20 bg-muted/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+                          {customer.avatar}
                         </div>
-                      ))
+                        <span className="text-[11px] font-medium">{customer.name}</span>
+                        <span className={`w-2 h-2 rounded-full ${customer.status === 'vip' ? 'bg-amber-400' : customer.status === 'loyal' ? 'bg-emerald-400' : 'bg-blue-400'} animate-pulse`} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {customer.messages.length} Nachrichten
+                      </span>
+                    </div>
+                    
+                    {/* Messages Container */}
+                    <div className="max-h-[280px] overflow-y-auto p-3 space-y-3 scrollbar-hide">
+                      {customer.messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
+                            <MessageSquare size={20} className="text-muted-foreground" />
+                          </div>
+                          <p className="text-xs text-muted-foreground">Noch keine Nachrichten</p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                            {customer.status === 'prospect' 
+                              ? 'Gib ein Sample um die Konversation zu starten!' 
+                              : 'Der Kunde wird sich bald melden...'}
+                          </p>
+                        </div>
+                      ) : (
+                        customer.messages.map((msg, index) => {
+                          const typeInfo = getMessageTypeLabel(msg.type);
+                          const TypeIcon = typeInfo.icon;
+                          const isCustomer = msg.from === 'customer';
+                          const showDateDivider = index === 0 || 
+                            new Date(msg.timestamp).toDateString() !== new Date(customer.messages[index - 1]?.timestamp || 0).toDateString();
+                          
+                          return (
+                            <div key={msg.id}>
+                              {showDateDivider && (
+                                <div className="flex items-center gap-2 my-3">
+                                  <div className="flex-1 h-px bg-border/30" />
+                                  <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">
+                                    {new Date(msg.timestamp).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                  </span>
+                                  <div className="flex-1 h-px bg-border/30" />
+                                </div>
+                              )}
+                              <motion.div
+                                initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                transition={{ duration: 0.2 }}
+                                className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'}`}
+                              >
+                                {/* Customer Avatar */}
+                                {isCustomer && (
+                                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center text-sm border border-border/30">
+                                    {customer.avatar}
+                                  </div>
+                                )}
+                                
+                                <div className={`max-w-[80%] ${isCustomer ? '' : 'text-right'}`}>
+                                  {/* Message Type Badge */}
+                                  <div className={`flex items-center gap-1.5 mb-1 ${isCustomer ? '' : 'justify-end'}`}>
+                                    <TypeIcon size={10} className={typeInfo.color} />
+                                    <span className={`text-[9px] font-medium ${typeInfo.color}`}>
+                                      {typeInfo.label}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Message Bubble */}
+                                  <div
+                                    className={`relative rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed break-words ${
+                                      isCustomer
+                                        ? 'bg-gradient-to-br from-muted/60 to-muted/40 text-foreground rounded-tl-md border border-border/20'
+                                        : 'bg-gradient-to-br from-primary/30 to-primary/20 text-foreground rounded-tr-md border border-primary/20'
+                                    } ${!msg.read && isCustomer ? 'ring-1 ring-primary/40' : ''}`}
+                                  >
+                                    <div className="whitespace-pre-wrap">{msg.message}</div>
+                                    
+                                    {/* Unread indicator */}
+                                    {!msg.read && isCustomer && (
+                                      <div className="absolute -right-1 -top-1 w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+                                    )}
+                                  </div>
+                                  
+                                  {/* Timestamp */}
+                                  <div className={`flex items-center gap-1 mt-1 ${isCustomer ? '' : 'justify-end'}`}>
+                                    <Clock size={9} className="text-muted-foreground/50" />
+                                    <span className="text-[9px] text-muted-foreground/60">{formatTime(msg.timestamp)}</span>
+                                  </div>
+                                  
+                                  {/* Action Buttons */}
+                                  {msg.actions && !msg.actionsUsed && (
+                                    <motion.div 
+                                      initial={{ opacity: 0, y: -5 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="mt-2 flex flex-wrap gap-1.5"
+                                    >
+                                      {msg.actions.map(action => (
+                                        <motion.button
+                                          key={action.id}
+                                          type="button"
+                                          onClick={() => handleMessageAction(msg.id, action)}
+                                          whileHover={{ scale: 1.02 }}
+                                          whileTap={{ scale: 0.98 }}
+                                          className={`px-2.5 py-1.5 text-[10px] font-medium rounded-lg transition-all ${
+                                            action.type === 'accept-request' || action.type === 'offer-drug'
+                                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                              : action.type === 'ignore'
+                                                ? 'bg-muted/40 text-muted-foreground border border-border/30 hover:bg-muted/60'
+                                                : 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
+                                          }`}
+                                        >
+                                          {action.type === 'accept-request' && '✓ '}
+                                          {action.type === 'offer-drug' && '💊 '}
+                                          {action.type === 'counter-offer' && '🔄 '}
+                                          {action.type === 'ignore' && '✗ '}
+                                          {action.label}
+                                        </motion.button>
+                                      ))}
+                                    </motion.div>
+                                  )}
+                                </div>
+                                
+                                {/* Player Avatar */}
+                                {!isCustomer && (
+                                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
+                                    <User size={12} className="text-primary" />
+                                  </div>
+                                )}
+                              </motion.div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                    
+                    {/* Quick Actions Footer */}
+                    {customer.messages.length > 0 && (
+                      <div className="px-3 py-2 border-t border-border/20 bg-muted/10 flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">
+                          {customer.messages.filter(m => !m.actionsUsed && m.actions?.length).length > 0 
+                            ? `${customer.messages.filter(m => !m.actionsUsed && m.actions?.length).length} ausstehende Aktionen`
+                            : 'Alle Aktionen erledigt'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-muted-foreground/60">Loyalität:</span>
+                          <div className="w-16 h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-500"
+                              style={{ width: `${customer.loyalty}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] text-primary font-medium">{customer.loyalty}%</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </CollapsibleContent>
