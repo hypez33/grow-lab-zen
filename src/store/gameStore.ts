@@ -1575,7 +1575,7 @@ export const useGameStore = create<GameState>()(
 
           if (availableKoks < worker.costKoksGrams) return false;
 
-          const consumed = businessState.sellWarehouseStock('koks', worker.costKoksGrams);
+          const consumed = businessState.sellWarehouseStock('koks', worker.costKoksGrams, false);
           if (consumed.gramsSold < worker.costKoksGrams) return false;
 
           set({
@@ -2358,7 +2358,7 @@ export const useGameStore = create<GameState>()(
                 });
               } else {
                 const bulkTarget = Math.floor((isPsycho ? 10 : 6) + Math.random() * (isPsycho ? 30 : 18));
-                const warehouseSale = useBusinessStore.getState().sellWarehouseStock('weed', bulkTarget);
+                const warehouseSale = useBusinessStore.getState().sellWarehouseStock('weed', bulkTarget, false);
 
                 if (warehouseSale.gramsSold > 0) {
                   const quality = warehouseSale.averageQuality || 50;

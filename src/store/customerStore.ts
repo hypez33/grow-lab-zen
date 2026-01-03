@@ -118,8 +118,8 @@ interface CustomerState {
 const SAMPLE_GRAMS = 0.5;
 const INACTIVITY_MINUTES = 7 * 24 * 60;
 const MAX_MESSAGES = 50;
-const MAX_CUSTOMERS = 30;
-const AUTO_PROSPECT_LIMIT = 20;
+const MAX_CUSTOMERS = 100;
+const AUTO_PROSPECT_LIMIT = 50;
 const BASE_WEED_PRICE = 15;
 const BASE_KOKS_PRICE = 150;
 const BASE_METH_PRICE = 80;
@@ -506,9 +506,9 @@ export const useCustomerStore = create<CustomerState>()(
           return { inventory };
         });
 
-        const nextCustomers = state.customers.map((c) => {
+        const nextCustomers = state.customers.map((c): Customer => {
           if (c.id !== customerId) return c;
-          const nextStatus = converted ? 'active' : 'prospect';
+          const nextStatus: Customer['status'] = converted ? 'active' : 'prospect';
           const nextLoyalty = converted ? 1 : 0;
           const nextSatisfaction = converted
             ? clamp(50 + bud.quality / 2, 0, 100)
@@ -834,25 +834,12 @@ export const useCustomerStore = create<CustomerState>()(
             message: 'Are you trying to set me up?? We\'re done! 🚨',
           });
 
+          // Paranoid customer blocks the player - remove them from the list entirely
           set((current) => ({
-            customers: current.customers
-              .map(c => {
-                if (c.id !== customerId) return c;
-                const loyalty = clamp(c.loyalty - 20, 0, 100);
-                const satisfaction = clamp(c.satisfaction - 30, 0, 100);
-                const status = getStatusForLoyalty(loyalty);
-                return {
-                  ...c,
-                  loyalty,
-                  satisfaction,
-                  status: status === 'prospect' ? 'active' : status,
-                  messages: pruneMessages([...c.messages, message]),
-                };
-              })
-              .filter(c => c.satisfaction >= 20),
+            customers: current.customers.filter(c => c.id !== customerId),
           }));
 
-          return { success: false, reason: 'rejected-paranoid' };
+          return { success: false, reason: 'blocked', message: `${customer.name} hat dich blockiert und wurde aus deiner Kontaktliste entfernt.` };
         }
 
         if (customer.personalityType === 'hardcore') {
@@ -1286,10 +1273,11 @@ export const useCustomerStore = create<CustomerState>()(
                   message: 'Yo, wo warst du? Brauch Nachschub!',
                 });
 
+                const finalStatus: Customer['status'] = nextStatus === 'prospect' ? 'active' : nextStatus;
                 nextCustomer = {
                   ...nextCustomer,
-                  loyalty: nextCustomer.status === 'prospect' ? 0 : Math.max(1, newLoyalty),
-                  status: nextStatus === 'prospect' ? 'active' : nextStatus,
+                  loyalty: Math.max(1, newLoyalty),
+                  status: finalStatus,
                   lastInactivityAt: gameMinutes,
                   messages: pruneMessages([...nextCustomer.messages, inactivityMessage]),
                 };

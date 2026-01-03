@@ -311,11 +311,11 @@ export const CanvasParticleProvider: React.FC<{ children: React.ReactNode }> = (
     if (!target) return undefined;
 
     let observer: ResizeObserver | null = null;
-    if ('ResizeObserver' in window) {
+    if (typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(() => resizeCanvas());
       observer.observe(target);
     } else {
-      window.addEventListener('resize', resizeCanvas);
+      (window as Window).addEventListener('resize', resizeCanvas);
     }
 
     return () => {

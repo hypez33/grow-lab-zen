@@ -768,23 +768,23 @@ export const useMethStore = create<MethState>()(
         const newProspects = state.methProspects.filter((_, index) => index !== pickIndex);
         const now = Date.now();
 
-        set((s) => ({
-          methCustomers: [...s.methCustomers, newCustomer],
-          methProspects: newProspects,
-          methSamples: s.methSamples - 1,
-          methActivityLogs: [
-            {
-              id: createMethLogId(),
-              timestamp: now,
-              message: `Sample verteilt: ${newCustomer.name} ist jetzt Kunde.`,
-              type: 'info',
-              customerName: newCustomer.name,
-              addiction: newCustomer.addiction,
-              greed: newCustomer.greed,
-            },
-            ...s.methActivityLogs,
-          ].slice(0, MAX_METH_LOGS),
-        }));
+        set((s) => {
+          const newLog: MethActivityLog = {
+            id: createMethLogId(),
+            timestamp: now,
+            message: `Sample verteilt: ${newCustomer.name} ist jetzt Kunde.`,
+            type: 'info' as MethLogType,
+            customerName: newCustomer.name,
+            addiction: newCustomer.addiction,
+            greed: newCustomer.greed,
+          };
+          return {
+            methCustomers: [...s.methCustomers, newCustomer],
+            methProspects: newProspects,
+            methSamples: s.methSamples - 1,
+            methActivityLogs: [newLog, ...s.methActivityLogs].slice(0, MAX_METH_LOGS),
+          };
+        });
 
         return { success: true, customer: newCustomer };
       },

@@ -144,6 +144,16 @@ const themes: Record<Screen, MusicTheme> = {
     bassEnabled: true,
     padEnabled: true,
   },
+  customers: {
+    baseFreq: 247, // B3 - smooth, business-like
+    scale: [0, 2, 4, 5, 7, 9, 11, 12], // Major
+    tempo: 1400,
+    waveType: 'sine',
+    filterFreq: 1000,
+    volume: 0.06,
+    bassEnabled: true,
+    padEnabled: true,
+  },
 };
 
 export const useBackgroundMusic = () => {
