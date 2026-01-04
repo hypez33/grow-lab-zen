@@ -143,6 +143,38 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
             <span className="text-xs font-bold uppercase tracking-wider text-primary mt-1">
               {slot.stage}
             </span>
+
+            {/* Bud growth preview during flower stage */}
+            {(slot.stage === 'flower' || slot.stage === 'harvest') && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[10px]">🌸</span>
+                <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-pink-400 to-purple-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${slot.budGrowth ?? 0}%` }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+                <span className="text-[9px] font-bold text-pink-400">
+                  {Math.round(slot.budGrowth ?? 0)}%
+                </span>
+              </div>
+            )}
+
+            {/* Yield preview */}
+            {(slot.stage === 'flower' || slot.stage === 'harvest') && slot.seed && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-1 mt-0.5 px-2 py-0.5 bg-primary/10 rounded-full"
+              >
+                <span className="text-[9px] text-muted-foreground">~</span>
+                <span className="text-[10px] font-bold text-primary">
+                  {Math.round(slot.seed.baseYield * (0.2 + ((slot.budGrowth ?? 0) / 100) * 0.8))}g
+                </span>
+              </motion.div>
+            )}
           </>
         )}
       </div>
