@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGameStore, Seed } from '@/store/gameStore';
+import { useGameStore, Seed, SEED_CATALOG, GrowSlot as GrowSlotType } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { GrowSlot } from './GrowSlot';
 import { GrowSuppliesModal } from './GrowSuppliesModal';
+import { HarvestBreakdownModal, HarvestBreakdownData, HarvestBonus } from './HarvestBreakdownModal';
 import { ResourceBadge } from './ResourceIcon';
 import { PlantSVG } from './PlantSVG';
 import { WorkerActivityPanel } from './WorkerActivityPanel';
@@ -15,6 +16,175 @@ import { toast } from 'sonner';
 import { X, Zap, Unlock, Wind, Droplets } from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { useCanvasParticles } from '@/components/effects/CanvasParticleSystem';
+
+// Helper function to calculate harvest breakdown data
+const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof useGameStore.getState>): HarvestBreakdownData | null => {
+  if (!slot.seed) return null;
+
+  const seed = slot.seed;
+  const traits = seed.traits;
+  const hasTrait = (t: string) => traits.includes(t);
+
+  // Check collection bonuses
+  const checkCollectionBonus = (rarity: typeof seed.rarity): boolean => {
+    const seedsOfRarity = SEED_CATALOG.filter(s => s.rarity === rarity);
+    return seedsOfRarity.every(s => state.discoveredSeeds.includes(s.name));
+  };
+
+  const hasCommonBonus = checkCollectionBonus('common');
+  const hasUncommonBonus = checkCollectionBonus('uncommon');
+  const hasRareBonus = checkCollectionBonus('rare');
+  const hasEpicBonus = checkCollectionBonus('epic');
+  const hasLegendaryBonus = checkCollectionBonus('legendary');
+  const hasMasterBonus = state.discoveredSeeds.length === SEED_CATALOG.length;
+
+  // Base values
+  const baseYield = seed.baseYield;
+  const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
+
+  // Fertilizer and Soil bonuses
+  const fertilizerYieldBoost = slot.fertilizer?.yieldBoost ?? 0;
+  const fertilizerQualityBoost = slot.fertilizer?.qualityBoost ?? 0;
+  const soilYieldBoost = slot.soil?.yieldBoost ?? 0;
+  const soilQualityBoost = slot.soil?.qualityBoost ?? 0;
+  const soilTraitBoostChance = slot.soil?.traitBoostChance ?? 0;
+
+  // Collect bonuses
+  const bonuses: HarvestBonus[] = [];
+
+  // Base info
+  bonuses.push({
+    name: 'Basis-Ertrag',
+    icon: '🌿',
+    multiplier: 1,
+    description: `${seed.name} (${seed.rarity})`,
+    category: 'base',
+  });
+
+  // Fertilizer bonus
+  if (slot.fertilizer && fertilizerYieldBoost > 0) {
+    bonuses.push({
+      name: slot.fertilizer.name,
+      icon: slot.fertilizer.icon,
+      multiplier: 1 + fertilizerYieldBoost,
+      description: `+${Math.round(fertilizerYieldBoost * 100)}% Ertrag, +${fertilizerQualityBoost} Qualität`,
+      category: 'fertilizer',
+    });
+  }
+
+  // Soil bonus
+  if (slot.soil && soilYieldBoost > 0) {
+    bonuses.push({
+      name: slot.soil.name,
+      icon: slot.soil.icon,
+      multiplier: 1 + soilYieldBoost,
+      description: `+${Math.round(soilYieldBoost * 100)}% Ertrag, +${soilQualityBoost} Qualität`,
+      category: 'soil',
+    });
+  }
+
+  // Trait bonuses
+  if (hasTrait('Bountiful')) {
+    bonuses.push({ name: 'Bountiful', icon: '✨', multiplier: 1.3, description: '+30% alle Erträge', category: 'trait' });
+  }
+  if (hasTrait('GoldRush')) {
+    bonuses.push({ name: 'Gold Rush', icon: '💰', multiplier: 1.5, description: '+50% Coins', category: 'trait' });
+  }
+  if (hasTrait('Frost')) {
+    bonuses.push({ name: 'Frost', icon: '❄️', multiplier: 1.25, description: '+25% Harz', category: 'trait' });
+  }
+  if (hasTrait('EssenceFlow')) {
+    bonuses.push({ name: 'Essence Flow', icon: '💎', multiplier: 2, description: '+100% Essenz', category: 'trait' });
+  }
+  if (hasTrait('LuckyDrop')) {
+    bonuses.push({ name: 'Lucky Drop', icon: '🍀', multiplier: 1, description: '+100% Seed-Drop Chance', category: 'trait' });
+  }
+  if (hasTrait('CritMaster')) {
+    bonuses.push({ name: 'Crit Master', icon: '⚡', multiplier: 1, description: '+15% Krit-Chance', category: 'trait' });
+  }
+  if (hasTrait('DoubleHarvest')) {
+    bonuses.push({ name: 'Double Harvest', icon: '🎉', multiplier: 1, description: '25% Chance auf doppelte Ernte', category: 'trait' });
+  }
+
+  // Collection bonuses
+  if (hasUncommonBonus) {
+    bonuses.push({ name: 'Uncommon Sammlung', icon: '🥈', multiplier: 1.15, description: '+15% Coins', category: 'collection' });
+  }
+  if (hasEpicBonus) {
+    bonuses.push({ name: 'Epic Sammlung', icon: '🥇', multiplier: 1.25, description: '+25% alle Ressourcen', category: 'collection' });
+  }
+  if (hasLegendaryBonus) {
+    bonuses.push({ name: 'Legendary Sammlung', icon: '👑', multiplier: 1.5, description: '+50% XP', category: 'collection' });
+  }
+  if (hasMasterBonus) {
+    bonuses.push({ name: 'Master Sammler', icon: '🏆', multiplier: 2, description: '+100% alle Boni', category: 'collection' });
+  }
+
+  // Upgrade bonuses
+  if (harvestBonus > 0) {
+    bonuses.push({
+      name: 'Trimming Upgrade',
+      icon: '✂️',
+      multiplier: 1 + harvestBonus * 0.1,
+      description: `Level ${harvestBonus}: +${harvestBonus * 10}% Ertrag`,
+      category: 'upgrade',
+    });
+  }
+
+  // Calculate actual values (simulated, not random for preview)
+  const supplyYieldMult = (1 + fertilizerYieldBoost) * (1 + soilYieldBoost);
+  const bountifulMult = hasTrait('Bountiful') ? 1.3 : 1;
+  const epicResourceMult = hasEpicBonus ? 1.25 : 1;
+  const masterMult = hasMasterBonus ? 2 : 1;
+  const uncommonCoinMult = hasUncommonBonus ? 1.15 : 1;
+  const goldRushMult = hasTrait('GoldRush') ? 1.5 : 1;
+  const frostMult = hasTrait('Frost') ? 1.25 : 1;
+  const essenceFlowMult = hasTrait('EssenceFlow') ? 2 : 1;
+
+  // Simulate crit and double harvest for display
+  const critChance = (state.upgrades.find(u => u.id === 'ventilation')?.level ?? 0) * 0.02 + (hasTrait('CritMaster') ? 0.15 : 0);
+  const isCrit = Math.random() < critChance;
+  const isDoubleHarvest = hasTrait('DoubleHarvest') && Math.random() < 0.25;
+  const harvestMult = isDoubleHarvest ? 2 : 1;
+
+  // Calculate final values
+  const totalMultiplier = (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult * supplyYieldMult;
+
+  const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * (1 + harvestBonus * 0.05));
+  const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost));
+
+  const coinGain = Math.floor(baseYield * totalMultiplier);
+  const resinGain = Math.floor(baseYield * 0.1 * frostMult * bountifulMult * harvestMult * epicResourceMult * masterMult);
+  const essenceGain = seed.rarity !== 'common' ? Math.floor(baseYield * 0.05 * essenceFlowMult * bountifulMult * harvestMult * epicResourceMult * masterMult) : 0;
+
+  const legendaryXpMult = hasLegendaryBonus ? 1.5 : 1;
+  const baseXp = 10 + (seed.rarity === 'legendary' ? 50 : seed.rarity === 'epic' ? 30 : seed.rarity === 'rare' ? 20 : seed.rarity === 'uncommon' ? 10 : 0);
+  const xpGain = Math.floor(baseXp * harvestMult * legendaryXpMult * masterMult);
+
+  // Add special bonuses if triggered
+  if (isCrit) {
+    bonuses.push({ name: 'Kritischer Treffer!', icon: '⚡', multiplier: 2, description: 'Verdoppelt Coins!', category: 'special' });
+  }
+  if (isDoubleHarvest) {
+    bonuses.push({ name: 'Doppelte Ernte!', icon: '🎉', multiplier: 2, description: 'Alles verdoppelt!', category: 'special' });
+  }
+
+  return {
+    strainName: seed.name,
+    rarity: seed.rarity,
+    baseYield,
+    finalGrams: gramsHarvested,
+    finalQuality: quality,
+    bonuses,
+    totalMultiplier,
+    isCrit,
+    isDoubleHarvest,
+    coinGain,
+    resinGain,
+    essenceGain,
+    xpGain,
+  };
+};
 
 export const GrowScreen = () => {
   const { 
@@ -34,6 +204,8 @@ export const GrowScreen = () => {
   const [tapRipples, setTapRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [showOfflinePopup, setShowOfflinePopup] = useState(false);
   const [offlineEarnings, setOfflineEarnings] = useState({ coins: 0, harvests: 0 });
+  const [showHarvestBreakdown, setShowHarvestBreakdown] = useState(false);
+  const [harvestBreakdownData, setHarvestBreakdownData] = useState<HarvestBreakdownData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingTapCountRef = useRef(0);
   const tapRafRef = useRef<number | null>(null);
@@ -154,21 +326,11 @@ export const GrowScreen = () => {
     if (!slot?.seed) return;
 
     const seed = slot.seed;
-    const traits = seed.traits;
-    const hasTrait = (t: string) => traits.includes(t);
     
-    // Calculate grams harvested (same logic as in store)
-    const baseGrams = Math.floor(seed.baseYield * 0.5) + Math.floor(Math.random() * seed.baseYield * 0.3);
+    // Calculate breakdown data before harvest
+    const state = useGameStore.getState();
+    const breakdownData = calculateHarvestBreakdown(slot, state);
     
-    // Calculate bonuses for display
-    const bonuses: string[] = [];
-    if (hasTrait('GoldRush')) bonuses.push('💰 Gold Rush!');
-    if (hasTrait('DoubleHarvest') && Math.random() < 0.25) bonuses.push('🎉 Double!');
-    if (hasTrait('Bountiful')) bonuses.push('✨ Bountiful!');
-    if (hasTrait('EssenceFlow')) bonuses.push('💎 Essence!');
-    if (hasTrait('Frost')) bonuses.push('❄️ Frost!');
-    if (hasTrait('LuckyDrop')) bonuses.push('🍀 Lucky!');
-
     const rect = containerRef.current?.getBoundingClientRect();
     let clientX: number | null = e?.clientX ?? null;
     let clientY: number | null = e?.clientY ?? null;
@@ -193,26 +355,29 @@ export const GrowScreen = () => {
     harvest(slotId);
     playHarvest();
     
-    // Enhanced harvest toast with action button
+    // Set breakdown data and show modal
+    if (breakdownData) {
+      setHarvestBreakdownData(breakdownData);
+      setShowHarvestBreakdown(true);
+    }
+    
+    // Quick toast notification
     toast.success(
-      <div className="flex flex-col gap-1">
-        <div className="font-bold text-base">🌿 {seed.name} geerntet!</div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">
-            {baseGrams}g
-          </span>
-          <span className="text-muted-foreground">+{seed.baseYield} 💰</span>
+      <div className="flex items-center gap-2">
+        <span className="text-lg">🌿</span>
+        <div>
+          <div className="font-bold">{seed.name} geerntet!</div>
+          <div className="text-xs text-muted-foreground">
+            {breakdownData?.finalGrams}g • Tippe für Details
+          </div>
         </div>
-        {bonuses.length > 0 && (
-          <div className="text-xs text-muted-foreground">{bonuses.join(' • ')}</div>
-        )}
       </div>,
       {
-        duration: 4000,
+        duration: 3000,
         action: {
           label: (
             <span className="flex items-center gap-1">
-              <Wind size={14} /> Zum Trocknen
+              <Wind size={14} /> Trocknen
             </span>
           ),
           onClick: () => useNavigationStore.getState().setActiveScreen('dryroom'),
@@ -604,6 +769,13 @@ export const GrowScreen = () => {
         onClose={() => setShowSuppliesModal(false)}
         slotId={selectedSlot}
         mode={suppliesMode}
+      />
+
+      {/* Harvest Breakdown Modal */}
+      <HarvestBreakdownModal
+        isOpen={showHarvestBreakdown}
+        onClose={() => setShowHarvestBreakdown(false)}
+        data={harvestBreakdownData}
       />
     </div>
   );
