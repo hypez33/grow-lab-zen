@@ -131,7 +131,7 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
     });
   }
 
-  // Calculate actual values (simulated, not random for preview)
+  // Calculate actual values using budGrowth for yield
   const supplyYieldMult = (1 + fertilizerYieldBoost) * (1 + soilYieldBoost);
   const bountifulMult = hasTrait('Bountiful') ? 1.3 : 1;
   const epicResourceMult = hasEpicBonus ? 1.25 : 1;
@@ -141,17 +141,32 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
   const frostMult = hasTrait('Frost') ? 1.25 : 1;
   const essenceFlowMult = hasTrait('EssenceFlow') ? 2 : 1;
 
-  // Simulate crit and double harvest for display
+  // Bud growth multiplier (exponential yield based on how much buds have grown)
+  const budGrowthPercent = slot.budGrowth ?? (slot.stage === 'harvest' ? 100 : 0);
+  const budGrowthMult = 0.2 + (budGrowthPercent / 100) * 0.8; // 20% base + up to 80% from growth
+  
+  // Add bud growth bonus to list
+  if (budGrowthPercent > 0) {
+    bonuses.push({
+      name: 'Bud-Wachstum',
+      icon: '🌸',
+      multiplier: budGrowthMult,
+      description: `${Math.round(budGrowthPercent)}% gewachsen → ${Math.round(budGrowthMult * 100)}% Ertrag`,
+      category: 'special',
+    });
+  }
+
+  // Simulate crit and double harvest for display (deterministic for preview, random for actual harvest)
   const critChance = (state.upgrades.find(u => u.id === 'ventilation')?.level ?? 0) * 0.02 + (hasTrait('CritMaster') ? 0.15 : 0);
   const isCrit = Math.random() < critChance;
   const isDoubleHarvest = hasTrait('DoubleHarvest') && Math.random() < 0.25;
   const harvestMult = isDoubleHarvest ? 2 : 1;
 
-  // Calculate final values
-  const totalMultiplier = (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult * supplyYieldMult;
+  // Calculate final values with bud growth
+  const totalMultiplier = (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult * supplyYieldMult * budGrowthMult;
 
-  const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * (1 + harvestBonus * 0.05));
-  const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost));
+  const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
+  const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost + (budGrowthPercent / 10)));
 
   const coinGain = Math.floor(baseYield * totalMultiplier);
   const resinGain = Math.floor(baseYield * 0.1 * frostMult * bountifulMult * harvestMult * epicResourceMult * masterMult);

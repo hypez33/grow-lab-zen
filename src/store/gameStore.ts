@@ -95,6 +95,7 @@ export interface GrowSlot {
   fertilizerUsesLeft: number;
   waterLevel: number; // 0-100, decreases over time
   lastWatered: number; // timestamp
+  budGrowth: number; // 0-100, grows exponentially during flower stage, affects final yield
 }
 
 export interface Upgrade {
@@ -604,6 +605,7 @@ const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   fertilizerUsesLeft: 0,
   waterLevel: 100, // Start fully watered
   lastWatered: Date.now(),
+  budGrowth: 0, // Buds start growing in flower stage
 }));
 
 // Initial drying racks (expanded to 8 total)
@@ -832,7 +834,7 @@ export const useGameStore = create<GameState>()(
         const seeds = state.seeds.filter(s => s.id !== seed.id);
         const growSlots = state.growSlots.map(slot => 
           slot.id === slotId && slot.isUnlocked && !slot.seed
-            ? { ...slot, seed, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0 }
+            ? { ...slot, seed, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0, budGrowth: 0 }
             : slot
         );
         return { seeds, growSlots };
@@ -963,9 +965,9 @@ export const useGameStore = create<GameState>()(
           }
           
           if (resilientReplant) {
-            return { ...s, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
+            return { ...s, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0, budGrowth: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
           } else {
-            return { ...s, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
+            return { ...s, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0, budGrowth: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
           }
         });
 
@@ -980,9 +982,13 @@ export const useGameStore = create<GameState>()(
           ? state.discoveredSeeds 
           : [...state.discoveredSeeds, seedName];
 
-        // Create wet buds for inventory (grams based on baseYield + supply bonuses)
-        const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * (1 + harvestBonus * 0.05));
-        const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost));
+        // Create wet buds for inventory (grams based on baseYield + supply bonuses + bud growth)
+        // budGrowth multiplier: 0% = 20% yield, 50% = 60% yield, 100% = 100% yield (exponential curve)
+        const budGrowthPercent = slot.budGrowth ?? 100; // Default to 100 for old saves
+        const budGrowthMult = 0.2 + (budGrowthPercent / 100) * 0.8; // 20% base + up to 80% from growth
+        
+        const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
+        const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost + (budGrowthPercent / 10))); // Higher bud growth = better quality
         
         const newBud: BudItem = {
           id: `bud-${Date.now()}`,
@@ -1101,7 +1107,7 @@ export const useGameStore = create<GameState>()(
         const hasCommonBonus = checkCollectionBonus('common'); // +10% growth speed
         const collectionGrowthMult = hasCommonBonus ? 1.1 : 1;
 
-        // Auto-progress all plants passively + handle water depletion
+        // Auto-progress all plants passively + handle water depletion + bud growth
         let growSlots = state.growSlots.map(slot => {
           if (slot.seed && slot.isUnlocked && slot.stage !== 'harvest') {
             // Water depletion: -1% per tick (about 100 seconds to empty)
@@ -1125,11 +1131,35 @@ export const useGameStore = create<GameState>()(
             
             const progressGain = delta * basePassiveGrowth * (1 + growthBonus * 0.1) * (1 + fertilizerGrowthBoost) * (1 + soilGrowthBoost) * (slot.seed.growthSpeed ?? 1) * collectionGrowthMult * turboMult * speedBoostMult * waterGrowthMult;
             const newProgress = Math.min(100, slot.progress + progressGain);
+            const newStage = getStageFromProgress(newProgress);
+            
+            // Bud growth: starts in flower stage (progress >= 75), grows exponentially
+            // budGrowth represents the size/yield potential of the buds (0-100)
+            let newBudGrowth = slot.budGrowth ?? 0;
+            if (newStage === 'flower' || newStage === 'harvest') {
+              // Calculate how far into flower stage we are (0-100%)
+              const flowerProgress = newStage === 'harvest' ? 100 : ((newProgress - 75) / 25) * 100;
+              
+              // Exponential growth curve: starts slow, accelerates towards harvest
+              // Formula: budGrowth = (flowerProgress / 100)^1.5 * 100
+              // This means at 50% flower progress, buds are only at ~35% size
+              // But at 90% flower progress, buds are at ~85% size
+              const targetBudGrowth = Math.pow(flowerProgress / 100, 1.5) * 100;
+              
+              // Smoothly approach target (can only increase, never decrease)
+              newBudGrowth = Math.max(newBudGrowth, targetBudGrowth);
+              
+              // Fertilizer boosts bud growth rate
+              const fertilizerBudBoost = 1 + (slot.fertilizer?.yieldBoost ?? 0) * 0.5;
+              newBudGrowth = Math.min(100, newBudGrowth * fertilizerBudBoost);
+            }
+            
             return {
               ...slot,
               progress: newProgress,
-              stage: getStageFromProgress(newProgress),
+              stage: newStage,
               waterLevel: newWaterLevel,
+              budGrowth: newBudGrowth,
             };
           }
           return slot;
@@ -2868,7 +2898,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 13, // Increment to trigger migration
+      version: 14, // Increment to trigger migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3102,6 +3132,16 @@ export const useGameStore = create<GameState>()(
               fertilizer: slot.fertilizer && typeof slot.fertilizer === 'object' && slot.fertilizer.id ? slot.fertilizer : null,
               // Ensure fertilizerUsesLeft is a number
               fertilizerUsesLeft: typeof slot.fertilizerUsesLeft === 'number' ? slot.fertilizerUsesLeft : 0,
+            }));
+          }
+        }
+
+        // Version 14: Add budGrowth to grow slots for exponential bud growth during flower stage
+        if (version < 14) {
+          if (Array.isArray(persistedState.growSlots)) {
+            persistedState.growSlots = persistedState.growSlots.map((slot: any) => ({
+              ...slot,
+              budGrowth: typeof slot.budGrowth === 'number' ? slot.budGrowth : (slot.stage === 'harvest' ? 100 : 0),
             }));
           }
         }
