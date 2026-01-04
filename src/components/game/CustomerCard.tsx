@@ -102,7 +102,16 @@ export const CustomerCard = ({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm truncate">{customer.name}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-sm truncate">{customer.name}</span>
+                {/* Drug preference icons */}
+                {customer.drugPreferences?.koks && (
+                  <span className="text-[10px]" title="Akzeptiert Koks">❄️</span>
+                )}
+                {customer.drugPreferences?.meth && (
+                  <span className="text-[10px]" title="Akzeptiert Meth">💎</span>
+                )}
+              </div>
               <div className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${statusConfig.badge}`}>
                 <span>{statusConfig.icon}</span>
                 <span>{customer.status.toUpperCase()}</span>
