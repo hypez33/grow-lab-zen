@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Map, ShieldAlert, Users, DollarSign, TrendingUp, Flame, Crown, Swords } from 'lucide-react';
+import { Map, Users, DollarSign, TrendingUp, Flame, Crown, Swords, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Territory, TerritoryBonus, useTerritoryStore } from '@/store/territoryStore';
@@ -8,6 +8,7 @@ import { useCocaStore } from '@/store/cocaStore';
 import { TerritoryCard } from './TerritoryCard';
 import { TerritoryModal, TerritoryDealer } from './TerritoryModal';
 import { TerritoryMap } from './TerritoryMap';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const getControlTierPercent = (control: number) => {
   if (control >= 100) return 100;
@@ -58,6 +59,9 @@ export const TerritoryScreen = () => {
   );
 
   const [activeTerritory, setActiveTerritory] = useState<Territory | null>(null);
+  const [contestsOpen, setContestsOpen] = useState(false);
+  const [empireOpen, setEmpireOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   // All dealers (not filtered) - TerritoryModal handles filtering per territory
   const allDealers = useMemo<TerritoryDealer[]>(
@@ -179,69 +183,121 @@ export const TerritoryScreen = () => {
         </div>
       </motion.div>
 
-      {/* Upcoming Contests */}
-      <AnimatePresence>
+      {/* Collapsible Sections */}
+      <div className="space-y-2 mb-4">
+        {/* Upcoming Contests Dropdown */}
         {nextContests.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="game-card p-2 mb-3 border-l-2 border-l-red-500/50"
-          >
-            <div className="flex items-center gap-2 mb-1.5">
-              <Swords size={12} className="text-red-400" />
-              <span className="text-[10px] font-semibold text-red-400">Upcoming Contests</span>
-              <div className="ml-auto px-1.5 py-0.5 rounded-full bg-red-500/20 text-[9px] text-red-300">
-                {nextContests.length}
-              </div>
-            </div>
-            <div className="space-y-1">
-              {nextContests.map((contest) => (
-                <div 
-                  key={contest.id}
-                  className="flex items-center justify-between rounded-md bg-muted/20 px-2 py-1.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{contest.icon}</span>
-                    <span className="text-[10px] font-medium">{contest.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-bold text-red-400 animate-pulse">{contest.timeLeft}</span>
-                    <Flame size={10} className="text-red-400" />
+          <Collapsible open={contestsOpen} onOpenChange={setContestsOpen}>
+            <CollapsibleTrigger className="w-full">
+              <div className="game-card p-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/10 transition-colors border-l-2 border-l-red-500/50">
+                <div className="flex items-center gap-2">
+                  <Swords size={14} className="text-red-400" />
+                  <span className="text-xs font-semibold text-red-400">Upcoming Contests</span>
+                  <div className="px-1.5 py-0.5 rounded-full bg-red-500/20 text-[9px] text-red-300">
+                    {nextContests.length}
                   </div>
                 </div>
-              ))}
-            </div>
-          </motion.div>
+                {contestsOpen ? (
+                  <ChevronUp size={16} className="text-muted-foreground" />
+                ) : (
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                )}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="game-card mt-1 p-2 space-y-1 bg-background border border-border/30 rounded-lg z-10">
+                {nextContests.map((contest) => (
+                  <div 
+                    key={contest.id}
+                    className="flex items-center justify-between rounded-md bg-muted/20 px-2 py-1.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{contest.icon}</span>
+                      <span className="text-[10px] font-medium">{contest.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-bold text-red-400 animate-pulse">{contest.timeLeft}</span>
+                      <Flame size={10} className="text-red-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
-      </AnimatePresence>
 
-      {/* Empire Progress */}
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="game-card p-2 mb-3"
-      >
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-semibold text-muted-foreground">Empire Progress</span>
-          <span className="text-[10px] font-bold text-primary">{controlledCount}/6</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
-          <motion.div 
-            className="h-full bg-gradient-to-r from-emerald-500 via-primary to-amber-500"
-            initial={{ width: 0 }}
-            animate={{ width: `${(controlledCount / 6) * 100}%` }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-          />
-        </div>
-      </motion.div>
+        {/* Empire Progress Dropdown */}
+        <Collapsible open={empireOpen} onOpenChange={setEmpireOpen}>
+          <CollapsibleTrigger className="w-full">
+            <div className="game-card p-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/10 transition-colors">
+              <div className="flex items-center gap-2">
+                <Crown size={14} className="text-amber-400" />
+                <span className="text-xs font-semibold text-muted-foreground">Empire Progress</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-primary">{controlledCount}/6</span>
+                {empireOpen ? (
+                  <ChevronUp size={16} className="text-muted-foreground" />
+                ) : (
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="game-card mt-1 p-3 bg-background border border-border/30 rounded-lg z-10">
+              <div className="h-2 rounded-full bg-muted/40 overflow-hidden mb-2">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-emerald-500 via-primary to-amber-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(controlledCount / 6) * 100}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] text-muted-foreground">
+                <span>Newcomer</span>
+                <span>Rising Power</span>
+                <span>Kingpin</span>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
-      {/* Territory Map */}
-      <TerritoryMap 
-        territories={territories}
-        onSelectTerritory={setActiveTerritory}
-      />
+        {/* Territory Map Dropdown */}
+        <Collapsible open={mapOpen} onOpenChange={setMapOpen}>
+          <CollapsibleTrigger className="w-full">
+            <div className="game-card p-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/10 transition-colors">
+              <div className="flex items-center gap-2">
+                <Map size={14} className="text-emerald-400" />
+                <span className="text-xs font-semibold text-muted-foreground">Territory Map</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>Full</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>75%+</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  <span>50%+</span>
+                </div>
+                {mapOpen ? (
+                  <ChevronUp size={16} className="text-muted-foreground" />
+                ) : (
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-1 bg-background border border-border/30 rounded-lg z-10 overflow-hidden">
+              <TerritoryMap 
+                territories={territories}
+                onSelectTerritory={setActiveTerritory}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
 
       {/* Territory Grid */}
       <div className="flex-1">

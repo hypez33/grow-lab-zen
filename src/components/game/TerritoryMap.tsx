@@ -44,30 +44,8 @@ export const TerritoryMap = ({ territories, onSelectTerritory }: TerritoryMapPro
   const hexHeight = HEX_SIZE * 1.4 + HEX_GAP;
 
   return (
-    <div className="game-card p-3 mb-3">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Territory Map</h3>
-        <div className="flex items-center gap-2 text-[8px] text-muted-foreground">
-          <div className="flex items-center gap-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-            <span>Full</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>75%+</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-            <span>50%+</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-            <span>25%+</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-muted/10 to-muted/5 border border-border/20">
+    <div className="p-3">
+      <div className="relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-muted/10 to-muted/5">
         <svg 
           viewBox="0 0 320 200" 
           className="w-full h-auto"
