@@ -163,16 +163,21 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
               </div>
             )}
 
-            {/* Yield preview */}
+            {/* Yield preview with range */}
             {(slot.stage === 'flower' || slot.stage === 'harvest') && slot.seed && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex items-center gap-1 mt-0.5 px-2 py-0.5 bg-primary/10 rounded-full"
               >
-                <span className="text-[9px] text-muted-foreground">~</span>
+                <span className="text-[9px] text-muted-foreground">🎲</span>
                 <span className="text-[10px] font-bold text-primary">
-                  {Math.round(slot.seed.baseYield * (0.2 + ((slot.budGrowth ?? 0) / 100) * 0.8))}g
+                  {(() => {
+                    const budMult = 0.2 + ((slot.budGrowth ?? 0) / 100) * 0.8;
+                    const yMin = slot.seed.yieldMin ?? Math.floor(slot.seed.baseYield * 0.8);
+                    const yMax = slot.seed.yieldMax ?? Math.ceil(slot.seed.baseYield * 1.2);
+                    return `${Math.round(yMin * budMult)}-${Math.round(yMax * budMult)}g`;
+                  })()}
                 </span>
               </motion.div>
             )}

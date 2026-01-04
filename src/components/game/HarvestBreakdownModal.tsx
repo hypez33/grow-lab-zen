@@ -15,7 +15,11 @@ export interface HarvestBreakdownData {
   strainName: string;
   rarity: Rarity;
   baseYield: number;
+  yieldMin: number;
+  yieldMax: number;
   finalGrams: number;
+  finalGramsMin: number;
+  finalGramsMax: number;
   finalQuality: number;
   bonuses: HarvestBonus[];
   totalMultiplier: number;
@@ -133,8 +137,18 @@ export const HarvestBreakdownModal: React.FC<HarvestBreakdownModalProps> = ({ is
               {/* Main Result */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-primary/10 rounded-xl p-3 text-center border border-primary/20">
-                  <div className="text-2xl font-bold text-primary">{data.finalGrams}g</div>
-                  <div className="text-xs text-muted-foreground">Ertrag</div>
+                  <div className="text-2xl font-bold text-primary">
+                    {data.finalGramsMin === data.finalGramsMax 
+                      ? `${data.finalGrams}g`
+                      : `${data.finalGramsMin}-${data.finalGramsMax}g`
+                    }
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                    🎲 Ertrag (RNG)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                    Basis: {data.yieldMin}-{data.yieldMax}g
+                  </div>
                 </div>
                 <div className="bg-yellow-500/10 rounded-xl p-3 text-center border border-yellow-500/20">
                   <div className="text-2xl font-bold text-yellow-400">{data.finalQuality}%</div>
