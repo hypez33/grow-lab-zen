@@ -7,6 +7,7 @@ interface PlantSVGProps {
   traits?: string[];
   isAnimated?: boolean;
   size?: number;
+  budGrowth?: number; // 0-100, used for flower stage bud animation
 }
 
 const rarityColors: Record<Rarity, { primary: string; glow: string }> = {
@@ -25,7 +26,7 @@ const stageVariants = {
   harvest: { scale: [1, 1.05, 1], filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1)'], transition: { duration: 1.5, repeat: Infinity } },
 };
 
-export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size = 120 }: PlantSVGProps) => {
+export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size = 120, budGrowth = 0 }: PlantSVGProps) => {
   const colors = rarityColors[rarity];
   const hasGlitter = traits.includes('Glitter');
   const hasFrost = traits.includes('Frost');
@@ -37,6 +38,11 @@ export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size =
   const bioLuminLevel = upgrades.find(u => u.id === 'bioluminescence')?.level ?? 0;
   const particleLevel = upgrades.find(u => u.id === 'particle-trail')?.level ?? 0;
   const auraLevel = upgrades.find(u => u.id === 'aura-field')?.level ?? 0;
+
+  // Calculate bud sizes based on budGrowth (0-100)
+  const budScale = 0.3 + (budGrowth / 100) * 0.7; // 30% to 100% size
+  const pistilOpacity = Math.min(1, budGrowth / 50); // Pistils fade in first half
+  const trichomeOpacity = Math.max(0, (budGrowth - 50) / 50); // Trichomes appear in second half
 
   const renderPlant = () => {
     switch (stage) {
@@ -99,17 +105,118 @@ export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size =
               <ellipse cx="38" cy="78" rx="14" ry="5" transform="rotate(-45 38 78)" />
               <ellipse cx="82" cy="78" rx="14" ry="5" transform="rotate(45 82 78)" />
             </g>
-            {/* Flower buds */}
-            <g>
-              <ellipse cx="60" cy="28" rx="12" ry="15" fill={colors.primary} />
-              <ellipse cx="60" cy="28" rx="8" ry="10" fill={hasFrost ? '#e0f2fe' : colors.primary} opacity="0.7" />
-              {/* Pistils */}
-              <g stroke={colors.primary} strokeWidth="1" opacity="0.8">
-                <line x1="55" y1="22" x2="52" y2="18" />
-                <line x1="60" y1="20" x2="60" y2="15" />
-                <line x1="65" y1="22" x2="68" y2="18" />
+            
+            {/* Growing Buds with animation */}
+            <g transform={`translate(60, 30) scale(${budScale})`}>
+              {/* Main bud body */}
+              <motion.ellipse 
+                cx="0" cy="0" 
+                rx={12} ry={15} 
+                fill={colors.primary}
+                animate={{ 
+                  rx: [12, 13, 12],
+                  ry: [15, 16, 15],
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <ellipse cx="0" cy="0" rx="8" ry="10" fill={hasFrost ? '#e0f2fe' : colors.primary} opacity="0.7" />
+              
+              {/* Growing pistils (orange hairs) - fade in based on growth */}
+              <g stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" opacity={pistilOpacity}>
+                <motion.line 
+                  x1="-5" y1="-8" x2="-10" y2="-15"
+                  animate={{ x2: [-10, -12, -10], y2: [-15, -18, -15] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.line 
+                  x1="0" y1="-12" x2="0" y2="-20"
+                  animate={{ y2: [-20, -23, -20] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                />
+                <motion.line 
+                  x1="5" y1="-8" x2="10" y2="-15"
+                  animate={{ x2: [10, 12, 10], y2: [-15, -18, -15] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                />
+                <motion.line 
+                  x1="-8" y1="0" x2="-14" y2="-3"
+                  animate={{ x2: [-14, -16, -14] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                />
+                <motion.line 
+                  x1="8" y1="0" x2="14" y2="-3"
+                  animate={{ x2: [14, 16, 14] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                />
+              </g>
+              
+              {/* Trichomes (white crystals) - appear later in growth */}
+              <g fill="#fff" opacity={trichomeOpacity * 0.8}>
+                <motion.circle 
+                  cx="-6" cy="-5" r="1.5"
+                  animate={{ r: [1.5, 2, 1.5], opacity: [0.7, 1, 0.7] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.circle 
+                  cx="4" cy="-8" r="1"
+                  animate={{ r: [1, 1.5, 1] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                />
+                <motion.circle 
+                  cx="7" cy="-2" r="1.5"
+                  animate={{ r: [1.5, 2, 1.5] }}
+                  transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                />
+                <circle cx="-4" cy="5" r="1" />
+                <circle cx="5" cy="3" r="1.2" />
               </g>
             </g>
+
+            {/* Side buds that grow as budGrowth increases */}
+            {budGrowth > 30 && (
+              <g transform={`translate(42, 55) scale(${budScale * 0.6})`}>
+                <motion.ellipse 
+                  cx="0" cy="0" rx="8" ry="10" 
+                  fill={colors.primary}
+                  animate={{ rx: [8, 9, 8], ry: [10, 11, 10] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <g stroke="#f97316" strokeWidth="1" strokeLinecap="round" opacity={pistilOpacity}>
+                  <line x1="-3" y1="-6" x2="-6" y2="-10" />
+                  <line x1="0" y1="-8" x2="0" y2="-13" />
+                  <line x1="3" y1="-6" x2="6" y2="-10" />
+                </g>
+              </g>
+            )}
+            {budGrowth > 30 && (
+              <g transform={`translate(78, 55) scale(${budScale * 0.6})`}>
+                <motion.ellipse 
+                  cx="0" cy="0" rx="8" ry="10" 
+                  fill={colors.primary}
+                  animate={{ rx: [8, 9, 8], ry: [10, 11, 10] }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                />
+                <g stroke="#f97316" strokeWidth="1" strokeLinecap="round" opacity={pistilOpacity}>
+                  <line x1="-3" y1="-6" x2="-6" y2="-10" />
+                  <line x1="0" y1="-8" x2="0" y2="-13" />
+                  <line x1="3" y1="-6" x2="6" y2="-10" />
+                </g>
+              </g>
+            )}
+
+            {/* Extra buds appear at higher growth */}
+            {budGrowth > 60 && (
+              <>
+                <g transform={`translate(50, 45) scale(${budScale * 0.4})`}>
+                  <ellipse cx="0" cy="0" rx="6" ry="8" fill={colors.primary} />
+                  <line x1="0" y1="-6" x2="0" y2="-10" stroke="#f97316" strokeWidth="1" />
+                </g>
+                <g transform={`translate(70, 45) scale(${budScale * 0.4})`}>
+                  <ellipse cx="0" cy="0" rx="6" ry="8" fill={colors.primary} />
+                  <line x1="0" y1="-6" x2="0" y2="-10" stroke="#f97316" strokeWidth="1" />
+                </g>
+              </>
+            )}
           </g>
         );
       case 'harvest':
