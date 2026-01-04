@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, Seed } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { GrowSlot } from './GrowSlot';
+import { GrowSuppliesModal } from './GrowSuppliesModal';
 import { ResourceBadge } from './ResourceIcon';
 import { PlantSVG } from './PlantSVG';
 import { WorkerActivityPanel } from './WorkerActivityPanel';
@@ -11,7 +12,7 @@ import { LiveStatsPanel } from './LiveStatsPanel';
 import { QuickActionsBar } from './QuickActionsBar';
 import { MiniDashboard } from './MiniDashboard';
 import { toast } from 'sonner';
-import { X, Zap, Unlock, Wind } from 'lucide-react';
+import { X, Zap, Unlock, Wind, Droplet, Leaf } from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { useCanvasParticles } from '@/components/effects/CanvasParticleSystem';
 
@@ -27,6 +28,8 @@ export const GrowScreen = () => {
   
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [showSeedPicker, setShowSeedPicker] = useState(false);
+  const [showSuppliesModal, setShowSuppliesModal] = useState(false);
+  const [suppliesMode, setSuppliesMode] = useState<'fertilizer' | 'soil' | 'shop'>('fertilizer');
   const [floatingNumbers, setFloatingNumbers] = useState<{ id: number; value: string; x: number; y: number }[]>([]);
   const [tapRipples, setTapRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [showOfflinePopup, setShowOfflinePopup] = useState(false);
@@ -255,6 +258,12 @@ export const GrowScreen = () => {
     }
   };
 
+  const handleOpenSupplies = (slotId: number, mode: 'fertilizer' | 'soil') => {
+    setSelectedSlot(slotId);
+    setSuppliesMode(mode);
+    setShowSuppliesModal(true);
+  };
+
   const selectedSlotData = selectedSlot !== null ? growSlots.find(s => s.id === selectedSlot) : null;
 
   // XP progress for current level
@@ -384,6 +393,7 @@ export const GrowScreen = () => {
                   onHarvest={(e) => handleHarvest(slot.id, e)}
                   isSelected={selectedSlot === slot.id}
                   onSelect={() => handleSlotSelect(slot.id)}
+                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
                 />
               ));
             })()}
@@ -582,6 +592,14 @@ export const GrowScreen = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Grow Supplies Modal */}
+      <GrowSuppliesModal
+        isOpen={showSuppliesModal}
+        onClose={() => setShowSuppliesModal(false)}
+        slotId={selectedSlot}
+        mode={suppliesMode}
+      />
     </div>
   );
 };

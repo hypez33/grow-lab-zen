@@ -54,6 +54,35 @@ export interface SalesChannel {
   unlocked: boolean;
 }
 
+// Fertilizer types for growing
+export interface Fertilizer {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: Rarity;
+  cost: number;
+  growthBoost: number; // 0.1 = +10% growth speed
+  yieldBoost: number; // 0.1 = +10% yield
+  qualityBoost: number; // 0-15 quality points
+  duration: number; // uses left (0 = infinite for permanent ones)
+}
+
+// Soil types for growing
+export interface Soil {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: Rarity;
+  cost: number;
+  growthBoost: number;
+  yieldBoost: number;
+  qualityBoost: number;
+  traitBoostChance: number; // 0.1 = +10% chance for trait bonus
+  waterRetention: number; // affects how often you need to tend (passive growth multiplier)
+}
+
 export interface GrowSlot {
   id: number;
   plantId: string | null;
@@ -61,6 +90,9 @@ export interface GrowSlot {
   stage: PlantStage;
   progress: number;
   isUnlocked: boolean;
+  fertilizer: Fertilizer | null;
+  soil: Soil | null;
+  fertilizerUsesLeft: number;
 }
 
 export interface Upgrade {
@@ -229,6 +261,10 @@ export interface GameState {
   totalGramsSold: number;
   totalSalesRevenue: number;
   
+  // Growing Supplies
+  fertilizerInventory: { fertilizer: Fertilizer; quantity: number }[];
+  soilInventory: { soil: Soil; quantity: number }[];
+  
   // Dealer Activity Log & Effects
   dealerActivities: DealerActivity[];
   dealerDrugEffects: Record<string, DealerDrugEffect | null>; // per dealer drug effects
@@ -310,6 +346,12 @@ export interface GameState {
   
   // Seed Shop
   buySeed: (seedName: string, cost: number) => boolean;
+  
+  // Growing Supplies Actions
+  buyFertilizer: (fertilizerId: string) => boolean;
+  buySoil: (soilId: string) => boolean;
+  applyFertilizer: (slotId: number, fertilizerId: string) => boolean;
+  applySoil: (slotId: number, soilId: string) => boolean;
   
   // Cheat Actions (Dev Panel)
   cheatAddCoins: (amount: number) => void;
@@ -513,6 +555,25 @@ const initialWorkers: Worker[] = [
   },
 ];
 
+// Initial fertilizers available in the game
+export const FERTILIZER_CATALOG: Fertilizer[] = [
+  { id: 'basic-fert', name: 'Basis-Dünger', description: 'Einfacher Dünger für leichten Wachstums-Boost', icon: '🌱', rarity: 'common', cost: 50, growthBoost: 0.1, yieldBoost: 0.05, qualityBoost: 2, duration: 3 },
+  { id: 'growth-boost', name: 'Turbo-Grow', description: 'Beschleunigt das Wachstum deutlich', icon: '⚡', rarity: 'uncommon', cost: 150, growthBoost: 0.25, yieldBoost: 0.1, qualityBoost: 5, duration: 3 },
+  { id: 'yield-master', name: 'Ernte-König', description: 'Maximiert den Ertrag jeder Ernte', icon: '🌾', rarity: 'rare', cost: 300, growthBoost: 0.1, yieldBoost: 0.35, qualityBoost: 8, duration: 2 },
+  { id: 'crystal-feed', name: 'Kristall-Nahrung', description: 'Premium Nährstoffe für Top-Qualität', icon: '💎', rarity: 'epic', cost: 600, growthBoost: 0.2, yieldBoost: 0.25, qualityBoost: 15, duration: 2 },
+  { id: 'cosmic-boost', name: 'Kosmischer Boost', description: 'Außerirdische Nährstoffe für legendäre Ernten', icon: '🌌', rarity: 'legendary', cost: 1500, growthBoost: 0.4, yieldBoost: 0.5, qualityBoost: 25, duration: 1 },
+];
+
+// Initial soil types available
+export const SOIL_CATALOG: Soil[] = [
+  { id: 'basic-soil', name: 'Standard-Erde', description: 'Normale Blumenerde ohne Extras', icon: '🟤', rarity: 'common', cost: 0, growthBoost: 0, yieldBoost: 0, qualityBoost: 0, traitBoostChance: 0, waterRetention: 1 },
+  { id: 'premium-soil', name: 'Premium-Erde', description: 'Nährstoffreiche Erde für besseres Wachstum', icon: '🌍', rarity: 'uncommon', cost: 100, growthBoost: 0.15, yieldBoost: 0.1, qualityBoost: 5, traitBoostChance: 0.05, waterRetention: 1.1 },
+  { id: 'coco-mix', name: 'Kokos-Mix', description: 'Perfekte Drainage und Belüftung', icon: '🥥', rarity: 'uncommon', cost: 150, growthBoost: 0.2, yieldBoost: 0.05, qualityBoost: 3, traitBoostChance: 0.08, waterRetention: 1.25 },
+  { id: 'living-soil', name: 'Living Soil', description: 'Lebendige Erde mit Mikroorganismen', icon: '🦠', rarity: 'rare', cost: 350, growthBoost: 0.15, yieldBoost: 0.25, qualityBoost: 10, traitBoostChance: 0.15, waterRetention: 1.3 },
+  { id: 'super-soil', name: 'Super Soil', description: 'Vollständig aufgeladene organische Erde', icon: '⭐', rarity: 'epic', cost: 700, growthBoost: 0.25, yieldBoost: 0.35, qualityBoost: 15, traitBoostChance: 0.2, waterRetention: 1.5 },
+  { id: 'alien-substrate', name: 'Alien-Substrat', description: 'Mysteriöse außerirdische Erde', icon: '👽', rarity: 'legendary', cost: 2000, growthBoost: 0.5, yieldBoost: 0.6, qualityBoost: 25, traitBoostChance: 0.35, waterRetention: 2 },
+];
+
 // Initial grow slots (16 total, first unlocked)
 const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   id: i,
@@ -521,6 +582,9 @@ const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   stage: 'seed' as PlantStage,
   progress: 0,
   isUnlocked: i === 0,
+  fertilizer: null,
+  soil: SOIL_CATALOG[0], // Default to basic soil
+  fertilizerUsesLeft: 0,
 }));
 
 // Initial drying racks (expanded to 8 total)
@@ -604,6 +668,15 @@ export const useGameStore = create<GameState>()(
       totalGramsSold: 0,
       totalSalesRevenue: 0,
       
+      // Growing Supplies - start with some basic fertilizer and soil
+      fertilizerInventory: [
+        { fertilizer: FERTILIZER_CATALOG[0], quantity: 3 }, // 3x Basic Fertilizer
+      ],
+      soilInventory: [
+        { soil: SOIL_CATALOG[0], quantity: 99 }, // Unlimited basic soil
+        { soil: SOIL_CATALOG[1], quantity: 2 }, // 2x Premium Soil
+      ],
+      
       // Dealer Activity Log & Effects
       dealerActivities: [] as DealerActivity[],
       dealerDrugEffects: {} as Record<string, DealerDrugEffect | null>,
@@ -667,7 +740,11 @@ export const useGameStore = create<GameState>()(
         const growSlots = state.growSlots.map(slot => {
           if (slot.seed && slot.isUnlocked && slot.stage !== 'harvest') {
             const growthBonus = state.upgrades.find(u => u.id === 'led-panel')?.level ?? 0;
-            const progressGain = tapValue * (1 + growthBonus * 0.1) * (slot.seed.growthSpeed ?? 1);
+            // Apply fertilizer and soil bonuses
+            const fertilizerGrowthBoost = slot.fertilizer?.growthBoost ?? 0;
+            const soilGrowthBoost = slot.soil?.growthBoost ?? 0;
+            const totalGrowthMult = (1 + growthBonus * 0.1) * (1 + fertilizerGrowthBoost) * (1 + soilGrowthBoost);
+            const progressGain = tapValue * totalGrowthMult * (slot.seed.growthSpeed ?? 1);
             const newProgress = Math.min(100, slot.progress + progressGain);
             return {
               ...slot,
@@ -710,7 +787,11 @@ export const useGameStore = create<GameState>()(
         const growSlots = state.growSlots.map(slot => {
           if (slot.seed && slot.isUnlocked && slot.stage !== 'harvest') {
             const growthBonus = state.upgrades.find(u => u.id === 'led-panel')?.level ?? 0;
-            const progressGain = tapValueTotal * (1 + growthBonus * 0.1) * (slot.seed.growthSpeed ?? 1);
+            // Apply fertilizer and soil bonuses
+            const fertilizerGrowthBoost = slot.fertilizer?.growthBoost ?? 0;
+            const soilGrowthBoost = slot.soil?.growthBoost ?? 0;
+            const totalGrowthMult = (1 + growthBonus * 0.1) * (1 + fertilizerGrowthBoost) * (1 + soilGrowthBoost);
+            const progressGain = tapValueTotal * totalGrowthMult * (slot.seed.growthSpeed ?? 1);
             const newProgress = Math.min(100, slot.progress + progressGain);
             return {
               ...slot,
@@ -762,6 +843,16 @@ export const useGameStore = create<GameState>()(
         const baseYield = slot.seed.baseYield;
         const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
         
+        // Fertilizer and Soil bonuses
+        const fertilizerYieldBoost = slot.fertilizer?.yieldBoost ?? 0;
+        const fertilizerQualityBoost = slot.fertilizer?.qualityBoost ?? 0;
+        const soilYieldBoost = slot.soil?.yieldBoost ?? 0;
+        const soilQualityBoost = slot.soil?.qualityBoost ?? 0;
+        const soilTraitBoostChance = slot.soil?.traitBoostChance ?? 0;
+        
+        // Total yield multiplier from fertilizer/soil
+        const supplyYieldMult = (1 + fertilizerYieldBoost) * (1 + soilYieldBoost);
+        
         // Collection bonus multipliers
         const epicResourceMult = hasEpicBonus ? 1.25 : 1;
         const masterMult = hasMasterBonus ? 2 : 1;
@@ -772,8 +863,9 @@ export const useGameStore = create<GameState>()(
         if (hasTrait('CritMaster')) critChance += 0.15;
         const isCrit = Math.random() < critChance;
         
-        // Bountiful trait: +30% all yields
-        const bountifulMult = hasTrait('Bountiful') ? 1.3 : 1;
+        // Bountiful trait: +30% all yields (boosted by soil trait chance)
+        const bountifulActive = hasTrait('Bountiful') || (soilTraitBoostChance > 0 && Math.random() < soilTraitBoostChance);
+        const bountifulMult = bountifulActive ? 1.3 : 1;
         
         // GoldRush trait: +50% coins
         const goldRushMult = hasTrait('GoldRush') ? 1.5 : 1;
@@ -782,8 +874,8 @@ export const useGameStore = create<GameState>()(
         const doubleHarvest = hasTrait('DoubleHarvest') && Math.random() < 0.25;
         const harvestMult = doubleHarvest ? 2 : 1;
         
-        // Calculate coin gain (with collection bonuses)
-        let coinGain = Math.floor(baseYield * (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult);
+        // Calculate coin gain (with collection bonuses + supply bonuses)
+        let coinGain = Math.floor(baseYield * (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult * supplyYieldMult);
         
         // Frost trait: +25% resin
         const frostMult = hasTrait('Frost') ? 1.25 : 1;
@@ -836,14 +928,27 @@ export const useGameStore = create<GameState>()(
         });
 
         // Reset slot - Resilient trait: 20% chance to auto-replant
+        // Also handle fertilizer uses
         const resilientReplant = hasTrait('Resilient') && Math.random() < 0.2;
-        const growSlots = state.growSlots.map(s => 
-          s.id === slotId 
-            ? resilientReplant 
-              ? { ...s, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0 }
-              : { ...s, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0 }
-            : s
-        );
+        const growSlots = state.growSlots.map(s => {
+          if (s.id !== slotId) return s;
+          
+          // Reduce fertilizer uses
+          let newFertilizer = s.fertilizer;
+          let newFertUsesLeft = s.fertilizerUsesLeft;
+          if (s.fertilizer && s.fertilizerUsesLeft > 0) {
+            newFertUsesLeft = s.fertilizerUsesLeft - 1;
+            if (newFertUsesLeft <= 0) {
+              newFertilizer = null;
+            }
+          }
+          
+          if (resilientReplant) {
+            return { ...s, plantId: `plant-${Date.now()}`, stage: 'seed' as PlantStage, progress: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
+          } else {
+            return { ...s, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0, fertilizer: newFertilizer, fertilizerUsesLeft: newFertUsesLeft };
+          }
+        });
 
         // Add XP (bonus for double harvest + legendary collection bonus)
         const baseXp = 10 + (slot.seed.rarity === 'legendary' ? 50 : slot.seed.rarity === 'epic' ? 30 : slot.seed.rarity === 'rare' ? 20 : slot.seed.rarity === 'uncommon' ? 10 : 0);
@@ -856,9 +961,9 @@ export const useGameStore = create<GameState>()(
           ? state.discoveredSeeds 
           : [...state.discoveredSeeds, seedName];
 
-        // Create wet buds for inventory (grams based on baseYield)
-        const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * (1 + harvestBonus * 0.05));
-        const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0)));
+        // Create wet buds for inventory (grams based on baseYield + supply bonuses)
+        const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * (1 + harvestBonus * 0.05));
+        const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost));
         
         const newBud: BudItem = {
           id: `bud-${Date.now()}`,
@@ -2504,6 +2609,114 @@ export const useGameStore = create<GameState>()(
           seeds: [...state.seeds, newSeed],
         });
         
+        return true;
+      },
+
+      // Growing Supplies Actions
+      buyFertilizer: (fertilizerId: string) => {
+        const state = get();
+        const fertilizer = FERTILIZER_CATALOG.find(f => f.id === fertilizerId);
+        if (!fertilizer) return false;
+        if (state.budcoins < fertilizer.cost) return false;
+        
+        const existingIndex = state.fertilizerInventory.findIndex(f => f.fertilizer.id === fertilizerId);
+        let newInventory;
+        
+        if (existingIndex >= 0) {
+          newInventory = state.fertilizerInventory.map((item, idx) => 
+            idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+          );
+        } else {
+          newInventory = [...state.fertilizerInventory, { fertilizer, quantity: 1 }];
+        }
+        
+        set({
+          budcoins: state.budcoins - fertilizer.cost,
+          fertilizerInventory: newInventory,
+        });
+        return true;
+      },
+
+      buySoil: (soilId: string) => {
+        const state = get();
+        const soil = SOIL_CATALOG.find(s => s.id === soilId);
+        if (!soil) return false;
+        if (state.budcoins < soil.cost) return false;
+        
+        const existingIndex = state.soilInventory.findIndex(s => s.soil.id === soilId);
+        let newInventory;
+        
+        if (existingIndex >= 0) {
+          newInventory = state.soilInventory.map((item, idx) => 
+            idx === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+          );
+        } else {
+          newInventory = [...state.soilInventory, { soil, quantity: 1 }];
+        }
+        
+        set({
+          budcoins: state.budcoins - soil.cost,
+          soilInventory: newInventory,
+        });
+        return true;
+      },
+
+      applyFertilizer: (slotId: number, fertilizerId: string) => {
+        const state = get();
+        const slot = state.growSlots.find(s => s.id === slotId);
+        if (!slot || !slot.isUnlocked) return false;
+        
+        const invItem = state.fertilizerInventory.find(f => f.fertilizer.id === fertilizerId);
+        if (!invItem || invItem.quantity <= 0) return false;
+        
+        const newFertInventory = state.fertilizerInventory.map(item => 
+          item.fertilizer.id === fertilizerId 
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
+        ).filter(item => item.quantity > 0);
+        
+        const newGrowSlots = state.growSlots.map(s => 
+          s.id === slotId 
+            ? { ...s, fertilizer: invItem.fertilizer, fertilizerUsesLeft: invItem.fertilizer.duration }
+            : s
+        );
+        
+        set({
+          fertilizerInventory: newFertInventory,
+          growSlots: newGrowSlots,
+        });
+        return true;
+      },
+
+      applySoil: (slotId: number, soilId: string) => {
+        const state = get();
+        const slot = state.growSlots.find(s => s.id === slotId);
+        if (!slot || !slot.isUnlocked || slot.seed) return false; // Can only change soil when empty
+        
+        const invItem = state.soilInventory.find(s => s.soil.id === soilId);
+        if (!invItem || invItem.quantity <= 0) return false;
+        
+        // Don't consume basic soil (id: basic-soil)
+        const consumeSoil = soilId !== 'basic-soil';
+        
+        const newSoilInventory = consumeSoil 
+          ? state.soilInventory.map(item => 
+              item.soil.id === soilId 
+                ? { ...item, quantity: item.quantity - 1 }
+                : item
+            ).filter(item => item.quantity > 0 || item.soil.id === 'basic-soil')
+          : state.soilInventory;
+        
+        const newGrowSlots = state.growSlots.map(s => 
+          s.id === slotId 
+            ? { ...s, soil: invItem.soil }
+            : s
+        );
+        
+        set({
+          soilInventory: newSoilInventory,
+          growSlots: newGrowSlots,
+        });
         return true;
       },
 

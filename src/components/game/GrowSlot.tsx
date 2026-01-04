@@ -2,7 +2,7 @@ import type { MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrowSlot as GrowSlotType } from '@/store/gameStore';
 import { PlantSVG } from './PlantSVG';
-import { Lock, Plus, Sprout } from 'lucide-react';
+import { Lock, Plus, Sprout, Droplet, Leaf } from 'lucide-react';
 
 interface GrowSlotProps {
   slot: GrowSlotType;
@@ -10,9 +10,10 @@ interface GrowSlotProps {
   onHarvest: (e?: MouseEvent<HTMLDivElement>) => void;
   isSelected: boolean;
   onSelect: () => void;
+  onOpenSupplies?: (mode: 'fertilizer' | 'soil') => void;
 }
 
-export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowSlotProps) => {
+export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies }: GrowSlotProps) => {
   const isReady = slot.stage === 'harvest';
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
@@ -30,7 +31,21 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
     }
   };
 
+  const handleFertilizerClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    onOpenSupplies?.('fertilizer');
+  };
+
+  const handleSoilClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (!slot.seed) { // Only allow soil change when empty
+      onOpenSupplies?.('soil');
+    }
+  };
+
   const progressPercent = slot.progress;
+  const hasFertilizer = !!slot.fertilizer;
+  const hasPremiumSoil = slot.soil && slot.soil.id !== 'basic-soil';
 
   return (
     <motion.div
@@ -58,6 +73,19 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
         />
       )}
 
+      {/* Soil indicator at bottom */}
+      {!isLocked && slot.soil && slot.soil.id !== 'basic-soil' && (
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-2 opacity-60"
+          style={{
+            background: slot.soil.rarity === 'legendary' ? 'linear-gradient(to right, hsl(45 70% 30%), hsl(45 70% 45%))' : 
+              slot.soil.rarity === 'epic' ? 'linear-gradient(to right, hsl(270 50% 25%), hsl(270 50% 40%))' :
+              slot.soil.rarity === 'rare' ? 'linear-gradient(to right, hsl(30 60% 25%), hsl(30 60% 40%))' :
+              'linear-gradient(to right, hsl(25 50% 30%), hsl(25 50% 45%))'
+          }}
+        />
+      )}
+
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center justify-center h-full p-2">
         {isLocked ? (
@@ -74,6 +102,16 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
               <Plus size={32} className="text-primary/50" />
             </motion.div>
             <span className="text-xs font-medium">Empty Slot</span>
+            {/* Soil badge when empty */}
+            {slot.soil && (
+              <button 
+                onClick={handleSoilClick}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-[10px] hover:bg-muted transition-colors"
+              >
+                <span>{slot.soil.icon}</span>
+                <span className="truncate max-w-[60px]">{slot.soil.name}</span>
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -100,6 +138,46 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
           </>
         )}
       </div>
+
+      {/* Supply indicators (top-left corner) */}
+      {!isLocked && (
+        <div className="absolute top-1 left-1 flex gap-1">
+          {/* Fertilizer indicator/button */}
+          <button
+            onClick={handleFertilizerClick}
+            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all
+              ${hasFertilizer 
+                ? 'bg-emerald-500/80 text-white shadow-sm shadow-emerald-500/50' 
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+            title={hasFertilizer ? `${slot.fertilizer?.name} (${slot.fertilizerUsesLeft} übrig)` : 'Dünger hinzufügen'}
+          >
+            <Droplet size={10} />
+          </button>
+          
+          {/* Soil indicator */}
+          {hasPremiumSoil && (
+            <div 
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+              style={{
+                backgroundColor: slot.soil?.rarity === 'legendary' ? 'hsl(45 70% 45%)' :
+                  slot.soil?.rarity === 'epic' ? 'hsl(270 50% 40%)' :
+                  slot.soil?.rarity === 'rare' ? 'hsl(30 60% 40%)' :
+                  'hsl(25 50% 45%)',
+              }}
+              title={slot.soil?.name}
+            >
+              {slot.soil?.icon}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fertilizer uses remaining */}
+      {hasFertilizer && slot.fertilizerUsesLeft > 0 && (
+        <div className="absolute top-1 right-1 bg-emerald-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+          {slot.fertilizerUsesLeft}x
+        </div>
+      )}
 
       {/* Progress bar with active growing shimmer */}
       {!isLocked && !isEmpty && (
@@ -153,7 +231,7 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0 }}
-            className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold uppercase"
+            className="absolute top-6 right-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold uppercase"
           >
             Harvest!
           </motion.div>
@@ -163,7 +241,7 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect }: GrowS
       {/* Rarity indicator */}
       {slot.seed && (
         <div 
-          className={`absolute top-2 left-2 w-2 h-2 rounded-full`}
+          className={`absolute top-6 left-1 w-2 h-2 rounded-full`}
           style={{
             backgroundColor: slot.seed.rarity === 'legendary' ? 'hsl(45 100% 55%)' : 
               slot.seed.rarity === 'epic' ? 'hsl(270 70% 55%)' :
