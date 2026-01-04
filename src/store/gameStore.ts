@@ -2868,7 +2868,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 12, // Increment to trigger migration
+      version: 13, // Increment to trigger migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3086,6 +3086,23 @@ export const useGameStore = create<GameState>()(
             if (!hasAutoWaterer) {
               persistedState.workers.push(autoWaterer);
             }
+          }
+        }
+
+        // Version 13: Ensure fertilizer/soil objects are properly set for grow slots
+        if (version < 13) {
+          const basicSoil = { id: 'basic-soil', name: 'Standard-Erde', description: 'Normale Blumenerde ohne Extras', icon: '🟤', rarity: 'common', cost: 0, growthBoost: 0, yieldBoost: 0, qualityBoost: 0, traitBoostChance: 0, waterRetention: 1 };
+          
+          if (Array.isArray(persistedState.growSlots)) {
+            persistedState.growSlots = persistedState.growSlots.map((slot: any) => ({
+              ...slot,
+              // Ensure soil exists (default to basic soil if missing)
+              soil: slot.soil && typeof slot.soil === 'object' && slot.soil.id ? slot.soil : basicSoil,
+              // Ensure fertilizer is null if not a valid object
+              fertilizer: slot.fertilizer && typeof slot.fertilizer === 'object' && slot.fertilizer.id ? slot.fertilizer : null,
+              // Ensure fertilizerUsesLeft is a number
+              fertilizerUsesLeft: typeof slot.fertilizerUsesLeft === 'number' ? slot.fertilizerUsesLeft : 0,
+            }));
           }
         }
         
