@@ -156,7 +156,7 @@ export interface Worker {
   level: number;
   maxLevel: number;
   slotsManaged: number; // How many slots this worker manages
-  abilities: ('plant' | 'tap' | 'harvest' | 'dry' | 'sell')[];
+  abilities: ('plant' | 'tap' | 'harvest' | 'dry' | 'sell' | 'water')[];
 }
 
 // Seed catalog - all possible seeds that can be discovered
@@ -556,6 +556,19 @@ const initialWorkers: Worker[] = [
     maxLevel: 10,
     slotsManaged: 8, // faster sales
     abilities: ['sell']
+  },
+  { 
+    id: 'auto-waterer', 
+    name: 'Bewässerungs-Bot', 
+    description: 'Automatisches Bewässerungssystem. Gießt alle Pflanzen unter 50% Wasser.', 
+    icon: '💧', 
+    cost: 15000, 
+    owned: false,
+    paused: false,
+    level: 1, 
+    maxLevel: 5,
+    slotsManaged: 16, // all slots
+    abilities: ['water']
   },
 ];
 
@@ -1887,6 +1900,20 @@ export const useGameStore = create<GameState>()(
             });
           }
 
+          // WATER ability: Auto-water plants below 50% water level
+          if (worker.abilities.includes('water')) {
+            const waterThreshold = 50 - (worker.level * 5); // Higher level = lower threshold (more efficient)
+            growSlots = growSlots.map(slot => {
+              if (slot.seed && slot.isUnlocked && slot.waterLevel < waterThreshold + 50) {
+                // Water plants that are below threshold
+                if (slot.waterLevel < waterThreshold + 50) {
+                  return { ...slot, waterLevel: 100, lastWatered: Date.now() };
+                }
+              }
+              return slot;
+            });
+          }
+
           // DRY ability: Auto-start drying wet buds
           if (worker.abilities.includes('dry')) {
             const wetBuds = inventory.filter(b => b.state === 'wet');
@@ -3029,7 +3056,7 @@ export const useGameStore = create<GameState>()(
           }
         }
 
-        // Version 12: Add waterLevel and lastWatered to growSlots
+        // Version 12: Add waterLevel and lastWatered to growSlots + auto-waterer worker
         if (version < 12) {
           if (Array.isArray(persistedState.growSlots)) {
             persistedState.growSlots = persistedState.growSlots.map((slot: any) => ({
@@ -3037,6 +3064,28 @@ export const useGameStore = create<GameState>()(
               waterLevel: typeof slot.waterLevel === 'number' ? slot.waterLevel : 100,
               lastWatered: typeof slot.lastWatered === 'number' ? slot.lastWatered : Date.now(),
             }));
+          }
+          
+          // Add auto-waterer worker
+          const autoWaterer = {
+            id: 'auto-waterer',
+            name: 'Bewässerungs-Bot',
+            description: 'Automatisches Bewässerungssystem. Gießt alle Pflanzen unter 50% Wasser.',
+            icon: '💧',
+            cost: 15000,
+            owned: false,
+            paused: false,
+            level: 1,
+            maxLevel: 5,
+            slotsManaged: 16,
+            abilities: ['water'],
+          };
+          
+          if (Array.isArray(persistedState.workers)) {
+            const hasAutoWaterer = persistedState.workers.some((w: any) => w.id === 'auto-waterer');
+            if (!hasAutoWaterer) {
+              persistedState.workers.push(autoWaterer);
+            }
           }
         }
         
