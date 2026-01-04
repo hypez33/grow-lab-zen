@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
-import { Wind, DollarSign, ShoppingBag, Sprout, Zap } from 'lucide-react';
+import { Wind, DollarSign, ShoppingBag, Sprout, Zap, Droplets } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const QuickActionsBar = () => {
-  const { inventory, growSlots, seeds, dryingRacks, tapBatch } = useGameStore();
+  const { inventory, growSlots, seeds, dryingRacks, tapBatch, waterAllPlants } = useGameStore();
   const { setActiveScreen } = useNavigationStore();
 
   const wetBuds = inventory.filter(b => b.state === 'wet').length;
@@ -14,6 +14,7 @@ export const QuickActionsBar = () => {
   const readyToHarvest = growSlots.filter(s => s.stage === 'harvest').length;
   const emptyRacks = dryingRacks.filter(r => r.isUnlocked && !r.bud).length;
   const readyBuds = dryingRacks.filter(r => r.bud && r.bud.dryingProgress >= 100).length;
+  const plantsNeedingWater = growSlots.filter(s => s.isUnlocked && s.seed && s.waterLevel < 50).length;
 
   const actions = [
     {
@@ -27,6 +28,20 @@ export const QuickActionsBar = () => {
         if (emptySlots > 0 && seeds.length > 0) {
           setActiveScreen('grow');
           toast.info(`${emptySlots} leere Slots warten!`);
+        }
+      },
+    },
+    {
+      id: 'water',
+      icon: Droplets,
+      label: 'Gießen',
+      count: plantsNeedingWater,
+      color: 'from-cyan-400 to-blue-500',
+      disabled: plantsNeedingWater === 0,
+      onClick: () => {
+        const watered = waterAllPlants();
+        if (watered > 0) {
+          toast.success(`💧 ${watered} Pflanzen gegossen!`);
         }
       },
     },

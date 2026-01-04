@@ -93,6 +93,8 @@ export interface GrowSlot {
   fertilizer: Fertilizer | null;
   soil: Soil | null;
   fertilizerUsesLeft: number;
+  waterLevel: number; // 0-100, decreases over time
+  lastWatered: number; // timestamp
 }
 
 export interface Upgrade {
@@ -352,6 +354,8 @@ export interface GameState {
   buySoil: (soilId: string) => boolean;
   applyFertilizer: (slotId: number, fertilizerId: string) => boolean;
   applySoil: (slotId: number, soilId: string) => boolean;
+  waterPlant: (slotId: number) => boolean;
+  waterAllPlants: () => number;
   
   // Cheat Actions (Dev Panel)
   cheatAddCoins: (amount: number) => void;
@@ -585,6 +589,8 @@ const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   fertilizer: null,
   soil: SOIL_CATALOG[0], // Default to basic soil
   fertilizerUsesLeft: 0,
+  waterLevel: 100, // Start fully watered
+  lastWatered: Date.now(),
 }));
 
 // Initial drying racks (expanded to 8 total)
@@ -1082,20 +1088,35 @@ export const useGameStore = create<GameState>()(
         const hasCommonBonus = checkCollectionBonus('common'); // +10% growth speed
         const collectionGrowthMult = hasCommonBonus ? 1.1 : 1;
 
-        // Auto-progress all plants passively
+        // Auto-progress all plants passively + handle water depletion
         let growSlots = state.growSlots.map(slot => {
           if (slot.seed && slot.isUnlocked && slot.stage !== 'harvest') {
+            // Water depletion: -1% per tick (about 100 seconds to empty)
+            // Soil waterRetention slows water loss
+            const waterRetention = slot.soil?.waterRetention ?? 1;
+            const waterLoss = delta * (1 / waterRetention);
+            const newWaterLevel = Math.max(0, slot.waterLevel - waterLoss);
+            
+            // Growth is reduced based on water level
+            // 100% water = 100% growth, 50% water = 75% growth, 0% water = 25% growth
+            const waterGrowthMult = 0.25 + (newWaterLevel / 100) * 0.75;
+            
             // Apply trait bonuses: Turbo (+30%), SpeedBoost (+50%)
             const traits = slot.seed.traits;
             const turboMult = traits.includes('Turbo') ? 1.3 : 1;
             const speedBoostMult = traits.includes('SpeedBoost') ? 1.5 : 1;
             
-            const progressGain = delta * basePassiveGrowth * (1 + growthBonus * 0.1) * (slot.seed.growthSpeed ?? 1) * collectionGrowthMult * turboMult * speedBoostMult;
+            // Fertilizer and soil growth boosts
+            const fertilizerGrowthBoost = slot.fertilizer?.growthBoost ?? 0;
+            const soilGrowthBoost = slot.soil?.growthBoost ?? 0;
+            
+            const progressGain = delta * basePassiveGrowth * (1 + growthBonus * 0.1) * (1 + fertilizerGrowthBoost) * (1 + soilGrowthBoost) * (slot.seed.growthSpeed ?? 1) * collectionGrowthMult * turboMult * speedBoostMult * waterGrowthMult;
             const newProgress = Math.min(100, slot.progress + progressGain);
             return {
               ...slot,
               progress: newProgress,
               stage: getStageFromProgress(newProgress),
+              waterLevel: newWaterLevel,
             };
           }
           return slot;
@@ -2718,6 +2739,42 @@ export const useGameStore = create<GameState>()(
           growSlots: newGrowSlots,
         });
         return true;
+      },
+
+      waterPlant: (slotId: number) => {
+        const state = get();
+        const slot = state.growSlots.find(s => s.id === slotId);
+        if (!slot || !slot.isUnlocked || !slot.seed) return false;
+        
+        // Already fully watered
+        if (slot.waterLevel >= 100) return false;
+        
+        const newGrowSlots = state.growSlots.map(s => 
+          s.id === slotId 
+            ? { ...s, waterLevel: 100, lastWatered: Date.now() }
+            : s
+        );
+        
+        set({ growSlots: newGrowSlots });
+        return true;
+      },
+
+      waterAllPlants: () => {
+        const state = get();
+        let watered = 0;
+        
+        const newGrowSlots = state.growSlots.map(s => {
+          if (s.isUnlocked && s.seed && s.waterLevel < 100) {
+            watered++;
+            return { ...s, waterLevel: 100, lastWatered: Date.now() };
+          }
+          return s;
+        });
+        
+        if (watered > 0) {
+          set({ growSlots: newGrowSlots });
+        }
+        return watered;
       },
 
       // Cheat Actions (Dev Panel)
