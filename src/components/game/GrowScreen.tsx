@@ -49,15 +49,19 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
   const soilQualityBoost = slot.soil?.qualityBoost ?? 0;
   const soilTraitBoostChance = slot.soil?.traitBoostChance ?? 0;
 
+  // RNG yield range (yieldMin to yieldMax)
+  const yieldMin = seed.yieldMin ?? Math.floor(baseYield * 0.8);
+  const yieldMax = seed.yieldMax ?? Math.ceil(baseYield * 1.2);
+
   // Collect bonuses
   const bonuses: HarvestBonus[] = [];
 
-  // Base info
+  // Base info with yield range
   bonuses.push({
     name: 'Basis-Ertrag',
     icon: '🌿',
     multiplier: 1,
-    description: `${seed.name} (${seed.rarity})`,
+    description: `${seed.name} (${seed.rarity}) — ${yieldMin}g - ${yieldMax}g`,
     category: 'base',
   });
 
@@ -162,13 +166,18 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
   const isDoubleHarvest = hasTrait('DoubleHarvest') && Math.random() < 0.25;
   const harvestMult = isDoubleHarvest ? 2 : 1;
 
-  // Calculate final values with bud growth
+  // Calculate final values with bud growth and yield range
   const totalMultiplier = (1 + harvestBonus * 0.1) * (isCrit ? 2 : 1) * goldRushMult * bountifulMult * harvestMult * uncommonCoinMult * epicResourceMult * masterMult * supplyYieldMult * budGrowthMult;
 
-  const gramsHarvested = Math.floor(baseYield * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
+  // Calculate yield range for preview (min and max possible)
+  const minGramsPreview = Math.floor(yieldMin * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
+  const maxGramsPreview = Math.floor(yieldMax * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
+  const avgGramsPreview = Math.floor((minGramsPreview + maxGramsPreview) / 2);
+  
   const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost + (budGrowthPercent / 10)));
 
-  const coinGain = Math.floor(baseYield * totalMultiplier);
+  const avgYield = (yieldMin + yieldMax) / 2;
+  const coinGain = Math.floor(avgYield * totalMultiplier);
   const resinGain = Math.floor(baseYield * 0.1 * frostMult * bountifulMult * harvestMult * epicResourceMult * masterMult);
   const essenceGain = seed.rarity !== 'common' ? Math.floor(baseYield * 0.05 * essenceFlowMult * bountifulMult * harvestMult * epicResourceMult * masterMult) : 0;
 
@@ -188,7 +197,11 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
     strainName: seed.name,
     rarity: seed.rarity,
     baseYield,
-    finalGrams: gramsHarvested,
+    yieldMin,
+    yieldMax,
+    finalGrams: avgGramsPreview, // Average for preview
+    finalGramsMin: minGramsPreview,
+    finalGramsMax: maxGramsPreview,
     finalQuality: quality,
     bonuses,
     totalMultiplier,
