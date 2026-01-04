@@ -136,6 +136,7 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
                 rarity={slot.seed!.rarity} 
                 traits={slot.seed!.traits}
                 size={80}
+                budGrowth={slot.budGrowth ?? 0}
               />
             </motion.div>
             
