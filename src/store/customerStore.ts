@@ -198,9 +198,37 @@ const getPersonalityType = () =>
   pickWeighted(PERSONALITY_POOL.map(item => ({ value: item.type, weight: item.weight })));
 
 const getInitialPreferences = (personality: PersonalityType): Customer['drugPreferences'] => {
+  // Hardcore customers always accept all drugs
   if (personality === 'hardcore') {
     return { weed: true, koks: true, meth: true };
   }
+  
+  // Adventurous customers have a 60% chance to accept hard drugs
+  if (personality === 'adventurous') {
+    const acceptsKoks = Math.random() < 0.6;
+    const acceptsMeth = Math.random() < 0.5;
+    return { weed: true, koks: acceptsKoks, meth: acceptsMeth };
+  }
+  
+  // Casual customers have a 25% chance to accept one hard drug
+  if (personality === 'casual') {
+    const roll = Math.random();
+    if (roll < 0.15) {
+      return { weed: true, koks: true, meth: false };
+    } else if (roll < 0.25) {
+      return { weed: true, koks: false, meth: true };
+    }
+    return { weed: true, koks: false, meth: false };
+  }
+  
+  // Paranoid customers are weed-only by default but have 10% chance for koks
+  if (personality === 'paranoid') {
+    if (Math.random() < 0.1) {
+      return { weed: true, koks: true, meth: false };
+    }
+    return { weed: true, koks: false, meth: false };
+  }
+  
   return { weed: true, koks: false, meth: false };
 };
 
