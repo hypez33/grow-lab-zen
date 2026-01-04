@@ -7,6 +7,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { TerritoryCard } from './TerritoryCard';
 import { TerritoryModal, TerritoryDealer } from './TerritoryModal';
+import { TerritoryMap } from './TerritoryMap';
 
 const getControlTierPercent = (control: number) => {
   if (control >= 100) return 100;
@@ -58,7 +59,8 @@ export const TerritoryScreen = () => {
 
   const [activeTerritory, setActiveTerritory] = useState<Territory | null>(null);
 
-  const availableDealers = useMemo<TerritoryDealer[]>(
+  // All dealers (not filtered) - TerritoryModal handles filtering per territory
+  const allDealers = useMemo<TerritoryDealer[]>(
     () => [
       ...weedDealers.map(dealer => ({
         id: dealer.id,
@@ -77,6 +79,12 @@ export const TerritoryScreen = () => {
     ],
     [weedDealers, cocaDealers]
   );
+
+  // Dealers not assigned to ANY territory (for stats display)
+  const unassignedDealers = useMemo(() => {
+    const allAssigned = territories.flatMap(t => t.assignedDealerIds);
+    return allDealers.filter(d => !allAssigned.includes(d.id));
+  }, [allDealers, territories]);
 
   const controlledCount = territories.filter(t => t.control >= 25).length;
   const fullyControlledCount = territories.filter(t => t.control >= 100).length;
@@ -246,11 +254,17 @@ export const TerritoryScreen = () => {
         </div>
       </motion.div>
 
+      {/* Territory Map */}
+      <TerritoryMap 
+        territories={territories}
+        onSelectTerritory={setActiveTerritory}
+      />
+
       {/* Territory Grid */}
       <div className="flex-1">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-muted-foreground">All Territories</h2>
-          <span className="text-[10px] text-muted-foreground">{availableDealers.length} dealers available</span>
+          <span className="text-[10px] text-muted-foreground">{unassignedDealers.length} dealers available</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {territories.map((territory, index) => {
@@ -278,7 +292,7 @@ export const TerritoryScreen = () => {
 
       <TerritoryModal
         territory={activeTerritory}
-        availableDealers={availableDealers}
+        availableDealers={allDealers}
         onClose={() => setActiveTerritory(null)}
         onAssign={handleAssign}
         onUnassign={handleUnassign}
