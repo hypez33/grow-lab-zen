@@ -25,8 +25,8 @@ const TERRITORY_POSITIONS: Record<string, { x: number; y: number; neighbors: str
   docks: { x: 1, y: 1.5, neighbors: ['industrial', 'downtown', 'nightlife'] },
 };
 
-const HEX_SIZE = 52;
-const HEX_GAP = 8;
+const HEX_SIZE = 38;
+const HEX_GAP = 6;
 
 const getHexPoints = (size: number) => {
   const points = [];
@@ -39,43 +39,39 @@ const getHexPoints = (size: number) => {
 
 export const TerritoryMap = ({ territories, onSelectTerritory }: TerritoryMapProps) => {
   const centerX = 160;
-  const centerY = 120;
-  const hexWidth = HEX_SIZE * 1.8 + HEX_GAP;
-  const hexHeight = HEX_SIZE * 1.5 + HEX_GAP;
+  const centerY = 95;
+  const hexWidth = HEX_SIZE * 1.7 + HEX_GAP;
+  const hexHeight = HEX_SIZE * 1.4 + HEX_GAP;
 
   return (
-    <div className="game-card p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Territory Map</h3>
-        <div className="flex items-center gap-3 text-[9px] text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-amber-500" />
+    <div className="game-card p-3 mb-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Territory Map</h3>
+        <div className="flex items-center gap-2 text-[8px] text-muted-foreground">
+          <div className="flex items-center gap-0.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             <span>Full</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+          <div className="flex items-center gap-0.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             <span>75%+</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-primary" />
+          <div className="flex items-center gap-0.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
             <span>50%+</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-orange-500" />
+          <div className="flex items-center gap-0.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
             <span>25%+</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-muted" />
-            <span>Unclaimed</span>
           </div>
         </div>
       </div>
 
-      <div className="relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-muted/10 to-muted/5 border border-border/20">
+      <div className="relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-muted/10 to-muted/5 border border-border/20">
         <svg 
-          viewBox="0 0 320 240" 
+          viewBox="0 0 320 200" 
           className="w-full h-auto"
-          style={{ minHeight: '200px' }}
+          style={{ minHeight: '160px', maxHeight: '180px' }}
         >
           {/* Background grid pattern */}
           <defs>
@@ -242,22 +238,6 @@ export const TerritoryMap = ({ territories, onSelectTerritory }: TerritoryMapPro
             );
           })}
         </svg>
-      </div>
-
-      {/* Quick legend */}
-      <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Crown size={12} className="text-amber-400" />
-          <span>Full Control</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Users size={12} className="text-primary" />
-          <span>Dealers Assigned</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Flame size={12} className="text-red-400" />
-          <span>Contest Incoming</span>
-        </div>
       </div>
     </div>
   );

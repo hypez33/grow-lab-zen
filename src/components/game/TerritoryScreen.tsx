@@ -157,29 +157,25 @@ export const TerritoryScreen = () => {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-4 gap-2 mb-4"
       >
-        <div className="game-card p-3 text-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Crown size={16} className="mx-auto mb-1 text-amber-400" />
-          <div className="text-lg font-bold text-foreground">{fullyControlledCount}</div>
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Full Control</div>
+        <div className="game-card p-2 text-center relative overflow-hidden">
+          <Crown size={14} className="mx-auto mb-0.5 text-amber-400" />
+          <div className="text-base font-bold text-foreground">{fullyControlledCount}</div>
+          <div className="text-[8px] text-muted-foreground uppercase">Full</div>
         </div>
-        <div className="game-card p-3 text-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <TrendingUp size={16} className="mx-auto mb-1 text-emerald-400" />
-          <div className="text-lg font-bold text-emerald-400">+${Math.round(totalPassiveIncome).toLocaleString()}</div>
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Income/h</div>
+        <div className="game-card p-2 text-center relative overflow-hidden">
+          <TrendingUp size={14} className="mx-auto mb-0.5 text-emerald-400" />
+          <div className="text-sm font-bold text-emerald-400">+${Math.round(totalPassiveIncome)}</div>
+          <div className="text-[8px] text-muted-foreground uppercase">Income</div>
         </div>
-        <div className="game-card p-3 text-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <DollarSign size={16} className="mx-auto mb-1 text-red-400" />
-          <div className="text-lg font-bold text-red-400">-${Math.round(totalUpkeepCost).toLocaleString()}</div>
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Upkeep/h</div>
+        <div className="game-card p-2 text-center relative overflow-hidden">
+          <DollarSign size={14} className="mx-auto mb-0.5 text-red-400" />
+          <div className="text-sm font-bold text-red-400">-${Math.round(totalUpkeepCost)}</div>
+          <div className="text-[8px] text-muted-foreground uppercase">Upkeep</div>
         </div>
-        <div className="game-card p-3 text-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <Users size={16} className="mx-auto mb-1 text-primary" />
-          <div className="text-lg font-bold text-foreground">{assignedDealersCount}</div>
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Dealers</div>
+        <div className="game-card p-2 text-center relative overflow-hidden">
+          <Users size={14} className="mx-auto mb-0.5 text-primary" />
+          <div className="text-base font-bold text-foreground">{assignedDealersCount}</div>
+          <div className="text-[8px] text-muted-foreground uppercase">Dealers</div>
         </div>
       </motion.div>
 
@@ -190,38 +186,30 @@ export const TerritoryScreen = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="game-card p-3 mb-4 border-l-2 border-l-red-500/50"
+            className="game-card p-2 mb-3 border-l-2 border-l-red-500/50"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <Swords size={12} className="text-red-400" />
-              </div>
-              <span className="text-xs font-semibold text-red-400">Upcoming Contests</span>
-              <div className="ml-auto px-2 py-0.5 rounded-full bg-red-500/20 text-[10px] text-red-300">
-                {nextContests.length} pending
+            <div className="flex items-center gap-2 mb-1.5">
+              <Swords size={12} className="text-red-400" />
+              <span className="text-[10px] font-semibold text-red-400">Upcoming Contests</span>
+              <div className="ml-auto px-1.5 py-0.5 rounded-full bg-red-500/20 text-[9px] text-red-300">
+                {nextContests.length}
               </div>
             </div>
-            <div className="space-y-1.5">
-              {nextContests.map((contest, index) => (
-                <motion.div 
+            <div className="space-y-1">
+              {nextContests.map((contest) => (
+                <div 
                   key={contest.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="flex items-center justify-between rounded-lg bg-muted/20 px-3 py-2"
+                  className="flex items-center justify-between rounded-md bg-muted/20 px-2 py-1.5"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">{contest.icon}</span>
-                    <div>
-                      <div className="text-xs font-medium">{contest.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{Math.round(contest.control)}% control</div>
-                    </div>
+                    <span className="text-sm">{contest.icon}</span>
+                    <span className="text-[10px] font-medium">{contest.name}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs font-bold text-red-400 animate-pulse">{contest.timeLeft}</div>
-                    <Flame size={14} className="text-red-400" />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-red-400 animate-pulse">{contest.timeLeft}</span>
+                    <Flame size={10} className="text-red-400" />
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </motion.div>
@@ -233,24 +221,19 @@ export const TerritoryScreen = () => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="game-card p-3 mb-4"
+        className="game-card p-2 mb-3"
       >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-muted-foreground">Empire Progress</span>
-          <span className="text-xs font-bold text-primary">{controlledCount}/6 Territories</span>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-semibold text-muted-foreground">Empire Progress</span>
+          <span className="text-[10px] font-bold text-primary">{controlledCount}/6</span>
         </div>
-        <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
           <motion.div 
             className="h-full bg-gradient-to-r from-emerald-500 via-primary to-amber-500"
             initial={{ width: 0 }}
             animate={{ width: `${(controlledCount / 6) * 100}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           />
-        </div>
-        <div className="flex justify-between mt-1.5 text-[9px] text-muted-foreground">
-          <span>Newcomer</span>
-          <span>Rising Power</span>
-          <span>Kingpin</span>
         </div>
       </motion.div>
 
