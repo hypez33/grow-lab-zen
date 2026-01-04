@@ -2841,7 +2841,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 11, // Increment to trigger migration
+      version: 12, // Increment to trigger migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3026,6 +3026,17 @@ export const useGameStore = create<GameState>()(
           }
           if (!Number.isFinite(persistedState.lastAutoSellAt)) {
             persistedState.lastAutoSellAt = 0;
+          }
+        }
+
+        // Version 12: Add waterLevel and lastWatered to growSlots
+        if (version < 12) {
+          if (Array.isArray(persistedState.growSlots)) {
+            persistedState.growSlots = persistedState.growSlots.map((slot: any) => ({
+              ...slot,
+              waterLevel: typeof slot.waterLevel === 'number' ? slot.waterLevel : 100,
+              lastWatered: typeof slot.lastWatered === 'number' ? slot.lastWatered : Date.now(),
+            }));
           }
         }
         
