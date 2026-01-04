@@ -1,7 +1,106 @@
+import { useState, useEffect, useMemo } from 'react';
 import { Territory, TerritoryBonus } from '@/store/territoryStore';
-import { X, Users, Shield, MapPin, Flame, TrendingUp, Minus, Plus, Crown, Zap } from 'lucide-react';
+import { Users, Shield, MapPin, Flame, TrendingUp, Minus, Plus, Crown, Zap, Activity, DollarSign, Eye, Package, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// Activity types for simulation
+type ActivityType = 'sale' | 'customer' | 'rival' | 'patrol' | 'supply' | 'tip';
+
+interface ActivityEvent {
+  id: string;
+  type: ActivityType;
+  message: string;
+  icon: React.ReactNode;
+  timestamp: Date;
+  color: string;
+}
+
+const ACTIVITY_TEMPLATES: Record<ActivityType, { messages: string[]; icon: React.ReactNode; color: string }> = {
+  sale: {
+    messages: [
+      'Dealer completed a sale for $${amount}',
+      'Customer purchased ${amount}g of product',
+      'Quick transaction: +$${amount}',
+      'Regular customer bought supplies',
+    ],
+    icon: <DollarSign size={12} />,
+    color: 'text-emerald-400',
+  },
+  customer: {
+    messages: [
+      'New customer spotted in the area',
+      'Returning customer looking for deals',
+      'VIP customer arrived',
+      'Group of customers approaching',
+    ],
+    icon: <Users size={12} />,
+    color: 'text-primary',
+  },
+  rival: {
+    messages: [
+      'Rival dealer spotted nearby',
+      'Competition trying to poach customers',
+      'Enemy gang members seen scouting',
+      'Rival operation detected in area',
+    ],
+    icon: <AlertTriangle size={12} />,
+    color: 'text-red-400',
+  },
+  patrol: {
+    messages: [
+      'Police patrol passing through',
+      'Undercover cop spotted - staying low',
+      'Heat in the area - dealers cautious',
+      'Security sweep in progress',
+    ],
+    icon: <Eye size={12} />,
+    color: 'text-orange-400',
+  },
+  supply: {
+    messages: [
+      'Supply drop received successfully',
+      'Restocking operation complete',
+      'Fresh inventory delivered',
+      'Dealer resupplied with product',
+    ],
+    icon: <Package size={12} />,
+    color: 'text-blue-400',
+  },
+  tip: {
+    messages: [
+      'Informant provided useful intel',
+      'Street contact shared info',
+      'Tip received about competition',
+      'Insider revealed patrol schedule',
+    ],
+    icon: <Activity size={12} />,
+    color: 'text-purple-400',
+  },
+};
+
+const generateActivity = (territoryName: string, hasDealers: boolean): ActivityEvent => {
+  const types: ActivityType[] = hasDealers 
+    ? ['sale', 'sale', 'customer', 'customer', 'rival', 'patrol', 'supply', 'tip']
+    : ['customer', 'rival', 'patrol', 'tip'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const template = ACTIVITY_TEMPLATES[type];
+  let message = template.messages[Math.floor(Math.random() * template.messages.length)];
+  
+  if (message.includes('${amount}')) {
+    const amount = Math.floor(Math.random() * 500) + 50;
+    message = message.replace('${amount}', amount.toString());
+  }
+  
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    message,
+    icon: template.icon,
+    timestamp: new Date(),
+    color: template.color,
+  };
+};
 
 export interface TerritoryDealer {
   id: string;
@@ -78,6 +177,39 @@ export const TerritoryModal = ({
   const scaledBonuses = getScaledBonuses(territory.bonuses, territory.control);
   const upkeepPerHour = assignedDealers.length * 50;
   const isFullControl = territory.control >= 100;
+
+  // Activity log state
+  const [activities, setActivities] = useState<ActivityEvent[]>([]);
+
+  // Generate activities periodically
+  useEffect(() => {
+    if (!territory) return;
+    
+    // Initial activities
+    const initialActivities: ActivityEvent[] = [];
+    for (let i = 0; i < 3; i++) {
+      const activity = generateActivity(territory.name, assignedDealers.length > 0);
+      activity.timestamp = new Date(Date.now() - (i + 1) * 30000);
+      initialActivities.push(activity);
+    }
+    setActivities(initialActivities);
+
+    // Add new activity every 3-6 seconds
+    const interval = setInterval(() => {
+      const newActivity = generateActivity(territory.name, assignedDealers.length > 0);
+      setActivities(prev => [newActivity, ...prev].slice(0, 10));
+    }, 3000 + Math.random() * 3000);
+
+    return () => clearInterval(interval);
+  }, [territory?.id, assignedDealers.length]);
+
+  const formatActivityTime = (date: Date) => {
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diff < 5) return 'just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  };
 
   return (
     <Dialog open={!!territory} onOpenChange={() => onClose()}>
@@ -305,6 +437,50 @@ export const TerritoryModal = ({
               </div>
             </div>
           )}
+
+          {/* Activity Log */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Activity size={14} className="text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Live Activity
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] text-emerald-400">Live</span>
+              </div>
+            </div>
+            <div className="rounded-xl bg-background/50 border border-border/20 overflow-hidden">
+              <div className="max-h-40 overflow-y-auto scrollbar-hide">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {activities.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-6">
+                      No activity yet...
+                    </div>
+                  ) : (
+                    activities.map((activity, index) => (
+                      <motion.div
+                        key={activity.id}
+                        initial={{ opacity: 0, x: -20, height: 0 }}
+                        animate={{ opacity: 1, x: 0, height: 'auto' }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.2 }}
+                        className={`flex items-start gap-2 p-2.5 border-b border-border/10 last:border-b-0 ${index === 0 ? 'bg-muted/10' : ''}`}
+                      >
+                        <div className={`w-6 h-6 rounded-md flex items-center justify-center mt-0.5 ${activity.color} bg-current/10`}>
+                          <span className={activity.color}>{activity.icon}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-foreground leading-tight">{activity.message}</p>
+                          <span className="text-[10px] text-muted-foreground">{formatActivityTime(activity.timestamp)}</span>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer Actions */}

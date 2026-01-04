@@ -124,7 +124,7 @@ export const TerritoryScreen = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 overflow-y-auto scrollbar-hide">
+    <div className="flex flex-col h-full p-4 pb-24 overflow-y-auto scrollbar-hide">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
