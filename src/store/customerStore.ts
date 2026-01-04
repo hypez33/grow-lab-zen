@@ -857,18 +857,42 @@ export const useCustomerStore = create<CustomerState>()(
           return { success: false, reason: 'not-found' };
         }
 
+        // If customer already accepts this drug, just sell
         if (customer.drugPreferences[drug]) {
           return get().sellHardDrug(customerId, drug, grams);
         }
 
+        // Paranoid customers have a small chance to accept, otherwise block
         if (customer.personalityType === 'paranoid') {
+          // 15% chance to accept if high loyalty
+          if (customer.loyalty >= 60 && Math.random() < 0.15) {
+            const message = createMessage({
+              from: 'customer',
+              type: 'drug-acceptance',
+              message: 'Okay... aber nur weil ich dir vertraue. 🤫',
+            });
+            set((current) => ({
+              customers: current.customers.map(c =>
+                c.id === customerId
+                  ? {
+                      ...c,
+                      drugPreferences: { ...c.drugPreferences, [drug]: true },
+                      addiction: { ...c.addiction, [drug]: Math.max(5, c.addiction[drug]) },
+                      messages: pruneMessages([...c.messages, message]),
+                    }
+                  : c
+              ),
+            }));
+            return get().sellHardDrug(customerId, drug, grams);
+          }
+
           const message = createMessage({
             from: 'customer',
             type: 'drug-rejection-angry',
             message: 'Are you trying to set me up?? We\'re done! 🚨',
           });
 
-          // Paranoid customer blocks the player - remove them from the list entirely
+          // Paranoid customer blocks the player
           set((current) => ({
             customers: current.customers.filter(c => c.id !== customerId),
           }));
@@ -876,6 +900,7 @@ export const useCustomerStore = create<CustomerState>()(
           return { success: false, reason: 'blocked', message: `${customer.name} hat dich blockiert und wurde aus deiner Kontaktliste entfernt.` };
         }
 
+        // Hardcore customers always accept
         if (customer.personalityType === 'hardcore') {
           const message = createMessage({
             from: 'customer',
@@ -897,8 +922,12 @@ export const useCustomerStore = create<CustomerState>()(
           return get().sellHardDrug(customerId, drug, grams);
         }
 
+        // Adventurous customers: 70% chance to accept (increased from 30%)
         if (customer.personalityType === 'adventurous') {
-          if (Math.random() < 0.3) {
+          // Higher loyalty = higher chance
+          const baseChance = 0.7;
+          const loyaltyBonus = customer.loyalty * 0.002; // +0.2% per loyalty
+          if (Math.random() < baseChance + loyaltyBonus) {
             const message = createMessage({
               from: 'customer',
               type: 'drug-acceptance',
@@ -929,10 +958,10 @@ export const useCustomerStore = create<CustomerState>()(
               c.id === customerId
                 ? {
                     ...c,
-                    loyalty: clamp(c.loyalty - 5, 0, 100),
-                    status: getStatusForLoyalty(clamp(c.loyalty - 5, 0, 100)) === 'prospect'
+                    loyalty: clamp(c.loyalty - 2, 0, 100), // Reduced from -5
+                    status: getStatusForLoyalty(clamp(c.loyalty - 2, 0, 100)) === 'prospect'
                       ? 'active'
-                      : getStatusForLoyalty(clamp(c.loyalty - 5, 0, 100)),
+                      : getStatusForLoyalty(clamp(c.loyalty - 2, 0, 100)),
                     messages: pruneMessages([...c.messages, message]),
                   }
                 : c
@@ -941,6 +970,35 @@ export const useCustomerStore = create<CustomerState>()(
           return { success: false, reason: 'rejected-soft' };
         }
 
+        // Casual customers: 40% base chance, higher with loyalty
+        const casualChance = 0.4 + (customer.loyalty * 0.004); // Up to 80% at max loyalty
+        if (Math.random() < casualChance) {
+          const messages = [
+            'Okay, ich probier\'s mal aus... 🤷',
+            'Alles klar, wenn du meinst dass es gut ist.',
+            'Na gut, einmal ist keinmal, oder? 😅',
+          ];
+          const message = createMessage({
+            from: 'customer',
+            type: 'drug-acceptance',
+            message: pickRandom(messages),
+          });
+          set((current) => ({
+            customers: current.customers.map(c =>
+              c.id === customerId
+                ? {
+                    ...c,
+                    drugPreferences: { ...c.drugPreferences, [drug]: true },
+                    addiction: { ...c.addiction, [drug]: Math.max(5, c.addiction[drug]) },
+                    messages: pruneMessages([...c.messages, message]),
+                  }
+                : c
+            ),
+          }));
+          return get().sellHardDrug(customerId, drug, grams);
+        }
+
+        // Casual rejection - minimal loyalty loss
         const message = createMessage({
           from: 'customer',
           type: 'drug-rejection',
@@ -951,10 +1009,10 @@ export const useCustomerStore = create<CustomerState>()(
             c.id === customerId
               ? {
                   ...c,
-                  loyalty: clamp(c.loyalty - 10, 0, 100),
-                  status: getStatusForLoyalty(clamp(c.loyalty - 10, 0, 100)) === 'prospect'
+                  loyalty: clamp(c.loyalty - 3, 0, 100), // Reduced from -10
+                  status: getStatusForLoyalty(clamp(c.loyalty - 3, 0, 100)) === 'prospect'
                     ? 'active'
-                    : getStatusForLoyalty(clamp(c.loyalty - 10, 0, 100)),
+                    : getStatusForLoyalty(clamp(c.loyalty - 3, 0, 100)),
                   messages: pruneMessages([...c.messages, message]),
                 }
               : c
