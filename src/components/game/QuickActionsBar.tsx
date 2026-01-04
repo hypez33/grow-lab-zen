@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
-import { Wind, DollarSign, ShoppingBag, Sprout, Zap, Droplets } from 'lucide-react';
+import { Wind, Sprout, Zap, Droplets, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
+import { GrowSuppliesModal } from './GrowSuppliesModal';
 
 export const QuickActionsBar = () => {
   const { inventory, growSlots, seeds, dryingRacks, tapBatch, waterAllPlants } = useGameStore();
   const { setActiveScreen } = useNavigationStore();
+  const [showSuppliesShop, setShowSuppliesShop] = useState(false);
 
   const wetBuds = inventory.filter(b => b.state === 'wet').length;
   const driedBuds = inventory.filter(b => b.state === 'dried').length;
@@ -73,17 +76,14 @@ export const QuickActionsBar = () => {
       },
     },
     {
-      id: 'sell',
-      icon: DollarSign,
-      label: 'Verkaufen',
-      count: driedBuds,
-      color: 'from-neon-gold to-neon-green',
-      disabled: driedBuds === 0,
+      id: 'supplies',
+      icon: FlaskConical,
+      label: 'Shop',
+      count: null,
+      color: 'from-amber-500 to-orange-600',
+      disabled: false,
       onClick: () => {
-        if (driedBuds > 0) {
-          setActiveScreen('sales');
-          toast.info(`${driedBuds} Buds verkaufsbereit!`);
-        }
+        setShowSuppliesShop(true);
       },
     },
   ];
@@ -165,6 +165,14 @@ export const QuickActionsBar = () => {
           )}
         </motion.div>
       )}
+
+      {/* Grow Supplies Shop Modal */}
+      <GrowSuppliesModal
+        isOpen={showSuppliesShop}
+        onClose={() => setShowSuppliesShop(false)}
+        slotId={null}
+        mode="shop"
+      />
     </motion.div>
   );
 };
