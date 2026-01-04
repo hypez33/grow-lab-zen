@@ -12,7 +12,7 @@ import { LiveStatsPanel } from './LiveStatsPanel';
 import { QuickActionsBar } from './QuickActionsBar';
 import { MiniDashboard } from './MiniDashboard';
 import { toast } from 'sonner';
-import { X, Zap, Unlock, Wind, Droplet, Leaf } from 'lucide-react';
+import { X, Zap, Unlock, Wind, Droplets } from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { useCanvasParticles } from '@/components/effects/CanvasParticleSystem';
 
@@ -20,7 +20,7 @@ export const GrowScreen = () => {
   const { 
     growSlots, seeds, budcoins, resin, essence, gems, level, xp,
     tapBatch, harvest, plantSeed, updateProgress, calculateOfflineProgress,
-    tutorialComplete, completeTutorial, buyUpgrade, upgrades
+    tutorialComplete, completeTutorial, buyUpgrade, upgrades, waterPlant, waterAllPlants
   } = useGameStore();
   
   const { playTap, playHarvest } = useGameSounds();
@@ -394,6 +394,11 @@ export const GrowScreen = () => {
                   isSelected={selectedSlot === slot.id}
                   onSelect={() => handleSlotSelect(slot.id)}
                   onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                  onWater={() => {
+                    if (waterPlant(slot.id)) {
+                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                    }
+                  }}
                 />
               ));
             })()}

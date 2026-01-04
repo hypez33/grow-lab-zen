@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, DollarSign, Snowflake, FlaskConical, Briefcase, Users, Map } from 'lucide-react';
+import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map } from 'lucide-react';
 import { GrowScreen } from './GrowScreen';
 import { ShopScreen } from './ShopScreen';
 import { SkillsScreen } from './SkillsScreen';
@@ -9,7 +9,7 @@ import { QuestsScreen } from './QuestsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { CollectionScreen } from './CollectionScreen';
 import { DryRoomScreen } from './DryRoomScreen';
-import { SalesScreen } from './SalesScreen';
+
 import { BusinessScreen } from './BusinessScreen';
 import { KoksScreen } from './KoksScreen';
 import { MethScreen } from './MethScreen';
@@ -217,7 +217,6 @@ export const GameLayout = () => {
   const navItems = [
     { id: 'grow' as Screen, icon: Home, label: 'Grow' },
     { id: 'dryroom' as Screen, icon: Wind, label: 'Dry' },
-    { id: 'sales' as Screen, icon: DollarSign, label: 'Sales' },
     { id: 'customers' as Screen, icon: Users, label: 'Kunden' },
     { id: 'turf' as Screen, icon: Map, label: 'Turf' },
     { id: 'business' as Screen, icon: Briefcase, label: 'Business' },
@@ -234,7 +233,6 @@ export const GameLayout = () => {
     switch (activeScreen) {
       case 'grow': return <GrowScreen />;
       case 'dryroom': return <DryRoomScreen />;
-      case 'sales': return <SalesScreen />;
       case 'customers': return <CustomersScreen />;
       case 'turf': return <TerritoryScreen />;
       case 'business': return <BusinessScreen />;
@@ -246,6 +244,7 @@ export const GameLayout = () => {
       case 'collection': return <CollectionScreen />;
       case 'quests': return <QuestsScreen />;
       case 'settings': return <SettingsScreen />;
+      default: return <GrowScreen />;
     }
   };
 

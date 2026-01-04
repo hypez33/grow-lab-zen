@@ -2,7 +2,7 @@ import type { MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrowSlot as GrowSlotType } from '@/store/gameStore';
 import { PlantSVG } from './PlantSVG';
-import { Lock, Plus, Sprout, Droplet, Leaf } from 'lucide-react';
+import { Lock, Plus, Sprout, Droplets } from 'lucide-react';
 
 interface GrowSlotProps {
   slot: GrowSlotType;
@@ -11,13 +11,15 @@ interface GrowSlotProps {
   isSelected: boolean;
   onSelect: () => void;
   onOpenSupplies?: (mode: 'fertilizer' | 'soil') => void;
+  onWater?: () => void;
 }
 
-export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies }: GrowSlotProps) => {
+export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
   const isReady = slot.stage === 'harvest';
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
   const isGrowing = !isEmpty && !isReady && !isLocked;
+  const needsWater = slot.waterLevel < 30 && !isEmpty && !isLocked;
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     if (isLocked) return;
@@ -43,9 +45,15 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
     }
   };
 
+  const handleWaterClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    onWater?.();
+  };
+
   const progressPercent = slot.progress;
   const hasFertilizer = !!slot.fertilizer;
   const hasPremiumSoil = slot.soil && slot.soil.id !== 'basic-soil';
+  const waterLevel = slot.waterLevel ?? 100;
 
   return (
     <motion.div
@@ -151,7 +159,7 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
             title={hasFertilizer ? `${slot.fertilizer?.name} (${slot.fertilizerUsesLeft} übrig)` : 'Dünger hinzufügen'}
           >
-            <Droplet size={10} />
+            <span className="text-[10px]">🌱</span>
           </button>
           
           {/* Soil indicator */}
@@ -172,9 +180,26 @@ export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenS
         </div>
       )}
 
+      {/* Water indicator (top-right corner) */}
+      {!isLocked && !isEmpty && (
+        <button
+          onClick={handleWaterClick}
+          className={`absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold transition-all
+            ${waterLevel < 30 
+              ? 'bg-red-500/90 text-white animate-pulse' 
+              : waterLevel < 60 
+                ? 'bg-yellow-500/80 text-white' 
+                : 'bg-cyan-500/70 text-white hover:bg-cyan-500/90'}`}
+          title={`Wasserstand: ${Math.round(waterLevel)}%`}
+        >
+          <Droplets size={10} />
+          <span>{Math.round(waterLevel)}%</span>
+        </button>
+      )}
+
       {/* Fertilizer uses remaining */}
       {hasFertilizer && slot.fertilizerUsesLeft > 0 && (
-        <div className="absolute top-1 right-1 bg-emerald-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+        <div className="absolute top-7 right-1 bg-emerald-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
           {slot.fertilizerUsesLeft}x
         </div>
       )}
