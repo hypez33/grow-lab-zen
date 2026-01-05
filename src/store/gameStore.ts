@@ -982,15 +982,16 @@ export const useGameStore = create<GameState>()(
           ? state.discoveredSeeds 
           : [...state.discoveredSeeds, seedName];
 
-        // Create wet buds for inventory (grams based on yieldMin-yieldMax range + supply bonuses + bud growth)
+        // Create wet buds for inventory (grams based on baseYield with RNG variance + supply bonuses + bud growth)
         // budGrowth multiplier: 0% = 20% yield, 50% = 60% yield, 100% = 100% yield (exponential curve)
         const budGrowthPercent = slot.budGrowth ?? 100; // Default to 100 for old saves
         const budGrowthMult = 0.2 + (budGrowthPercent / 100) * 0.8; // 20% base + up to 80% from growth
         
-        // RNG yield: random value between yieldMin and yieldMax (or fallback to baseYield +/- 20%)
-        const yieldMin = slot.seed.yieldMin ?? Math.floor(slot.seed.baseYield * 0.8);
-        const yieldMax = slot.seed.yieldMax ?? Math.ceil(slot.seed.baseYield * 1.2);
-        const randomBaseYield = yieldMin + Math.random() * (yieldMax - yieldMin);
+        // RNG yield: baseYield * random multiplier between 0.8 and 1.2 (proportional to plant tier)
+        // This ensures all tiers scale properly - legendary gets 160-240g, common gets 8-12g etc.
+        const seedBaseYield = slot.seed.baseYield;
+        const yieldVariance = 0.8 + Math.random() * 0.4; // 0.8 to 1.2 (±20% variance)
+        const randomBaseYield = seedBaseYield * yieldVariance;
         
         const gramsHarvested = Math.floor(randomBaseYield * bountifulMult * harvestMult * supplyYieldMult * budGrowthMult * (1 + harvestBonus * 0.05));
         const quality = Math.min(100, Math.floor(50 + Math.random() * 30 + (isCrit ? 20 : 0) + (hasTrait('Bountiful') ? 10 : 0) + fertilizerQualityBoost + soilQualityBoost + (budGrowthPercent / 10))); // Higher bud growth = better quality

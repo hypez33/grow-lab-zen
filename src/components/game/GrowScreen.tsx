@@ -49,9 +49,9 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
   const soilQualityBoost = slot.soil?.qualityBoost ?? 0;
   const soilTraitBoostChance = slot.soil?.traitBoostChance ?? 0;
 
-  // RNG yield range (yieldMin to yieldMax)
-  const yieldMin = seed.yieldMin ?? Math.floor(baseYield * 0.8);
-  const yieldMax = seed.yieldMax ?? Math.ceil(baseYield * 1.2);
+  // RNG yield range: baseYield ±20% (proportional to plant tier)
+  const yieldMin = Math.floor(baseYield * 0.8);
+  const yieldMax = Math.ceil(baseYield * 1.2);
 
   // Collect bonuses
   const bonuses: HarvestBonus[] = [];
