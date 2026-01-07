@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem } from '@/store/gameStore';
-import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets } from 'lucide-react';
+import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets, Mic, MicOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { BudIcon } from './BudIcon';
+import { useBlowDetection } from '@/hooks/useBlowDetection';
 
 export const DryRoomScreen = () => {
   const {
@@ -24,6 +25,23 @@ export const DryRoomScreen = () => {
   const [showBudPicker, setShowBudPicker] = useState(false);
   const [targetRackId, setTargetRackId] = useState<number | null>(null);
   const [showShop, setShowShop] = useState(true); // Default to open so users can see how to buy racks
+
+  const updateDryingProgress = useGameStore(state => state.updateDryingProgress);
+  const lastBlowBoostRef = useRef<number>(0);
+
+  // Blow detection for faster drying
+  const handleBlowDetected = (intensity: number) => {
+    const now = Date.now();
+    // Limit boost frequency to prevent spam (max once per 100ms)
+    if (now - lastBlowBoostRef.current < 100) return;
+    lastBlowBoostRef.current = now;
+    
+    // Boost drying based on blow intensity (2x-5x speed boost)
+    const boostMultiplier = 2 + intensity * 3;
+    updateDryingProgress(boostMultiplier);
+  };
+
+  const { isBlowing, isListening, startListening, stopListening, error: micError, blowIntensity } = useBlowDetection(handleBlowDetected);
 
   // Get drying upgrade bonuses
   const dryingSpeedLevel = upgrades.find(u => u.id === 'drying-speed')?.level ?? 0;
@@ -107,6 +125,9 @@ export const DryRoomScreen = () => {
     }
   };
 
+  // Check if any buds are actively drying
+  const hasActiveDrying = dryingRacks.some(r => r.bud && r.bud.dryingProgress < 100);
+
   return (
     <div className="flex flex-col h-full p-4 overflow-y-auto scrollbar-hide">
       {/* Header */}
@@ -115,16 +136,120 @@ export const DryRoomScreen = () => {
           <h1 className="text-2xl font-display font-bold text-neon-green mb-1">Dry Room</h1>
           <p className="text-sm text-muted-foreground">Trockne deine Buds bevor du sie verkaufst</p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowShop(!showShop)}
-          className={`p-2.5 rounded-xl flex items-center gap-2 transition-all ${
-            showShop ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted'
-          }`}
-        >
-          <ShoppingCart size={18} />
-        </motion.button>
+        <div className="flex gap-2">
+          {/* Blow to dry button */}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              if (isListening) {
+                stopListening();
+              } else {
+                if (!hasActiveDrying) {
+                  toast.info('Keine Buds zum Trocknen', {
+                    description: 'Lege erst Buds in die Gestelle',
+                  });
+                  return;
+                }
+                startListening();
+                toast.success('🎤 Mikrofon aktiviert!', {
+                  description: 'Puste ins Mikrofon für schnelleres Trocknen',
+                });
+              }
+            }}
+            className={`p-2.5 rounded-xl flex items-center gap-2 transition-all relative overflow-hidden ${
+              isListening 
+                ? isBlowing 
+                  ? 'bg-neon-cyan text-background' 
+                  : 'bg-primary text-primary-foreground' 
+                : 'bg-muted/50 hover:bg-muted'
+            }`}
+          >
+            {/* Blow intensity indicator */}
+            {isListening && (
+              <motion.div
+                className="absolute inset-0 bg-neon-cyan/30"
+                style={{ 
+                  scaleX: blowIntensity,
+                  transformOrigin: 'left'
+                }}
+              />
+            )}
+            {isListening ? <Mic size={18} className="relative z-10" /> : <MicOff size={18} />}
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowShop(!showShop)}
+            className={`p-2.5 rounded-xl flex items-center gap-2 transition-all ${
+              showShop ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted'
+            }`}
+          >
+            <ShoppingCart size={18} />
+          </motion.button>
+        </div>
       </div>
+
+      {/* Blow to Dry Panel - only visible when listening */}
+      <AnimatePresence>
+        {isListening && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mb-4"
+          >
+            <div className={`game-card p-4 border-2 transition-all ${
+              isBlowing ? 'border-neon-cyan bg-neon-cyan/10' : 'border-primary/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={isBlowing ? { 
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 10, -10, 0]
+                  } : {}}
+                  transition={{ duration: 0.3, repeat: isBlowing ? Infinity : 0 }}
+                >
+                  <Wind className={`${isBlowing ? 'text-neon-cyan' : 'text-primary'}`} size={32} />
+                </motion.div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-bold">
+                      {isBlowing ? '💨 PUSTEN ERKANNT!' : '🎤 Puste ins Mikrofon...'}
+                    </span>
+                    {isBlowing && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="text-xs bg-neon-cyan/20 text-neon-cyan px-2 py-0.5 rounded-full font-bold"
+                      >
+                        {Math.round(2 + blowIntensity * 3)}x Speed!
+                      </motion.span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {isBlowing 
+                      ? 'Je stärker du pustest, desto schneller trocknet es!'
+                      : 'Trocknung wird beschleunigt wenn du pustest'
+                    }
+                  </div>
+                  {/* Intensity bar */}
+                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-primary to-neon-cyan"
+                      animate={{ width: `${blowIntensity * 100}%` }}
+                      transition={{ duration: 0.1 }}
+                    />
+                  </div>
+                </div>
+              </div>
+              {micError && (
+                <div className="mt-2 text-xs text-destructive">
+                  ⚠️ {micError}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Shop Panel */}
       <AnimatePresence>
