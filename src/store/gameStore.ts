@@ -2945,7 +2945,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 14, // Increment to trigger migration
+      version: 15, // Increment to trigger migration (Dejan -> Giulio rename)
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3075,9 +3075,9 @@ export const useGameStore = create<GameState>()(
         }
 
         if (version < 10) {
-          const dejanWorker = {
-            id: 'dealer-dejan',
-            name: 'Dejan',
+          const giulioWorker = {
+            id: 'dealer-giulio',
+            name: 'Giulio',
             description: 'Spielsüchtiger, drogensüchtiger Dealer. Zockt ständig, verkauft trotzdem weiter.',
             icon: '🎰',
             cost: 35000,
@@ -3091,11 +3091,18 @@ export const useGameStore = create<GameState>()(
           };
 
           if (Array.isArray(persistedState.workers)) {
-            const existing = persistedState.workers.find((worker: any) => worker.id === 'dealer-dejan');
-            if (!existing) {
-              persistedState.workers.push(dejanWorker);
-            } else if (!Number.isFinite(existing.costKoksGrams)) {
-              existing.costKoksGrams = 10;
+            // Migrate old dealer-dejan to dealer-giulio
+            const existingDejan = persistedState.workers.find((worker: any) => worker.id === 'dealer-dejan');
+            if (existingDejan) {
+              existingDejan.id = 'dealer-giulio';
+              existingDejan.name = 'Giulio';
+              if (!Number.isFinite(existingDejan.costKoksGrams)) {
+                existingDejan.costKoksGrams = 10;
+              }
+            }
+            const existingGiulio = persistedState.workers.find((worker: any) => worker.id === 'dealer-giulio');
+            if (!existingGiulio && !existingDejan) {
+              persistedState.workers.push(giulioWorker);
             }
           } else {
             persistedState.workers = [...initialWorkers];
@@ -3190,6 +3197,28 @@ export const useGameStore = create<GameState>()(
               ...slot,
               budGrowth: typeof slot.budGrowth === 'number' ? slot.budGrowth : (slot.stage === 'harvest' ? 100 : 0),
             }));
+          }
+        }
+
+        // Version 15: Rename dealer-dejan to dealer-giulio
+        if (version < 15) {
+          if (Array.isArray(persistedState.workers)) {
+            persistedState.workers = persistedState.workers.map((worker: any) => {
+              if (worker.id === 'dealer-dejan') {
+                return { ...worker, id: 'dealer-giulio', name: 'Giulio' };
+              }
+              return worker;
+            });
+          }
+          
+          // Add blowStats if missing
+          if (!persistedState.blowStats) {
+            persistedState.blowStats = {
+              totalBlowTime: 0,
+              longestBlowSession: 0,
+              totalGramsDriedByBlowing: 0,
+              currentSessionTime: 0,
+            };
           }
         }
         
