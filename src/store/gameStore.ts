@@ -544,8 +544,8 @@ const initialWorkers: Worker[] = [
     abilities: ['sell']
   },
   { 
-    id: 'dealer-dejan', 
-    name: 'Dejan', 
+    id: 'dealer-giulio', 
+    name: 'Giulio',
     description: 'Spielsüchtiger, drogensüchtiger Dealer. Zockt ständig, verkauft trotzdem weiter.', 
     icon: '🎰', 
     cost: 35000,
@@ -2028,7 +2028,7 @@ export const useGameStore = create<GameState>()(
             const driedBuds = inventory.filter(b => b.state === 'dried');
             const dealerId = worker.id;
             const isPsycho = dealerId === 'street-psycho';
-            const isDejan = dealerId === 'dealer-dejan';
+            const isGiulio = dealerId === 'dealer-giulio';
 
             const customerNames = [
               'Kevin', 'Marcel', 'Tim', 'Lukas', 'Max', 'Leon', 'Felix', 'Paul', 'Jan', 'Tom',
@@ -2074,7 +2074,7 @@ export const useGameStore = create<GameState>()(
                 `🕷️ Spinnenfarm gestartet. In der Nachbarwohnung. Hat Nachbarn als Futter verwendet.`,
                 `🧪 Chemie-Set missbraucht. Hat den Block evakuiert. Hat Nervengas produziert.`,
                 `👹 Maske aufgesetzt. Hat sich selbst erschreckt. Spiegel zertrümmert. Hat sein Gesicht zerschnitten.`,
-              ] : isDejan ? [
+              ] : isGiulio ? [
                 `🎰 Hat das komplette Wechselgeld in den Automaten geworfen. 0€ raus. Hat den Automaten verflucht und zertrümmert.`,
                 `🎲 Hat Würfel gezückt. "Ich geh doppelt oder nix." Hat seine Seele verwettet.`,
                 `🃏 Verliert beim Kartenabend. Zahlt mit Gras. Und mit seinem linken Auge.`,
@@ -2131,12 +2131,12 @@ export const useGameStore = create<GameState>()(
                 `💀 ${customerName} hat gewunken. Wurde ignoriert.`,
                 `🗣️ ${customerName} wollte quatschen. Wurde abgewürgt.`,
                 `📵 ${customerName} schreibt. Wird blockiert.`,
-              ] : isDejan ? [
-                `🎰 ${customerName} wollte kaufen. Dejan war am Automaten.`,
+              ] : isGiulio ? [
+                `🎰 ${customerName} wollte kaufen. Giulio war am Automaten.`,
                 `🃏 ${customerName} trifft ihn beim Kartenabend. Kein Deal.`,
-                `💸 ${customerName} fragt nach Rabatt. Dejan will nur Geld für den Einsatz.`,
-                `🍺 ${customerName} ruft an. Dejan ist zu breit.`,
-                `🎲 ${customerName} wartet. Dejan würfelt um den Preis.`,
+                `💸 ${customerName} fragt nach Rabatt. Giulio will nur Geld für den Einsatz.`,
+                `🍺 ${customerName} ruft an. Giulio ist zu breit.`,
+                `🎲 ${customerName} wartet. Giulio würfelt um den Preis.`,
                 `🧃 ${customerName} bringt Bier. Deal verschoben.`,
               ] : [
                 `🤝 Mit ${customerName} getroffen. Kein Deal, nur Gelaber.`,
@@ -2150,13 +2150,13 @@ export const useGameStore = create<GameState>()(
               ]
             );
 
-            const killChance = isPsycho ? 8 : isDejan ? 1 : 3;
-            const drugChance = isPsycho ? 5 : isDejan ? 16 : 7;
-            const scamChance = isPsycho ? 12 : isDejan ? 9 : 7;
+            const killChance = isPsycho ? 8 : isGiulio ? 1 : 3;
+            const drugChance = isPsycho ? 5 : isGiulio ? 16 : 7;
+            const scamChance = isPsycho ? 12 : isGiulio ? 9 : 7;
             const violenceChance = isPsycho ? 10 : 0; // Psycho-exclusive
             const robberyChance = isPsycho ? 8 : 0; // Psycho-exclusive
-            const randomChance = isPsycho ? 5 : isDejan ? 18 : 10;
-            const meetingChance = isPsycho ? 5 : isDejan ? 12 : 15; // Psycho wastes less time talking
+            const randomChance = isPsycho ? 5 : isGiulio ? 18 : 10;
+            const meetingChance = isPsycho ? 5 : isGiulio ? 12 : 15; // Psycho wastes less time talking
             
             // Only sell ONE bud per tick to simulate realistic sales
             if (driedBuds.length > 0) {
@@ -2308,7 +2308,7 @@ export const useGameStore = create<GameState>()(
                       `🚫 Lässt niemanden ran, außer mit Cash. (-40% Verkäufe, +40% Scam)`,
                     ]
                   },
-                ] : isDejan ? [
+                ] : isGiulio ? [
                   {
                     effect: { type: 'hyper', name: '🎰 Aufgedreht', salesMultiplier: 1.6, scamChanceBonus: 15, expiresAt: Date.now() + 50000 },
                     messages: [
@@ -2505,14 +2505,14 @@ export const useGameStore = create<GameState>()(
                     `💀 ${gramsToSell}g an ${customerName} gedrückt. Kein Widerspruch. ${revenue}$`,
                     `🧨 ${customerName} bekommt ${gramsToSell}g. "Kein Stress." ${revenue}$`,
                     `🪓 ${gramsToSell}g an ${customerName}. Blick sagt alles. ${revenue}$`,
-                  ] : isDejan ? [
+                  ] : isGiulio ? [
                     `🎰 ${gramsToSell}g an ${customerName}. "Jackpot kommt gleich." ${revenue}$`,
                     `🃏 Deal mit ${customerName}: ${gramsToSell}g für ${revenue}$. "Nur noch ein Spiel."`,
-                    `💸 ${customerName} zahlt. Dejan rennt direkt zur Spielhalle. ${revenue}$`,
+                    `💸 ${customerName} zahlt. Giulio rennt direkt zur Spielhalle. ${revenue}$`,
                     `🍒 ${gramsToSell}g vertickt. "Ich hol das Geld zurück." ${revenue}$`,
                     `🎲 ${customerName}: ${gramsToSell}g für ${revenue}$. Würfelglück heute.`,
                     `🎮 ${gramsToSell}g an ${customerName}. "Noch eine Runde." ${revenue}$`,
-                    `💳 ${customerName} zahlt schnell. Dejan zockt schneller. ${revenue}$`,
+                    `💳 ${customerName} zahlt schnell. Giulio zockt schneller. ${revenue}$`,
                   ] : [
                     `💵 ${gramsToSell}g an ${customerName} vertickt. ${revenue}$`,
                     `✅ Deal mit ${customerName}: ${gramsToSell}g für ${revenue}$`,
@@ -2595,12 +2595,12 @@ export const useGameStore = create<GameState>()(
                       `🗡️ ${warehouseSale.gramsSold}g Import-Weed gedrückt. ${customerName} sagt nix. ${revenue}$`,
                       `🧨 Import-Deal mit ${customerName}: ${warehouseSale.gramsSold}g. ${revenue}$`,
                       `🚫 ${customerName} nimmt Import. Kein Gerede. ${revenue}$`,
-                    ] : isDejan ? [
+                    ] : isGiulio ? [
                       `🎰 ${customerName} nimmt ${warehouseSale.gramsSold}g Import-Weed (${quality}% Q). ${revenue}$`,
                       `🃏 Import-Deal: ${customerName} holt ${warehouseSale.gramsSold}g. ${revenue}$`,
-                      `🍒 ${warehouseSale.gramsSold}g Import-Weed weg. Dejan will "nur kurz zocken". ${revenue}$`,
+                      `🍒 ${warehouseSale.gramsSold}g Import-Weed weg. Giulio will "nur kurz zocken". ${revenue}$`,
                       `🎲 ${customerName} kriegt ${warehouseSale.gramsSold}g Import. "Glück bringt's." ${revenue}$`,
-                      `💸 Import-Deal durch. Dejan direkt weiter zum Automaten. ${revenue}$`,
+                      `💸 Import-Deal durch. Giulio direkt weiter zum Automaten. ${revenue}$`,
                     ] : [
                       `🤝 ${customerName} nimmt ${warehouseSale.gramsSold}g Import-Weed (${quality}% Q). ${revenue}$`,
                       `📦 Import-Deal mit ${customerName}: ${warehouseSale.gramsSold}g für ${revenue}$`,
@@ -2632,7 +2632,7 @@ export const useGameStore = create<GameState>()(
                     '🗡️ Schnitzt was in eine Parkbank. Drohungen.',
                     '🧨 Zündet Böller. Einfach so.',
                     '👁️ Glotzt jeden an. Keiner traut sich.',
-                  ] : isDejan ? [
+                  ] : isGiulio ? [
                     '🎰 Hängt am Automaten. "Nur noch ein Spin."',
                     '🧾 Rechnet seine Schulden durch. Wird nicht besser.',
                     '🍻 Sitzt vorm Kiosk. "Ich wart nur kurz."',
