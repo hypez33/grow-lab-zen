@@ -299,6 +299,14 @@ export interface GameState {
   totalCoinsEarned: number;
   totalGramsHarvested: number;
 
+  // Blow Drying Stats
+  blowStats: {
+    totalBlowTime: number; // Total seconds spent blowing
+    longestBlowSession: number; // Longest single session in seconds
+    totalGramsDriedByBlowing: number; // Grams dried through blowing
+    currentSessionTime: number; // Current session time (resets when stopping)
+  };
+
   // Prestige System
   prestige: number;
   prestigePoints: number;
@@ -369,6 +377,10 @@ export interface GameState {
   // Achievement Actions
   claimAchievement: (achievementId: string, reward: { coins?: number; gems?: number; seeds?: number }) => boolean;
   incrementBreedings: () => void;
+  
+  // Blow Stats Actions
+  updateBlowStats: (blowTime: number, gramsDried: number) => void;
+  endBlowSession: () => void;
 }
 
 // Trait effects documentation:
@@ -730,6 +742,14 @@ export const useGameStore = create<GameState>()(
       totalTaps: 0,
       totalCoinsEarned: 0,
       totalGramsHarvested: 0,
+
+      // Blow Drying Stats
+      blowStats: {
+        totalBlowTime: 0,
+        longestBlowSession: 0,
+        totalGramsDriedByBlowing: 0,
+        currentSessionTime: 0,
+      },
 
       // Prestige System
       prestige: 0,
@@ -2900,6 +2920,27 @@ export const useGameStore = create<GameState>()(
 
       incrementBreedings: () => set((state) => ({
         totalBreedings: state.totalBreedings + 1,
+      })),
+
+      // Blow Stats Actions
+      updateBlowStats: (blowTime: number, gramsDried: number) => set((state) => ({
+        blowStats: {
+          ...state.blowStats,
+          totalBlowTime: state.blowStats.totalBlowTime + blowTime,
+          totalGramsDriedByBlowing: state.blowStats.totalGramsDriedByBlowing + gramsDried,
+          currentSessionTime: state.blowStats.currentSessionTime + blowTime,
+          longestBlowSession: Math.max(
+            state.blowStats.longestBlowSession,
+            state.blowStats.currentSessionTime + blowTime
+          ),
+        },
+      })),
+
+      endBlowSession: () => set((state) => ({
+        blowStats: {
+          ...state.blowStats,
+          currentSessionTime: 0,
+        },
       })),
     }),
     {

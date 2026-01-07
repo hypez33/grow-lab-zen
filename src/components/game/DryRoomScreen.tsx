@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem } from '@/store/gameStore';
-import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets, Mic, MicOff } from 'lucide-react';
+import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets, Mic, MicOff, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { BudIcon } from './BudIcon';
@@ -20,28 +20,67 @@ export const DryRoomScreen = () => {
     salesChannels,
     autoSellSettings,
     setAutoSellSettings,
+    blowStats,
+    updateBlowStats,
+    endBlowSession,
   } = useGameStore();
   const [selectedBud, setSelectedBud] = useState<BudItem | null>(null);
   const [showBudPicker, setShowBudPicker] = useState(false);
   const [targetRackId, setTargetRackId] = useState<number | null>(null);
   const [showShop, setShowShop] = useState(true); // Default to open so users can see how to buy racks
+  const [sessionGramsDried, setSessionGramsDried] = useState(0);
 
   const updateDryingProgress = useGameStore(state => state.updateDryingProgress);
   const lastBlowBoostRef = useRef<number>(0);
+  const lastProgressRef = useRef<number>(0);
+
+  // Calculate total drying progress before blow
+  const getTotalDryingProgress = () => {
+    return dryingRacks.reduce((sum, rack) => {
+      if (rack.bud && rack.bud.dryingProgress < 100) {
+        return sum + rack.bud.dryingProgress;
+      }
+      return sum;
+    }, 0);
+  };
 
   // Blow detection for faster drying
   const handleBlowDetected = (intensity: number) => {
     const now = Date.now();
     // Limit boost frequency to prevent spam (max once per 100ms)
     if (now - lastBlowBoostRef.current < 100) return;
+    
+    const progressBefore = getTotalDryingProgress();
     lastBlowBoostRef.current = now;
     
     // Boost drying based on blow intensity (2x-5x speed boost)
     const boostMultiplier = 2 + intensity * 3;
     updateDryingProgress(boostMultiplier);
+    
+    // Track stats (0.1 seconds per call, rough estimate of grams based on progress)
+    updateBlowStats(0.1, 0);
+    
+    // Calculate grams dried (rough estimate based on active racks)
+    const activeRacks = dryingRacks.filter(r => r.bud && r.bud.dryingProgress < 100);
+    if (activeRacks.length > 0) {
+      const avgGrams = activeRacks.reduce((sum, r) => sum + (r.bud?.grams || 0), 0) / activeRacks.length;
+      const progressGained = boostMultiplier * 0.5; // Rough progress per tick
+      const gramsContribution = (progressGained / 100) * avgGrams * activeRacks.length;
+      setSessionGramsDried(prev => prev + gramsContribution);
+    }
   };
 
-  const { isBlowing, isListening, startListening, stopListening, error: micError, blowIntensity } = useBlowDetection(handleBlowDetected);
+  const { isBlowing, isListening, startListening, stopListening, error: micError, blowIntensity, currentSessionTime } = useBlowDetection(handleBlowDetected);
+
+  // End session and save stats
+  const handleStopListening = () => {
+    if (sessionGramsDried > 0) {
+      updateBlowStats(0, sessionGramsDried);
+    }
+    endBlowSession();
+    setSessionGramsDried(0);
+    stopListening();
+  };
 
   // Get drying upgrade bonuses
   const dryingSpeedLevel = upgrades.find(u => u.id === 'drying-speed')?.level ?? 0;
@@ -142,7 +181,7 @@ export const DryRoomScreen = () => {
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               if (isListening) {
-                stopListening();
+                handleStopListening();
               } else {
                 if (!hasActiveDrying) {
                   toast.info('Keine Buds zum Trocknen', {
@@ -241,6 +280,40 @@ export const DryRoomScreen = () => {
                   </div>
                 </div>
               </div>
+              
+              {/* Session Stats & Highscores */}
+              <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground">Session</div>
+                  <div className="text-sm font-bold text-neon-cyan">
+                    {currentSessionTime}s
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground">🏆 Rekord</div>
+                  <div className="text-sm font-bold text-neon-gold">
+                    {Math.round(blowStats.longestBlowSession)}s
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground">Gepustet</div>
+                  <div className="text-sm font-bold text-primary">
+                    {blowStats.totalGramsDriedByBlowing.toFixed(1)}g
+                  </div>
+                </div>
+              </div>
+              
+              {/* New record indicator */}
+              {currentSessionTime > blowStats.longestBlowSession && currentSessionTime > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-center text-xs font-bold text-neon-gold bg-neon-gold/20 rounded-lg py-1"
+                >
+                  🎉 NEUER REKORD! 🎉
+                </motion.div>
+              )}
+              
               {micError && (
                 <div className="mt-2 text-xs text-destructive">
                   ⚠️ {micError}

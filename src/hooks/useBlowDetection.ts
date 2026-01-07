@@ -7,7 +7,20 @@ interface BlowDetectionResult {
   stopListening: () => void;
   error: string | null;
   blowIntensity: number; // 0-1 intensity of blow
+  currentSessionTime: number; // Current session time in seconds
 }
+
+// Haptic feedback helper
+const triggerHaptic = (intensity: 'light' | 'medium' | 'heavy' = 'light') => {
+  if ('vibrate' in navigator) {
+    const patterns = {
+      light: [10],
+      medium: [20],
+      heavy: [30, 10, 30]
+    };
+    navigator.vibrate(patterns[intensity]);
+  }
+};
 
 export const useBlowDetection = (
   onBlowDetected?: (intensity: number) => void,
@@ -17,12 +30,16 @@ export const useBlowDetection = (
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blowIntensity, setBlowIntensity] = useState(0);
+  const [currentSessionTime, setCurrentSessionTime] = useState(0);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isBlowingRef = useRef(false);
+  const sessionStartTimeRef = useRef<number | null>(null);
+  const lastHapticRef = useRef<number>(0);
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const checkAudioLevel = useCallback(() => {
     if (!analyserRef.current) return;
@@ -43,7 +60,32 @@ export const useBlowDetection = (
       isBlowingRef.current = isCurrentlyBlowing;
       setIsBlowing(isCurrentlyBlowing);
       
-      if (isCurrentlyBlowing && onBlowDetected) {
+      if (isCurrentlyBlowing) {
+        // Start session timer
+        if (!sessionStartTimeRef.current) {
+          sessionStartTimeRef.current = Date.now();
+        }
+        
+        // Trigger haptic on blow start
+        triggerHaptic('medium');
+        
+        if (onBlowDetected) {
+          onBlowDetected(normalizedLevel);
+        }
+      }
+    }
+    
+    // Continuous haptic feedback while blowing (throttled)
+    if (isCurrentlyBlowing) {
+      const now = Date.now();
+      if (now - lastHapticRef.current > 150) { // Haptic every 150ms while blowing
+        lastHapticRef.current = now;
+        const hapticIntensity = normalizedLevel > 0.5 ? 'heavy' : normalizedLevel > 0.3 ? 'medium' : 'light';
+        triggerHaptic(hapticIntensity);
+      }
+      
+      // Continue calling onBlowDetected while blowing
+      if (onBlowDetected) {
         onBlowDetected(normalizedLevel);
       }
     }
@@ -52,9 +94,29 @@ export const useBlowDetection = (
     animationFrameRef.current = requestAnimationFrame(checkAudioLevel);
   }, [threshold, onBlowDetected]);
 
+  // Session timer
+  useEffect(() => {
+    if (isListening) {
+      sessionTimerRef.current = setInterval(() => {
+        if (sessionStartTimeRef.current && isBlowingRef.current) {
+          const elapsed = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
+          setCurrentSessionTime(elapsed);
+        }
+      }, 100);
+    }
+    
+    return () => {
+      if (sessionTimerRef.current) {
+        clearInterval(sessionTimerRef.current);
+      }
+    };
+  }, [isListening]);
+
   const startListening = useCallback(async () => {
     try {
       setError(null);
+      setCurrentSessionTime(0);
+      sessionStartTimeRef.current = null;
       
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -83,6 +145,9 @@ export const useBlowDetection = (
       
       setIsListening(true);
       
+      // Haptic feedback on start
+      triggerHaptic('heavy');
+      
       // Start checking audio levels
       checkAudioLevel();
       
@@ -98,6 +163,12 @@ export const useBlowDetection = (
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
+    }
+    
+    // Stop session timer
+    if (sessionTimerRef.current) {
+      clearInterval(sessionTimerRef.current);
+      sessionTimerRef.current = null;
     }
     
     // Stop media stream
@@ -117,6 +188,10 @@ export const useBlowDetection = (
     setIsBlowing(false);
     setBlowIntensity(0);
     isBlowingRef.current = false;
+    sessionStartTimeRef.current = null;
+    
+    // Final haptic
+    triggerHaptic('light');
   }, []);
 
   // Cleanup on unmount
@@ -132,6 +207,7 @@ export const useBlowDetection = (
     startListening,
     stopListening,
     error,
-    blowIntensity
+    blowIntensity,
+    currentSessionTime
   };
 };
