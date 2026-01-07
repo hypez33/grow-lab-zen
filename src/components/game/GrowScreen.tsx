@@ -352,6 +352,12 @@ export const GrowScreen = () => {
   const handleHarvest = useCallback((slotId: number, e?: React.MouseEvent) => {
     const slot = growSlots.find(s => s.id === slotId);
     if (!slot?.seed) return;
+    
+    // Check if slot is actually ready to harvest
+    if (slot.stage !== 'harvest') {
+      console.log('Harvest blocked: slot stage is', slot.stage, 'not harvest');
+      return;
+    }
 
     const seed = slot.seed;
     
@@ -380,38 +386,48 @@ export const GrowScreen = () => {
       });
     }
 
+    // Call harvest and verify it worked
+    const preHarvestSlot = useGameStore.getState().growSlots.find(s => s.id === slotId);
     harvest(slotId);
-    playHarvest();
+    const postHarvestSlot = useGameStore.getState().growSlots.find(s => s.id === slotId);
     
-    // Set breakdown data and show modal
-    if (breakdownData) {
-      setHarvestBreakdownData(breakdownData);
-      setShowHarvestBreakdown(true);
-    }
-    
-    // Quick toast notification
-    toast.success(
-      <div className="flex items-center gap-2">
-        <span className="text-lg">🌿</span>
-        <div>
-          <div className="font-bold">{seed.name} geerntet!</div>
-          <div className="text-xs text-muted-foreground">
-            {breakdownData?.finalGrams}g • Tippe für Details
-          </div>
-        </div>
-      </div>,
-      {
-        duration: 3000,
-        action: {
-          label: (
-            <span className="flex items-center gap-1">
-              <Wind size={14} /> Trocknen
-            </span>
-          ),
-          onClick: () => useNavigationStore.getState().setActiveScreen('dryroom'),
-        },
+    // Only show success if the harvest actually worked (slot was cleared)
+    if (postHarvestSlot?.seed === null || postHarvestSlot?.seed === undefined) {
+      playHarvest();
+      
+      // Set breakdown data and show modal
+      if (breakdownData) {
+        setHarvestBreakdownData(breakdownData);
+        setShowHarvestBreakdown(true);
       }
-    );
+      
+      // Quick toast notification
+      toast.success(
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🌿</span>
+          <div>
+            <div className="font-bold">{seed.name} geerntet!</div>
+            <div className="text-xs text-muted-foreground">
+              {breakdownData?.finalGrams}g • Tippe für Details
+            </div>
+          </div>
+        </div>,
+        {
+          duration: 3000,
+          action: {
+            label: (
+              <span className="flex items-center gap-1">
+                <Wind size={14} /> Trocknen
+              </span>
+            ),
+            onClick: () => useNavigationStore.getState().setActiveScreen('dryroom'),
+          },
+        }
+      );
+    } else {
+      console.error('Harvest failed! Slot still has seed. Pre:', preHarvestSlot, 'Post:', postHarvestSlot);
+      toast.error('Ernte fehlgeschlagen! Versuche es erneut.');
+    }
   }, [growSlots, harvest, playHarvest, emitBurst, harvestParticleColors]);
 
   const handlePlantSeed = (seed: Seed) => {
