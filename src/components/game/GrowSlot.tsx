@@ -393,3 +393,27 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
     </motion.div>
   );
 };
+
+export const GrowSlot = memo(GrowSlotComponent, (prev, next) => {
+  // Re-render only when something visible actually changes
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.onTap !== next.onTap) return false;
+  if (prev.onHarvest !== next.onHarvest) return false;
+  if (prev.onSelect !== next.onSelect) return false;
+  if (prev.onWater !== next.onWater) return false;
+  if (prev.onOpenSupplies !== next.onOpenSupplies) return false;
+  const a = prev.slot;
+  const b = next.slot;
+  return (
+    a.id === b.id &&
+    a.isUnlocked === b.isUnlocked &&
+    a.stage === b.stage &&
+    Math.round(a.progress) === Math.round(b.progress) &&
+    Math.round(a.budGrowth ?? 0) === Math.round(b.budGrowth ?? 0) &&
+    Math.round(a.waterLevel ?? 0) === Math.round(b.waterLevel ?? 0) &&
+    a.fertilizer?.id === b.fertilizer?.id &&
+    a.fertilizerUsesLeft === b.fertilizerUsesLeft &&
+    a.soil?.id === b.soil?.id &&
+    a.seed?.id === b.seed?.id
+  );
+});
