@@ -1956,15 +1956,21 @@ export const useGameStore = create<GameState>()(
             });
           }
 
-          // WATER ability: Auto-water plants below 50% water level
+          // WATER ability: Auto-water plants — smarter, level-scaled threshold
           if (worker.abilities.includes('water')) {
-            const waterThreshold = 50 - (worker.level * 5); // Higher level = lower threshold (more efficient)
+            // Higher level workers water more pre-emptively (50 -> 80)
+            const waterThreshold = Math.min(80, 50 + worker.level * 5);
+            let watered = 0;
             growSlots = growSlots.map(slot => {
-              if (slot.seed && slot.isUnlocked && slot.waterLevel < waterThreshold + 50) {
-                // Water plants that are below threshold
-                if (slot.waterLevel < waterThreshold + 50) {
-                  return { ...slot, waterLevel: 100, lastWatered: Date.now() };
-                }
+              if (
+                watered < slotsToManage &&
+                slot.seed &&
+                slot.isUnlocked &&
+                slot.stage !== 'harvest' &&
+                slot.waterLevel < waterThreshold
+              ) {
+                watered++;
+                return { ...slot, waterLevel: 100, lastWatered: Date.now() };
               }
               return slot;
             });
