@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
-import { Wind, Sprout, Zap, Droplets, FlaskConical } from 'lucide-react';
+import { useSmartCoach } from '@/hooks/useSmartCoach';
+import { Wind, Sprout, Zap, Droplets, FlaskConical, DollarSign, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { GrowSuppliesModal } from './GrowSuppliesModal';
 
