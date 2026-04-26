@@ -1929,13 +1929,23 @@ export const useGameStore = create<GameState>()(
             });
           }
 
-          // PLANT ability: Plant seeds in empty unlocked slots
+          // PLANT ability: Smart-plant best available seed in empty slots
           if (worker.abilities.includes('plant') && seeds.length > 0) {
+            const rarityRank: Record<Rarity, number> = {
+              common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4,
+            };
+            // Sort a copy by descending rarity so workers plant the best seeds first
+            const seedQueue = [...seeds].sort(
+              (a, b) => rarityRank[b.rarity] - rarityRank[a.rarity]
+            );
             let planted = 0;
-            for (let i = 0; i < growSlots.length && planted < slotsToManage && seeds.length > 0; i++) {
+            for (let i = 0; i < growSlots.length && planted < slotsToManage && seedQueue.length > 0; i++) {
               const slot = growSlots[i];
               if (slot.isUnlocked && !slot.seed) {
-                const seedToPlant = seeds.shift()!;
+                const seedToPlant = seedQueue.shift()!;
+                // Remove from real seeds array (by id)
+                const idx = seeds.findIndex(s => s.id === seedToPlant.id);
+                if (idx !== -1) seeds.splice(idx, 1);
                 growSlots[i] = { ...slot, seed: seedToPlant, progress: 0, stage: 'seed' as PlantStage };
                 planted++;
               }
