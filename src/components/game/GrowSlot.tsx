@@ -57,14 +57,27 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
 
   return (
     <motion.div
-      className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200 aspect-square
+      className={`relative rounded-xl overflow-hidden cursor-pointer transition-colors duration-200 aspect-square will-change-transform
         ${isLocked ? 'bg-muted/30' : 'game-card'}
         ${isSelected ? 'ring-2 ring-primary glow-green' : ''}
-        ${isReady ? 'animate-pulse-glow' : ''}
+        ${isReady ? 'ring-2 ring-primary shadow-[0_0_24px_hsl(var(--primary)/0.7)]' : ''}
       `}
-      whileTap={{ scale: isLocked ? 1 : 0.95 }}
+      whileTap={isLocked ? undefined : { scale: 0.94 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 28 }}
       onClick={handleClick}
     >
+      {/* Ready-to-harvest pulsating outer glow */}
+      {isReady && (
+        <motion.div
+          aria-hidden
+          className="absolute -inset-1 rounded-2xl pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, transparent 70%)',
+          }}
+          animate={{ opacity: [0.4, 0.9, 0.4], scale: [0.95, 1.05, 0.95] }}
+          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      )}
       {/* Background gradient based on stage */}
       {!isLocked && slot.seed && (
         <div 
