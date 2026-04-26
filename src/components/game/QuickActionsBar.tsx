@@ -105,9 +105,9 @@ export const QuickActionsBar = () => {
     },
   ];
 
-  // Don't show if nothing to do
+  // Hide entirely only when there is truly nothing to show
   const hasAction = actions.some(a => !a.disabled);
-  if (!hasAction) return null;
+  if (!hasAction && !coach) return null;
 
   return (
     <motion.div
