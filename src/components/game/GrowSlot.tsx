@@ -15,7 +15,7 @@ interface GrowSlotProps {
 }
 
 const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
-  const isReady = slot.stage === 'harvest';
+  const isReady = slot.stage === 'harvest' && slot.progress >= 100;
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
   const isGrowing = !isEmpty && !isReady && !isLocked;
