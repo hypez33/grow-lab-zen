@@ -1,8 +1,8 @@
-import type { MouseEvent } from 'react';
+import { memo, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrowSlot as GrowSlotType } from '@/store/gameStore';
 import { PlantSVG } from './PlantSVG';
-import { Lock, Plus, Sprout, Droplets } from 'lucide-react';
+import { Lock, Plus, Sprout, Droplets, Scissors, ChevronDown, Sparkles } from 'lucide-react';
 
 interface GrowSlotProps {
   slot: GrowSlotType;
@@ -14,7 +14,7 @@ interface GrowSlotProps {
   onWater?: () => void;
 }
 
-export const GrowSlot = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
+const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
   const isReady = slot.stage === 'harvest';
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
