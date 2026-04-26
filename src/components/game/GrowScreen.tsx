@@ -237,6 +237,9 @@ export const GrowScreen = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingTapCountRef = useRef(0);
   const tapRafRef = useRef<number | null>(null);
+  const fxIdRef = useRef(0);
+  const fxTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const MAX_FX = 6; // cap concurrent floating numbers / ripples for perf
   const harvestParticleColors = useMemo<Record<string, string[]>>(() => ({
     common: ['#bbf7d0', '#22c55e', '#86efac'],
     uncommon: ['#34d399', '#22c55e', '#a7f3d0'],
@@ -281,7 +284,17 @@ export const GrowScreen = () => {
       if (tapRafRef.current !== null) {
         cancelAnimationFrame(tapRafRef.current);
       }
+      fxTimeoutsRef.current.forEach(clearTimeout);
+      fxTimeoutsRef.current.clear();
     };
+  }, []);
+
+  const scheduleCleanup = useCallback((fn: () => void, ms: number) => {
+    const t = setTimeout(() => {
+      fxTimeoutsRef.current.delete(t);
+      fn();
+    }, ms);
+    fxTimeoutsRef.current.add(t);
   }, []);
 
   const handleTap = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
@@ -322,32 +335,37 @@ export const GrowScreen = () => {
     rippleX = Math.max(5, Math.min(95, rippleX));
     rippleY = Math.max(5, Math.min(95, rippleY));
     
-    // Smooth ripple effect at tap position
-    const rippleId = Date.now();
-    setTapRipples(prev => [...prev, { id: rippleId, x: rippleX, y: rippleY }]);
-    setTimeout(() => {
+    // Smooth ripple effect at tap position (capped for perf)
+    const rippleId = ++fxIdRef.current;
+    setTapRipples(prev => {
+      const next = [...prev, { id: rippleId, x: rippleX, y: rippleY }];
+      return next.length > MAX_FX ? next.slice(next.length - MAX_FX) : next;
+    });
+    scheduleCleanup(() => {
       setTapRipples(prev => prev.filter(r => r.id !== rippleId));
-    }, 700);
-    
+    }, 600);
+
     // Calculate actual tap boost for display
     const tapPowerLevel = useGameStore.getState().upgrades.find(u => u.id === 'tap-power')?.level ?? 0;
     const playerLevel = useGameStore.getState().level;
     const baseTapBoost = 2;
     const actualBoost = Math.round(baseTapBoost * (1 + tapPowerLevel * 0.2) * (1 + Math.floor(playerLevel / 10) * 0.1));
-    
-    // Add floating number near tap position
-    const id = Date.now();
-    setFloatingNumbers(prev => [...prev, { id, value: `+${actualBoost}%`, x: rippleX, y: rippleY - 5 }]);
-    
+
+    // Add floating number near tap position (capped)
+    const id = ++fxIdRef.current;
+    setFloatingNumbers(prev => {
+      const next = [...prev, { id, value: `+${actualBoost}%`, x: rippleX, y: rippleY - 5 }];
+      return next.length > MAX_FX ? next.slice(next.length - MAX_FX) : next;
+    });
+
     if (clientX !== null && clientY !== null) {
       emitBurst({ preset: 'tap', x: clientX, y: clientY, space: 'client' });
     }
-    
-    // Remove floating number after animation
-    setTimeout(() => {
+
+    scheduleCleanup(() => {
       setFloatingNumbers(prev => prev.filter(n => n.id !== id));
-    }, 900);
-  }, [queueTap, playTap, emitBurst]);
+    }, 800);
+  }, [queueTap, playTap, emitBurst, scheduleCleanup]);
 
   const handleHarvest = useCallback((slotId: number, e?: React.MouseEvent) => {
     const slot = growSlots.find(s => s.id === slotId);
@@ -475,51 +493,43 @@ export const GrowScreen = () => {
 
   const selectedSlotData = selectedSlot !== null ? growSlots.find(s => s.id === selectedSlot) : null;
 
+  const visibleSlots = useMemo(() => {
+    const unlockedSlots = growSlots.filter(s => s.isUnlocked);
+    const nextLocked = growSlots.find(s => !s.isUnlocked);
+    return nextLocked ? [...unlockedSlots, nextLocked] : unlockedSlots;
+  }, [growSlots]);
+
   // XP progress for current level
   const xpForNextLevel = 100 * Math.pow(1.5, level - 1);
   const xpProgress = (xp / xpForNextLevel) * 100;
 
   return (
     <div ref={containerRef} className="flex flex-col h-full relative overflow-hidden">
-      {/* Tap Ripple Effect - smoother with multiple rings */}
+      {/* Tap Ripple Effect - 2 rings (perf) */}
       <AnimatePresence>
         {tapRipples.map(ripple => (
           <React.Fragment key={ripple.id}>
-            {/* Outer ring */}
             <motion.div
               initial={{ scale: 0, opacity: 0.5 }}
-              animate={{ scale: 4, opacity: 0 }}
+              animate={{ scale: 3.5, opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="absolute w-16 h-16 rounded-full border border-primary/60 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 32px)`, 
+              transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="absolute w-16 h-16 rounded-full border border-primary/60 pointer-events-none z-40 will-change-transform"
+              style={{
+                left: `calc(${ripple.x}% - 32px)`,
                 top: `calc(${ripple.y}% - 32px)`,
               }}
             />
-            {/* Inner ring */}
             <motion.div
-              initial={{ scale: 0, opacity: 0.8 }}
-              animate={{ scale: 2.5, opacity: 0 }}
+              initial={{ scale: 0, opacity: 0.7 }}
+              animate={{ scale: 2, opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="absolute w-12 h-12 rounded-full bg-primary/20 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 24px)`, 
+              transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="absolute w-12 h-12 rounded-full bg-primary/20 pointer-events-none z-40 will-change-transform"
+              style={{
+                left: `calc(${ripple.x}% - 24px)`,
                 top: `calc(${ripple.y}% - 24px)`,
-                boxShadow: '0 0 30px hsl(var(--primary) / 0.4)'
-              }}
-            />
-            {/* Center pulse */}
-            <motion.div
-              initial={{ scale: 0, opacity: 1 }}
-              animate={{ scale: 1.5, opacity: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="absolute w-6 h-6 rounded-full bg-primary/40 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 12px)`, 
-                top: `calc(${ripple.y}% - 12px)`,
+                boxShadow: '0 0 24px hsl(var(--primary) / 0.4)'
               }}
             />
           </React.Fragment>
@@ -532,15 +542,15 @@ export const GrowScreen = () => {
           <motion.div
             key={num.id}
             initial={{ opacity: 1, y: 0, scale: 0.8 }}
-            animate={{ opacity: 0, y: -80, scale: 1.4 }}
+            animate={{ opacity: 0, y: -70, scale: 1.3 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.9, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="absolute text-primary font-bold text-xl pointer-events-none z-50"
-            style={{ 
-              left: `${num.x}%`, 
+            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="absolute text-primary font-bold text-xl pointer-events-none z-50 will-change-transform"
+            style={{
+              left: `${num.x}%`,
               top: `${num.y}%`,
               transform: 'translateX(-50%)',
-              textShadow: '0 0 15px hsl(var(--primary)), 0 0 30px hsl(var(--primary) / 0.5)'
+              textShadow: '0 0 12px hsl(var(--primary)), 0 0 24px hsl(var(--primary) / 0.5)'
             }}
           >
             {num.value}
@@ -590,27 +600,22 @@ export const GrowScreen = () => {
         {/* Grow Slots Grid - only show unlocked + next locked */}
         <div className="px-3">
           <div className="grid grid-cols-2 gap-2">
-            {(() => {
-              const unlockedSlots = growSlots.filter(s => s.isUnlocked);
-              const nextLocked = growSlots.find(s => !s.isUnlocked);
-              const visibleSlots = nextLocked ? [...unlockedSlots, nextLocked] : unlockedSlots;
-              return visibleSlots.map(slot => (
-                <GrowSlot
-                  key={slot.id}
-                  slot={slot}
-                  onTap={handleTap}
-                  onHarvest={(e) => handleHarvest(slot.id, e)}
-                  isSelected={selectedSlot === slot.id}
-                  onSelect={() => handleSlotSelect(slot.id)}
-                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
-                  onWater={() => {
-                    if (waterPlant(slot.id)) {
-                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
-                    }
-                  }}
-                />
-              ));
-            })()}
+            {visibleSlots.map(slot => (
+              <GrowSlot
+                key={slot.id}
+                slot={slot}
+                onTap={handleTap}
+                onHarvest={(e) => handleHarvest(slot.id, e)}
+                isSelected={selectedSlot === slot.id}
+                onSelect={() => handleSlotSelect(slot.id)}
+                onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                onWater={() => {
+                  if (waterPlant(slot.id)) {
+                    toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                  }
+                }}
+              />
+            ))}
           </div>
         </div>
 
