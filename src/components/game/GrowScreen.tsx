@@ -284,7 +284,17 @@ export const GrowScreen = () => {
       if (tapRafRef.current !== null) {
         cancelAnimationFrame(tapRafRef.current);
       }
+      fxTimeoutsRef.current.forEach(clearTimeout);
+      fxTimeoutsRef.current.clear();
     };
+  }, []);
+
+  const scheduleCleanup = useCallback((fn: () => void, ms: number) => {
+    const t = setTimeout(() => {
+      fxTimeoutsRef.current.delete(t);
+      fn();
+    }, ms);
+    fxTimeoutsRef.current.add(t);
   }, []);
 
   const handleTap = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
