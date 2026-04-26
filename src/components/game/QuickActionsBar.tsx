@@ -11,6 +11,7 @@ export const QuickActionsBar = () => {
   const { inventory, growSlots, seeds, dryingRacks, tapBatch, waterAllPlants } = useGameStore();
   const { setActiveScreen } = useNavigationStore();
   const [showSuppliesShop, setShowSuppliesShop] = useState(false);
+  const coach = useSmartCoach();
 
   const wetBuds = inventory.filter(b => b.state === 'wet').length;
   const driedBuds = inventory.filter(b => b.state === 'dried').length;
@@ -19,6 +20,7 @@ export const QuickActionsBar = () => {
   const emptyRacks = dryingRacks.filter(r => r.isUnlocked && !r.bud).length;
   const readyBuds = dryingRacks.filter(r => r.bud && r.bud.dryingProgress >= 100).length;
   const plantsNeedingWater = growSlots.filter(s => s.isUnlocked && s.seed && s.waterLevel < 50).length;
+  const urgentWater = growSlots.filter(s => s.isUnlocked && s.seed && s.waterLevel < 25).length;
 
   const actions = [
     {
