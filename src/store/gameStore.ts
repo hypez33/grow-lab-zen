@@ -1929,13 +1929,23 @@ export const useGameStore = create<GameState>()(
             });
           }
 
-          // PLANT ability: Plant seeds in empty unlocked slots
+          // PLANT ability: Smart-plant best available seed in empty slots
           if (worker.abilities.includes('plant') && seeds.length > 0) {
+            const rarityRank: Record<Rarity, number> = {
+              common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4,
+            };
+            // Sort a copy by descending rarity so workers plant the best seeds first
+            const seedQueue = [...seeds].sort(
+              (a, b) => rarityRank[b.rarity] - rarityRank[a.rarity]
+            );
             let planted = 0;
-            for (let i = 0; i < growSlots.length && planted < slotsToManage && seeds.length > 0; i++) {
+            for (let i = 0; i < growSlots.length && planted < slotsToManage && seedQueue.length > 0; i++) {
               const slot = growSlots[i];
               if (slot.isUnlocked && !slot.seed) {
-                const seedToPlant = seeds.shift()!;
+                const seedToPlant = seedQueue.shift()!;
+                // Remove from real seeds array (by id)
+                const idx = seeds.findIndex(s => s.id === seedToPlant.id);
+                if (idx !== -1) seeds.splice(idx, 1);
                 growSlots[i] = { ...slot, seed: seedToPlant, progress: 0, stage: 'seed' as PlantStage };
                 planted++;
               }
@@ -1956,15 +1966,21 @@ export const useGameStore = create<GameState>()(
             });
           }
 
-          // WATER ability: Auto-water plants below 50% water level
+          // WATER ability: Auto-water plants — smarter, level-scaled threshold
           if (worker.abilities.includes('water')) {
-            const waterThreshold = 50 - (worker.level * 5); // Higher level = lower threshold (more efficient)
+            // Higher level workers water more pre-emptively (50 -> 80)
+            const waterThreshold = Math.min(80, 50 + worker.level * 5);
+            let watered = 0;
             growSlots = growSlots.map(slot => {
-              if (slot.seed && slot.isUnlocked && slot.waterLevel < waterThreshold + 50) {
-                // Water plants that are below threshold
-                if (slot.waterLevel < waterThreshold + 50) {
-                  return { ...slot, waterLevel: 100, lastWatered: Date.now() };
-                }
+              if (
+                watered < slotsToManage &&
+                slot.seed &&
+                slot.isUnlocked &&
+                slot.stage !== 'harvest' &&
+                slot.waterLevel < waterThreshold
+              ) {
+                watered++;
+                return { ...slot, waterLevel: 100, lastWatered: Date.now() };
               }
               return slot;
             });
