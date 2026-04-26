@@ -237,6 +237,9 @@ export const GrowScreen = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingTapCountRef = useRef(0);
   const tapRafRef = useRef<number | null>(null);
+  const fxIdRef = useRef(0);
+  const fxTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const MAX_FX = 6; // cap concurrent floating numbers / ripples for perf
   const harvestParticleColors = useMemo<Record<string, string[]>>(() => ({
     common: ['#bbf7d0', '#22c55e', '#86efac'],
     uncommon: ['#34d399', '#22c55e', '#a7f3d0'],
