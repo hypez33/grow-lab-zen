@@ -39,7 +39,7 @@ export const useBlowDetection = (
   const isBlowingRef = useRef(false);
   const sessionStartTimeRef = useRef<number | null>(null);
   const lastHapticRef = useRef<number>(0);
-  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkAudioLevel = useCallback(() => {
     if (!analyserRef.current) return;
