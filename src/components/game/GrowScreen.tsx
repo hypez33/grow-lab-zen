@@ -499,45 +499,31 @@ export const GrowScreen = () => {
 
   return (
     <div ref={containerRef} className="flex flex-col h-full relative overflow-hidden">
-      {/* Tap Ripple Effect - smoother with multiple rings */}
+      {/* Tap Ripple Effect - 2 rings (perf) */}
       <AnimatePresence>
         {tapRipples.map(ripple => (
           <React.Fragment key={ripple.id}>
-            {/* Outer ring */}
             <motion.div
               initial={{ scale: 0, opacity: 0.5 }}
-              animate={{ scale: 4, opacity: 0 }}
+              animate={{ scale: 3.5, opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="absolute w-16 h-16 rounded-full border border-primary/60 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 32px)`, 
+              transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="absolute w-16 h-16 rounded-full border border-primary/60 pointer-events-none z-40 will-change-transform"
+              style={{
+                left: `calc(${ripple.x}% - 32px)`,
                 top: `calc(${ripple.y}% - 32px)`,
               }}
             />
-            {/* Inner ring */}
             <motion.div
-              initial={{ scale: 0, opacity: 0.8 }}
-              animate={{ scale: 2.5, opacity: 0 }}
+              initial={{ scale: 0, opacity: 0.7 }}
+              animate={{ scale: 2, opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="absolute w-12 h-12 rounded-full bg-primary/20 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 24px)`, 
+              transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="absolute w-12 h-12 rounded-full bg-primary/20 pointer-events-none z-40 will-change-transform"
+              style={{
+                left: `calc(${ripple.x}% - 24px)`,
                 top: `calc(${ripple.y}% - 24px)`,
-                boxShadow: '0 0 30px hsl(var(--primary) / 0.4)'
-              }}
-            />
-            {/* Center pulse */}
-            <motion.div
-              initial={{ scale: 0, opacity: 1 }}
-              animate={{ scale: 1.5, opacity: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="absolute w-6 h-6 rounded-full bg-primary/40 pointer-events-none z-40"
-              style={{ 
-                left: `calc(${ripple.x}% - 12px)`, 
-                top: `calc(${ripple.y}% - 12px)`,
+                boxShadow: '0 0 24px hsl(var(--primary) / 0.4)'
               }}
             />
           </React.Fragment>
@@ -550,15 +536,15 @@ export const GrowScreen = () => {
           <motion.div
             key={num.id}
             initial={{ opacity: 1, y: 0, scale: 0.8 }}
-            animate={{ opacity: 0, y: -80, scale: 1.4 }}
+            animate={{ opacity: 0, y: -70, scale: 1.3 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.9, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="absolute text-primary font-bold text-xl pointer-events-none z-50"
-            style={{ 
-              left: `${num.x}%`, 
+            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="absolute text-primary font-bold text-xl pointer-events-none z-50 will-change-transform"
+            style={{
+              left: `${num.x}%`,
               top: `${num.y}%`,
               transform: 'translateX(-50%)',
-              textShadow: '0 0 15px hsl(var(--primary)), 0 0 30px hsl(var(--primary) / 0.5)'
+              textShadow: '0 0 12px hsl(var(--primary)), 0 0 24px hsl(var(--primary) / 0.5)'
             }}
           >
             {num.value}
