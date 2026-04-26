@@ -335,32 +335,37 @@ export const GrowScreen = () => {
     rippleX = Math.max(5, Math.min(95, rippleX));
     rippleY = Math.max(5, Math.min(95, rippleY));
     
-    // Smooth ripple effect at tap position
-    const rippleId = Date.now();
-    setTapRipples(prev => [...prev, { id: rippleId, x: rippleX, y: rippleY }]);
-    setTimeout(() => {
+    // Smooth ripple effect at tap position (capped for perf)
+    const rippleId = ++fxIdRef.current;
+    setTapRipples(prev => {
+      const next = [...prev, { id: rippleId, x: rippleX, y: rippleY }];
+      return next.length > MAX_FX ? next.slice(next.length - MAX_FX) : next;
+    });
+    scheduleCleanup(() => {
       setTapRipples(prev => prev.filter(r => r.id !== rippleId));
-    }, 700);
-    
+    }, 600);
+
     // Calculate actual tap boost for display
     const tapPowerLevel = useGameStore.getState().upgrades.find(u => u.id === 'tap-power')?.level ?? 0;
     const playerLevel = useGameStore.getState().level;
     const baseTapBoost = 2;
     const actualBoost = Math.round(baseTapBoost * (1 + tapPowerLevel * 0.2) * (1 + Math.floor(playerLevel / 10) * 0.1));
-    
-    // Add floating number near tap position
-    const id = Date.now();
-    setFloatingNumbers(prev => [...prev, { id, value: `+${actualBoost}%`, x: rippleX, y: rippleY - 5 }]);
-    
+
+    // Add floating number near tap position (capped)
+    const id = ++fxIdRef.current;
+    setFloatingNumbers(prev => {
+      const next = [...prev, { id, value: `+${actualBoost}%`, x: rippleX, y: rippleY - 5 }];
+      return next.length > MAX_FX ? next.slice(next.length - MAX_FX) : next;
+    });
+
     if (clientX !== null && clientY !== null) {
       emitBurst({ preset: 'tap', x: clientX, y: clientY, space: 'client' });
     }
-    
-    // Remove floating number after animation
-    setTimeout(() => {
+
+    scheduleCleanup(() => {
       setFloatingNumbers(prev => prev.filter(n => n.id !== id));
-    }, 900);
-  }, [queueTap, playTap, emitBurst]);
+    }, 800);
+  }, [queueTap, playTap, emitBurst, scheduleCleanup]);
 
   const handleHarvest = useCallback((slotId: number, e?: React.MouseEvent) => {
     const slot = growSlots.find(s => s.id === slotId);
