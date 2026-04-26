@@ -79,6 +79,20 @@ export const QuickActionsBar = () => {
       },
     },
     {
+      id: 'sell',
+      icon: DollarSign,
+      label: 'Verkaufen',
+      count: driedBuds,
+      color: 'from-emerald-400 to-green-600',
+      disabled: driedBuds === 0,
+      onClick: () => {
+        if (driedBuds > 0) {
+          setActiveScreen('sales');
+          toast.info(`${driedBuds} Buds bereit zum Verkauf!`);
+        }
+      },
+    },
+    {
       id: 'supplies',
       icon: FlaskConical,
       label: 'Shop',
