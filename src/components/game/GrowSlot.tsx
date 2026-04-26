@@ -301,17 +301,72 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
         )}
       </AnimatePresence>
 
-      {/* Harvest ready indicator */}
+      {/* Harvest ready indicator — prominent, animated */}
       <AnimatePresence>
         {isReady && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            className="absolute top-6 right-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold uppercase"
-          >
-            Harvest!
-          </motion.div>
+          <>
+            {/* Bouncing ERNTEREIF! banner at top */}
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.6 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.6 }}
+              className="absolute top-1.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
+            >
+              <motion.div
+                animate={{ y: [0, -3, 0], scale: [1, 1.06, 1] }}
+                transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-extrabold uppercase tracking-wider shadow-[0_0_12px_hsl(var(--primary)/0.8)]"
+              >
+                <Scissors size={10} />
+                <span>Erntereif!</span>
+                <Sparkles size={10} />
+              </motion.div>
+            </motion.div>
+
+            {/* Big bouncing tap-to-harvest arrow at bottom */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0 }}
+              className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none z-20"
+            >
+              <motion.div
+                animate={{ y: [0, 4, 0] }}
+                transition={{ duration: 0.7, repeat: Infinity, ease: 'easeInOut' }}
+                className="flex flex-col items-center"
+              >
+                <span className="text-[9px] font-bold text-primary uppercase tracking-wider drop-shadow-[0_0_4px_hsl(var(--primary))]">
+                  Tap zum Ernten
+                </span>
+                <ChevronDown size={16} className="text-primary drop-shadow-[0_0_6px_hsl(var(--primary))]" />
+              </motion.div>
+            </motion.div>
+
+            {/* Sparkle accents */}
+            {[0, 1, 2].map(i => (
+              <motion.div
+                key={i}
+                className="absolute pointer-events-none z-10"
+                style={{
+                  top: `${20 + i * 18}%`,
+                  left: i % 2 === 0 ? '8%' : '82%',
+                }}
+                animate={{
+                  opacity: [0, 1, 0],
+                  scale: [0.5, 1.1, 0.5],
+                  rotate: [0, 180],
+                }}
+                transition={{
+                  duration: 1.6,
+                  repeat: Infinity,
+                  delay: i * 0.3,
+                  ease: 'easeInOut',
+                }}
+              >
+                <Sparkles size={10} className="text-primary" />
+              </motion.div>
+            ))}
+          </>
         )}
       </AnimatePresence>
 
