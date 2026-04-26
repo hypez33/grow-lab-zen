@@ -600,27 +600,22 @@ export const GrowScreen = () => {
         {/* Grow Slots Grid - only show unlocked + next locked */}
         <div className="px-3">
           <div className="grid grid-cols-2 gap-2">
-            {(() => {
-              const unlockedSlots = growSlots.filter(s => s.isUnlocked);
-              const nextLocked = growSlots.find(s => !s.isUnlocked);
-              const visibleSlots = nextLocked ? [...unlockedSlots, nextLocked] : unlockedSlots;
-              return visibleSlots.map(slot => (
-                <GrowSlot
-                  key={slot.id}
-                  slot={slot}
-                  onTap={handleTap}
-                  onHarvest={(e) => handleHarvest(slot.id, e)}
-                  isSelected={selectedSlot === slot.id}
-                  onSelect={() => handleSlotSelect(slot.id)}
-                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
-                  onWater={() => {
-                    if (waterPlant(slot.id)) {
-                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
-                    }
-                  }}
-                />
-              ));
-            })()}
+            {visibleSlots.map(slot => (
+              <GrowSlot
+                key={slot.id}
+                slot={slot}
+                onTap={handleTap}
+                onHarvest={(e) => handleHarvest(slot.id, e)}
+                isSelected={selectedSlot === slot.id}
+                onSelect={() => handleSlotSelect(slot.id)}
+                onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                onWater={() => {
+                  if (waterPlant(slot.id)) {
+                    toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                  }
+                }}
+              />
+            ))}
           </div>
         </div>
 
