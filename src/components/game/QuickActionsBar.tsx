@@ -122,6 +122,9 @@ export const QuickActionsBar = () => {
         <div className="flex-1 flex gap-1">
           {actions.map((action) => {
             const Icon = action.icon;
+            const isUrgent =
+              (action.id === 'water' && urgentWater > 0) ||
+              (action.id === 'sell' && driedBuds >= 10);
             return (
               <motion.button
                 key={action.id}
@@ -141,6 +144,14 @@ export const QuickActionsBar = () => {
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                 )}
+                {isUrgent && (
+                  <motion.span
+                    aria-hidden
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.9, 1, 0.9] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                    className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-destructive ring-2 ring-background z-20"
+                  />
+                )}
                 <Icon size={14} className="relative z-10" />
                 {action.count !== null && action.count > 0 && (
                   <span className="text-xs font-bold relative z-10">{action.count}</span>
@@ -150,6 +161,32 @@ export const QuickActionsBar = () => {
           })}
         </div>
       </div>
+
+      {/* Smart Coach hint banner */}
+      <AnimatePresence mode="wait">
+        {coach && (
+          <motion.button
+            key={coach.id}
+            initial={{ opacity: 0, y: -4, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -4, height: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={() => coach.action && setActiveScreen(coach.action)}
+            className="mt-2 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-neon-purple/20 to-neon-cyan/20 border border-neon-purple/30 text-xs text-foreground hover:from-neon-purple/30 hover:to-neon-cyan/30 transition-colors"
+          >
+            <Sparkles size={12} className="text-neon-purple flex-shrink-0" />
+            <span className="font-semibold flex-1 text-left truncate">
+              <span className="mr-1">{coach.icon}</span>
+              {coach.text}
+            </span>
+            {coach.action && (
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Tap →
+              </span>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Alerts */}
       {(readyToHarvest > 0 || readyBuds > 0) && (
