@@ -493,6 +493,12 @@ export const GrowScreen = () => {
 
   const selectedSlotData = selectedSlot !== null ? growSlots.find(s => s.id === selectedSlot) : null;
 
+  const visibleSlots = useMemo(() => {
+    const unlockedSlots = growSlots.filter(s => s.isUnlocked);
+    const nextLocked = growSlots.find(s => !s.isUnlocked);
+    return nextLocked ? [...unlockedSlots, nextLocked] : unlockedSlots;
+  }, [growSlots]);
+
   // XP progress for current level
   const xpForNextLevel = 100 * Math.pow(1.5, level - 1);
   const xpProgress = (xp / xpForNextLevel) * 100;
