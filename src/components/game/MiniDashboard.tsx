@@ -181,7 +181,7 @@ export const MiniDashboard = () => {
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -4, height: 0 }}
             transition={{ duration: 0.25 }}
-            onClick={() => coach.action && setActiveScreen(coach.action)}
+            onClick={() => coach.action && useNavigationStore.getState().navigateTo(coach.action, coach.focus ?? null)}
             className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-neon-purple/15 to-neon-cyan/15 border border-neon-purple/30 text-xs hover:from-neon-purple/25 hover:to-neon-cyan/25 transition-colors"
           >
             <Sparkles size={12} className="text-neon-purple flex-shrink-0" />

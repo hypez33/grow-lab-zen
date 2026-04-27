@@ -171,7 +171,7 @@ export const QuickActionsBar = () => {
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -4, height: 0 }}
             transition={{ duration: 0.25 }}
-            onClick={() => coach.action && setActiveScreen(coach.action)}
+            onClick={() => coach.action && useNavigationStore.getState().navigateTo(coach.action, coach.focus ?? null)}
             className="mt-2 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-neon-purple/20 to-neon-cyan/20 border border-neon-purple/30 text-xs text-foreground hover:from-neon-purple/30 hover:to-neon-cyan/30 transition-colors"
           >
             <Sparkles size={12} className="text-neon-purple flex-shrink-0" />
