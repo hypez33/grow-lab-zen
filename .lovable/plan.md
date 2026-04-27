@@ -1,96 +1,84 @@
-# 🌱 Whole-Game Improvement Plan
+# 🎮 Intuitive HUD + Whole-Game UI/UX Overhaul
 
-A coordinated upgrade to **build health, UI/GUI polish, AI intelligence, game logic, and gameplay depth** — strictly additive (no features removed; existing functions only get smarter).
-
----
-
-## 1. 🛠 Fix Outstanding Build Errors (FIRST)
-
-| Error | File | Fix |
-|---|---|---|
-| `'./GrowSlot' has no exported member 'GrowSlot'` | `src/components/game/GrowSlot.tsx` | Add `export const GrowSlot = memo(GrowSlotComponent, …)` (currently the memoized component isn't named-exported). |
-| `Cannot find namespace 'NodeJS'` | `src/hooks/useBlowDetection.ts:42` | Replace `NodeJS.Timeout` with `ReturnType<typeof setTimeout>`. Audit `gameStore.ts` for the same pattern. |
+Goal: every screen tells the player **what to do next** at a glance. No features removed — only clarified, polished, and expanded.
 
 ---
 
-## 2. 🤖 Smarter AI Across All Systems
+## 1. 🌿 Per-Slot Action HUD (the core ask)
 
-### 2a. Worker AI (`gameStore.ts → runWorkerTick`)
-Refactor into a **priority task queue** evaluated each tick per worker:
+Rework `GrowSlot.tsx` so each slot has **one obvious primary CTA button** that changes with state:
 
-1. **Harvest** any slot with `stage === 'harvest' && progress >= 100` (highest priority — money on the floor).
-2. **Move dried buds** out of full racks into inventory.
-3. **Water** plants with `waterLevel < 30` (critical) before `< 50` (preventive).
-4. **Move wet buds → empty racks** (don't let inventory choke).
-5. **Plant** in empty slots — using **Smart Seed Selection**:
-   - Pick highest-rarity seed the player owns whose `minLevel ≤ playerLevel`.
-   - Prefer strains matching active customer demand (cross-read `customerStore`).
-6. **Tap-grow** the slot closest to the next stage transition (max ROI per tap).
+| Slot state | Primary button (bottom of card) | Color | Secondary visible info |
+|---|---|---|---|
+| Locked | `🔒 Unlock — 500¢` | muted | level required |
+| Empty | `+ Plant Seed` | neon-green | best seed suggestion (smart-coach pick) |
+| Seedling/Veg/Flower | `⚡ Boost +X%` (with tap counter) | cyan | stage label, time-to-next-stage ETA |
+| Needs water (<30%) | `💧 Water Now` (overrides boost) | red, pulsing | water % |
+| Ready to harvest | `✂ HARVEST +Yg` (animated) | gold-glow | predicted yield range |
+| Harvesting (anim) | `✨ Harvesting…` (disabled, spinner) | primary | — |
 
-Add per-worker **specialty bias** (Gardener favors plant/water, Trimmer favors harvest, Dealer untouched) so multiple workers don't fight over the same task.
+Implementation details:
+- New `slotPrimaryAction(slot)` helper returns `{ label, icon, variant, onClick, urgency }`.
+- Button sits in a **persistent bottom bar inside the card** (replacing the loose "Tap zum Ernten" hint), always tappable, large hit area (min 36px height) so it works on 393px viewports.
+- Whole-tile tap still works (kept as a shortcut) — button just makes the action explicit.
+- Add a tiny **state pill at the top** (`SEEDLING · 42%` / `READY` / `THIRSTY`) so status is readable without parsing icons.
+- Add **ETA chip** ("~2m") computed from current tick growth rate during growing stages.
 
-### 2b. Dealer AI (`customerStore.ts` + dealer worker logic)
-- **Quality matching**: premium customers automatically receive higher-quality buds from inventory; low-tier customers get B-grade — improves margin without player micromanagement.
-- **Inventory pressure**: when dried inventory > 80% capacity, dealer accelerates sales (shorter cooldowns); when low, slows down to preserve stock for premium buyers.
-- **Smart pause**: dealer pauses if no buds match *any* waiting customer's minimum quality, instead of failing silently.
+## 2. 🏠 Global HUD additions (`GameLayout.tsx` + `MiniDashboard.tsx`)
 
-### 2c. Customer AI
-Extend `Customer` type with:
-- `tastePreference?: Rarity | string[]` — strain trait affinity.
-- `loyalty: number` (0–100) — grows with successful matched sales, decays on rejection.
-- **Dynamic patience**: scales with `interest * (1 + loyalty/200)` so loyal customers wait longer.
-- **Repeat customers**: high-loyalty customers re-spawn faster and tip extra coins.
+- **Action Pulse**: top resource bar gets a subtle red dot on the screen icon when that screen has urgent work (harvest ready, customer waiting, dried buds piling up).
+- **One-line "Next Best Action"** banner under the dashboard (powered by existing `useSmartCoach`) — single tap routes there.
+- Tighten resource bar spacing for 393px width; ensure no overflow on small screens.
 
-### 2d. Smart Coach (new, non-intrusive layer)
-A small `useSmartCoach` hook surfacing **one contextual hint at a time** (debounced sonner toast or a thin banner above QuickActionsBar):
-- "🌿 3 plants ready to harvest"
-- "💧 Plant #2 is thirsty"
-- "📦 Drying racks full — sell some buds"
-- "🌱 Best seed to plant now: *Purple Haze* (matches Dr. Mike's taste)"
+## 3. 🧭 Bottom navigation (`NavLink.tsx`)
+- Add **badge counters** per tab:
+  - Grow: # ready to harvest
+  - Dry: # racks ready
+  - Sales: # dried buds in stock
+  - Customers: # waiting customers
+- Active tab gets a soft neon underline + scale; inactive tabs slightly dimmed for clearer hierarchy.
 
-Hints are throttled (max 1 every 20s) and dismissable. Pure additive — does not remove existing toasts.
+## 4. 🎨 Cross-screen UI consistency pass
 
----
+Apply the same "primary action button per row/card" pattern to:
 
-## 3. 🎨 UI / GUI Polish
+- **DryRoomScreen**: each rack card → one button: `Add Bud` / `Drying X%` / `Collect ✨`.
+- **SalesScreen**: per-bud row → `Sell Yg → $Z` button (already close, just enlarge & color-code by tier).
+- **CustomersScreen / CustomerCard**: each customer card → `Serve →` button + patience timer ring around avatar.
+- **ShopScreen**: every buy button shows **affordability state** (green=affordable, red=needs $X more) instead of just disabled grey.
+- **GrowSuppliesModal**: same affordability coloring + "Recommended" badge for soil/fertilizer matching the slot's seed rarity.
 
-- **GrowSlot**: refine the new "Erntereif!" indicator — add subtle gold particle ring + soft haptic on first appearance per plant (mobile only).
-- **QuickActionsBar**: add a 6th action **"Sell"** (jump to SalesScreen) when dried inventory > 0; show a small red dot when any action has urgent count.
-- **MiniDashboard**: add a tiny "Coach" line showing the current smart hint.
-- **Bottom nav (NavLink)**: add badge counters for screens with pending actions (harvest-ready, dry-ready, customers waiting).
-- **Consistent tap feedback**: extract the FX scheduler from `GrowScreen` into `useTapFX` hook so KoksScreen, MethScreen, BusinessScreen reuse the same capped, performant ripple/floating-number system.
-- **Reduced-motion respect**: gate heavy framer-motion loops behind `prefers-reduced-motion` for accessibility & low-end devices.
+## 5. ⚙️ Gameplay logic improvements (additive only)
 
----
+- **ETA calculation**: surface time-to-next-stage and time-to-harvest in the slot HUD using current tick rate (incl. fertilizer & worker bonuses).
+- **Smart "Plant Seed" picker**: when tapping `+ Plant Seed` on an empty slot, default-select the worker-AI's best pick (highest rarity ≤ player level, matching active customer demand) so single-tap planting works.
+- **Auto-collect dried buds** option toggle in Settings (default off) — when on, dried buds move to inventory automatically; surfaces as a quality-of-life upgrade unlocked at level 10.
+- **Harvest confirmation safety**: long-press to instantly harvest all ready slots from the GrowScreen header (batch harvest), with the existing single-slot tap kept intact.
+- **Water-all hotkey** already exists in QuickActionsBar — also add it as a header button on GrowScreen for discoverability.
 
-## 4. ⚙️ Game Logic Improvements
+## 6. ♿ Polish & performance
 
-- **Offline progress**: refine cap logic to also tick worker AI (currently mostly plant growth) so returning players see meaningful automation results, still capped at 8h.
-- **Watering balance**: introduce a gentle quality penalty for plants left below 20% water for too long (currently silent) — surfaced via Smart Coach.
-- **Harvest safety net**: keep the recently-added `stage !== 'harvest'` guard, plus log a single sonner error if `harvestPlant` ever returns without clearing the slot (defensive).
-- **Loyalty-driven pricing**: loyal customers pay +5–15% — small but rewards retention.
-
----
-
-## 5. 🎮 New Gameplay Additions (small, fitting)
-
-- **Daily "Plant of the Day"**: one strain gets +20% yield for 24h, shown in Smart Coach + GrowSuppliesModal.
-- **Worker mood**: idle workers slowly lose mood; giving them tasks (or a new cheap "coffee" item in the shop) restores it. Mood multiplies their speed by 0.8×–1.2×.
-- **Customer streak bonus**: 5 consecutive matched sales → temporary "Hot Streak" badge granting +10% coin gain for 60s.
+- Respect `prefers-reduced-motion`: gate the harvest pulsing/scale loops behind a media query (keeps the green ring static for accessibility / battery).
+- All new buttons use `whileTap={{ scale: 0.94 }}` spring (matches GrowSlot) for consistent tactile feel.
+- No new heavy framer-motion loops on lists — animate only the urgent/ready state.
+- Memoize the new `slotPrimaryAction` and badge counts in `useMemo` so the 1s tick stays smooth.
 
 ---
 
-## 📁 Files Touched (planned)
+## 📁 Files touched (all additive — nothing removed)
 
-- `src/components/game/GrowSlot.tsx` *(export fix + indicator polish)*
-- `src/hooks/useBlowDetection.ts` *(NodeJS type fix)*
-- `src/store/gameStore.ts` *(worker AI, offline, mood, helpers)*
-- `src/store/customerStore.ts` *(loyalty, taste, dynamic patience)*
-- `src/components/game/QuickActionsBar.tsx` *(Sell action, urgency dots)*
-- `src/components/game/MiniDashboard.tsx` *(coach line)*
-- `src/components/NavLink.tsx` *(badge counters)*
-- `src/hooks/useSmartCoach.ts` *(new)*
-- `src/hooks/useTapFX.ts` *(new — extracted from GrowScreen)*
-- `src/components/game/GrowScreen.tsx` *(use useTapFX, mount coach)*
+- `src/components/game/GrowSlot.tsx` — primary action button, state pill, ETA chip
+- `src/components/game/GrowScreen.tsx` — header batch-harvest + water-all, wire ETA
+- `src/components/game/DryRoomScreen.tsx` — rack primary-action buttons
+- `src/components/game/SalesScreen.tsx` — bud row primary-action polish
+- `src/components/game/CustomersScreen.tsx` + `CustomerCard.tsx` — Serve button + patience ring
+- `src/components/game/ShopScreen.tsx` — affordability coloring on buy buttons
+- `src/components/game/GrowSuppliesModal.tsx` — affordability + "Recommended" badge
+- `src/components/game/MiniDashboard.tsx` — Next Best Action banner
+- `src/components/game/GameLayout.tsx` — urgency pulses on header icons
+- `src/components/NavLink.tsx` — badge counters per tab
+- `src/components/game/SettingsScreen.tsx` — Auto-collect dried buds toggle
+- `src/store/gameStore.ts` — small helper: `getSlotETA`, auto-collect option, batch helpers
+- `src/lib/utils.ts` — small `formatETA` helper
 
-No existing function or feature is removed — everything is extended or added alongside.
+No existing function or feature is removed. Every change is additive and improves clarity, intuitiveness, or polish.
