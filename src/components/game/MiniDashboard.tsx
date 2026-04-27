@@ -16,6 +16,8 @@ export const MiniDashboard = () => {
     workers,
     dealerActivities
   } = useGameStore();
+  const setActiveScreen = useNavigationStore(s => s.setActiveScreen);
+  const coach = useSmartCoach();
 
   // Track cash gains for animations
   const [cashGains, setCashGains] = useState<{ id: number; amount: number }[]>([]);
