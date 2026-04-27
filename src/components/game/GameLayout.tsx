@@ -220,7 +220,7 @@ export const GameLayout = () => {
   const harvestReady = gameState.growSlots.filter(s => s.stage === 'harvest' && s.progress >= 100).length;
   const dryReady = gameState.dryingRacks.filter(r => r.bud && r.bud.dryingProgress >= 100).length;
   const driedStock = gameState.inventory.filter(b => b.state === 'dried').length;
-  const waitingCustomers = customerState.activeCustomers?.length ?? 0;
+  const waitingCustomers = customerState.customers?.length ?? 0;
 
   const navItems = [
     { id: 'grow' as Screen, icon: Home, label: 'Grow', badge: harvestReady },
