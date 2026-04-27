@@ -624,20 +624,25 @@ export const GrowScreen = () => {
         <div className="px-3">
           <div className="grid grid-cols-2 gap-2">
             {visibleSlots.map(slot => (
-              <GrowSlot
+              <div
                 key={slot.id}
-                slot={slot}
-                onTap={handleTap}
-                onHarvest={(e) => handleHarvest(slot.id, e)}
-                isSelected={selectedSlot === slot.id}
-                onSelect={() => handleSlotSelect(slot.id)}
-                onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
-                onWater={() => {
-                  if (waterPlant(slot.id)) {
-                    toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
-                  }
-                }}
-              />
+                ref={(el) => { slotRefs.current[slot.id] = el; }}
+                className={`relative rounded-xl transition-all ${highlightedSlot === slot.id ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse' : ''}`}
+              >
+                <GrowSlot
+                  slot={slot}
+                  onTap={handleTap}
+                  onHarvest={(e) => handleHarvest(slot.id, e)}
+                  isSelected={selectedSlot === slot.id}
+                  onSelect={() => handleSlotSelect(slot.id)}
+                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                  onWater={() => {
+                    if (waterPlant(slot.id)) {
+                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                    }
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>
