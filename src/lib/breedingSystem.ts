@@ -382,3 +382,72 @@ export function getGenerationDisplay(generation: number | undefined): string {
   if (generation >= 5) return `F${generation} Legende`;
   return `Gen ${generation}`;
 }
+
+// ================== BREEDING PREVIEW (deterministic, no RNG) ==================
+
+export interface BreedingPreview {
+  /** Probability of each outcome (0..1), sums to 1 */
+  probabilities: Record<BreedingOutcome, number>;
+  /** Failure risk (fail+poor) as percentage 0..100 */
+  failureRiskPct: number;
+  /** Rarity range: minimum & maximum possible new rarity */
+  rarityRange: { min: Rarity; max: Rarity; expected: Rarity };
+  /** All trait names from both parents (union) and the chance each survives normal breeding */
+  traitMix: Array<{ name: string; source: 'both' | 'p1' | 'p2'; survivalPct: number }>;
+  /** Expected yield range (g) for the normal outcome */
+  expectedYieldRange: { min: number; max: number };
+  /** Resulting generation if successful */
+  newGeneration: number;
+}
+
+/** Deterministic preview of what the player will get — mirrors logic of breedSeeds() but without random rolls. */
+export function previewBreeding(parent1: Seed, parent2: Seed): BreedingPreview {
+  const newGeneration = Math.max(parent1.generation || 0, parent2.generation || 0) + 1;
+  const varianceBonus = Math.min(newGeneration * 3, 15);
+
+  // Mirror of calculateBreedingOutcome thresholds → convert to per-bucket probabilities
+  const t1 = Math.max(0, 10 - varianceBonus / 2);                  // fail upper
+  const t2 = Math.max(t1, 25 - varianceBonus);                     // poor upper
+  const t3 = Math.max(t2, 70 - varianceBonus * 1.5);               // normal upper
+  const t4 = Math.max(t3, 90);                                     // good upper
+  const t5 = Math.max(t4, 98 - varianceBonus / 2);                 // excellent upper
+  const probabilities: Record<BreedingOutcome, number> = {
+    fail:      t1 / 100,
+    poor:      (t2 - t1) / 100,
+    normal:    (t3 - t2) / 100,
+    good:      (t4 - t3) / 100,
+    excellent: (t5 - t4) / 100,
+    godtier:   Math.max(0, (100 - t5) / 100),
+  };
+  const failureRiskPct = (probabilities.fail + probabilities.poor) * 100;
+
+  // Rarity range
+  const rarities: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+  const r1 = rarities.indexOf(parent1.rarity);
+  const r2 = rarities.indexOf(parent2.rarity);
+  const avg = Math.floor((r1 + r2) / 2);
+  const minIdx = Math.max(0, avg - 2);                              // fail-case
+  const maxIdx = Math.min(4, Math.max(r1, r2) + 2);                 // godtier-case
+  const rarityRange = { min: rarities[minIdx], max: rarities[maxIdx], expected: rarities[avg] };
+
+  // Trait mix — survival chance under "normal" outcome (random()>0.4 → ~60% per trait)
+  const p1Set = new Set(parent1.traits);
+  const p2Set = new Set(parent2.traits);
+  const allTraits = Array.from(new Set([...parent1.traits, ...parent2.traits]));
+  const traitMix = allTraits.map(name => {
+    const inBoth = p1Set.has(name) && p2Set.has(name);
+    const source: 'both' | 'p1' | 'p2' = inBoth ? 'both' : p1Set.has(name) ? 'p1' : 'p2';
+    // Shared traits are slightly more reliable (modeled as 75%, single-parent ~60%)
+    const survivalPct = inBoth ? 75 : 60;
+    return { name, source, survivalPct };
+  });
+
+  // Yield range — mirror of normal-outcome stats with ±20% variance
+  const avgYield = Math.floor((parent1.baseYield + parent2.baseYield) / 2);
+  const expectedYieldRange = {
+    min: Math.floor(avgYield * 0.8),
+    max: Math.floor(avgYield * 1.2),
+  };
+
+  return { probabilities, failureRiskPct, rarityRange, traitMix, expectedYieldRange, newGeneration };
+}
