@@ -238,6 +238,29 @@ export const GrowScreen = () => {
   const pendingTapCountRef = useRef(0);
   const tapRafRef = useRef<number | null>(null);
   const fxIdRef = useRef(0);
+  const slotRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // Deep-link focus: scroll to + highlight the requested slot
+  const navFocus = useNavigationStore(s => s.focus);
+  const navFocusNonce = useNavigationStore(s => s.focusNonce);
+  const clearNavFocus = useNavigationStore(s => s.clearFocus);
+  const [highlightedSlot, setHighlightedSlot] = useState<number | null>(null);
+  useEffect(() => {
+    if (!navFocus || navFocus.type !== 'slot') return;
+    const id = Number(navFocus.id);
+    setSelectedSlot(id);
+    setHighlightedSlot(id);
+    requestAnimationFrame(() => {
+      slotRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const ttl = navFocus.ttl ?? 4000;
+    const t = setTimeout(() => {
+      setHighlightedSlot(null);
+      clearNavFocus();
+    }, ttl);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navFocusNonce]);
   const fxTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const MAX_FX = 6; // cap concurrent floating numbers / ripples for perf
   const harvestParticleColors = useMemo<Record<string, string[]>>(() => ({
