@@ -344,8 +344,18 @@ export const GameLayout = () => {
                       <motion.div
                         animate={isActive ? { scale: [1, 1.1, 1] } : {}}
                         transition={{ duration: 0.3 }}
+                        className="relative"
                       >
                         <Icon size={18} style={isActive ? { filter: 'drop-shadow(0 0 6px hsl(115 100% 62% / 0.6))' } : undefined} />
+                        {item.badge > 0 && (
+                          <motion.span
+                            animate={{ scale: [1, 1.15, 1] }}
+                            transition={{ duration: 1.4, repeat: Infinity }}
+                            className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] px-1 rounded-full bg-destructive text-destructive-foreground text-[8px] font-bold flex items-center justify-center ring-2 ring-card"
+                          >
+                            {item.badge > 9 ? '9+' : item.badge}
+                          </motion.span>
+                        )}
                       </motion.div>
                       <span className="text-[9px] font-medium truncate">{item.label}</span>
                     </motion.button>
