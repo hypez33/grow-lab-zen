@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem } from '@/store/gameStore';
+import { useNavigationStore } from '@/store/navigationStore';
 import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets, Mic, MicOff, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -33,6 +34,28 @@ export const DryRoomScreen = () => {
   const updateDryingProgress = useGameStore(state => state.updateDryingProgress);
   const lastBlowBoostRef = useRef<number>(0);
   const lastProgressRef = useRef<number>(0);
+
+  // Deep-link focus on a specific rack
+  const navFocus = useNavigationStore(s => s.focus);
+  const navFocusNonce = useNavigationStore(s => s.focusNonce);
+  const clearNavFocus = useNavigationStore(s => s.clearFocus);
+  const rackRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [highlightedRack, setHighlightedRack] = useState<number | null>(null);
+  useEffect(() => {
+    if (!navFocus || navFocus.type !== 'rack') return;
+    const id = Number(navFocus.id);
+    setHighlightedRack(id);
+    requestAnimationFrame(() => {
+      rackRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const ttl = navFocus.ttl ?? 4000;
+    const t = setTimeout(() => {
+      setHighlightedRack(null);
+      clearNavFocus();
+    }, ttl);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navFocusNonce]);
 
   // Calculate total drying progress before blow
   const getTotalDryingProgress = () => {
@@ -564,11 +587,14 @@ export const DryRoomScreen = () => {
         {dryingRacks.map(rack => (
           <motion.div
             key={rack.id}
+            ref={(el) => { rackRefs.current[rack.id] = el; }}
             whileTap={{ scale: rack.isUnlocked ? 0.95 : 1 }}
             onClick={() => handleRackClick(rack.id, rack)}
             className={`game-card p-3 cursor-pointer transition-all relative overflow-hidden ${
               !rack.isUnlocked ? 'opacity-50' : ''
-            } ${rack.bud?.dryingProgress === 100 ? 'glow-gold' : ''}`}
+            } ${rack.bud?.dryingProgress === 100 ? 'glow-gold' : ''} ${
+              highlightedRack === rack.id ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse' : ''
+            }`}
           >
             {/* Animated background for drying */}
             {rack.bud && rack.bud.dryingProgress < 100 && (

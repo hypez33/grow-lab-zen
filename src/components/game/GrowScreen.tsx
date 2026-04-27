@@ -238,6 +238,29 @@ export const GrowScreen = () => {
   const pendingTapCountRef = useRef(0);
   const tapRafRef = useRef<number | null>(null);
   const fxIdRef = useRef(0);
+  const slotRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // Deep-link focus: scroll to + highlight the requested slot
+  const navFocus = useNavigationStore(s => s.focus);
+  const navFocusNonce = useNavigationStore(s => s.focusNonce);
+  const clearNavFocus = useNavigationStore(s => s.clearFocus);
+  const [highlightedSlot, setHighlightedSlot] = useState<number | null>(null);
+  useEffect(() => {
+    if (!navFocus || navFocus.type !== 'slot') return;
+    const id = Number(navFocus.id);
+    setSelectedSlot(id);
+    setHighlightedSlot(id);
+    requestAnimationFrame(() => {
+      slotRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const ttl = navFocus.ttl ?? 4000;
+    const t = setTimeout(() => {
+      setHighlightedSlot(null);
+      clearNavFocus();
+    }, ttl);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navFocusNonce]);
   const fxTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const MAX_FX = 6; // cap concurrent floating numbers / ripples for perf
   const harvestParticleColors = useMemo<Record<string, string[]>>(() => ({
@@ -601,20 +624,25 @@ export const GrowScreen = () => {
         <div className="px-3">
           <div className="grid grid-cols-2 gap-2">
             {visibleSlots.map(slot => (
-              <GrowSlot
+              <div
                 key={slot.id}
-                slot={slot}
-                onTap={handleTap}
-                onHarvest={(e) => handleHarvest(slot.id, e)}
-                isSelected={selectedSlot === slot.id}
-                onSelect={() => handleSlotSelect(slot.id)}
-                onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
-                onWater={() => {
-                  if (waterPlant(slot.id)) {
-                    toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
-                  }
-                }}
-              />
+                ref={(el) => { slotRefs.current[slot.id] = el; }}
+                className={`relative rounded-xl transition-all ${highlightedSlot === slot.id ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse' : ''}`}
+              >
+                <GrowSlot
+                  slot={slot}
+                  onTap={handleTap}
+                  onHarvest={(e) => handleHarvest(slot.id, e)}
+                  isSelected={selectedSlot === slot.id}
+                  onSelect={() => handleSlotSelect(slot.id)}
+                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                  onWater={() => {
+                    if (waterPlant(slot.id)) {
+                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                    }
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>

@@ -5,6 +5,7 @@ import { PlantSVG } from './PlantSVG';
 import { Dna, Plus, ArrowRight, Shuffle, Info, Sparkles, CheckCircle2, Package, AlertTriangle, Skull, Crown, Flame, Star } from 'lucide-react';
 import { breedSeeds, getYieldDisplay, getGenerationDisplay, BreedingOutcome } from '@/lib/breedingSystem';
 import { useCanvasParticles } from '@/components/effects/CanvasParticleSystem';
+import { BreedingPreviewPanel } from './BreedingPreviewPanel';
 
 const rarityLabels = {
   common: 'Common',
@@ -251,17 +252,21 @@ export const GeneticsScreen = () => {
             </div>
           </div>
 
-          {/* Breed button */}
-          <motion.button
-            whileTap={{ scale: canBreed ? 0.95 : 1 }}
-            onClick={handleBreed}
-            disabled={!canBreed}
-            className={`w-full mt-4 py-3 rounded-lg font-bold transition-all
-              ${canBreed ? 'btn-neon-secondary' : 'bg-muted text-muted-foreground'}
-            `}
-          >
-            {canBreed ? 'Breed (100 $)' : 'Select 2 Seeds'}
-          </motion.button>
+          {/* Live breeding preview — shows trait mix + risk before confirming */}
+          <BreedingPreviewPanel
+            parent1={selectedSeeds[0]}
+            parent2={selectedSeeds[1]}
+            onConfirm={handleBreed}
+            canAfford={canBreed}
+            cost={100}
+          />
+
+          {/* Fallback CTA when fewer than 2 selected */}
+          {selectedSeeds.length < 2 && (
+            <div className="w-full mt-4 py-3 rounded-lg font-bold text-center bg-muted text-muted-foreground text-sm">
+              Wähle 2 Samen zum Kreuzen
+            </div>
+          )}
 
           {/* Breeding result info */}
           {breedingResult && (
