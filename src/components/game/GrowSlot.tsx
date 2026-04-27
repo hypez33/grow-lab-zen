@@ -72,6 +72,63 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
   const hasFertilizer = !!slot.fertilizer;
   const hasPremiumSoil = slot.soil && slot.soil.id !== 'basic-soil';
   const waterLevel = slot.waterLevel ?? 100;
+  const etaText = isGrowing ? formatETA(estimateSecondsLeft(slot)) : null;
+
+  // ---- Primary Action HUD: one CTA per state ----
+  type PrimaryAction = {
+    label: string;
+    icon: JSX.Element;
+    classes: string;
+    pulse?: boolean;
+    onPress: (e: MouseEvent<HTMLButtonElement>) => void;
+    disabled?: boolean;
+  };
+
+  const stopAnd = (fn?: () => void) => (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    fn?.();
+  };
+
+  let primary: PrimaryAction;
+  if (isLocked) {
+    primary = {
+      label: 'Gesperrt',
+      icon: <Lock size={12} />,
+      classes: 'bg-muted/40 text-muted-foreground',
+      onPress: () => {},
+      disabled: true,
+    };
+  } else if (isReady) {
+    primary = {
+      label: 'Ernten',
+      icon: <Scissors size={12} />,
+      classes: 'bg-gradient-to-r from-neon-gold to-amber-500 text-background shadow-[0_0_14px_hsl(45_100%_55%/0.7)]',
+      pulse: true,
+      onPress: (e) => { e.stopPropagation(); onHarvest(e as unknown as MouseEvent<HTMLDivElement>); },
+    };
+  } else if (isEmpty) {
+    primary = {
+      label: 'Pflanzen',
+      icon: <Plus size={12} />,
+      classes: 'bg-gradient-to-r from-neon-green to-emerald-500 text-background',
+      onPress: stopAnd(onSelect),
+    };
+  } else if (needsWater) {
+    primary = {
+      label: `Gießen ${Math.round(waterLevel)}%`,
+      icon: <Droplets size={12} />,
+      classes: 'bg-gradient-to-r from-red-500 to-rose-500 text-white',
+      pulse: true,
+      onPress: stopAnd(onWater),
+    };
+  } else {
+    primary = {
+      label: 'Boost',
+      icon: <Zap size={12} />,
+      classes: 'bg-gradient-to-r from-cyan-400 to-blue-500 text-background',
+      onPress: (e) => { e.stopPropagation(); onTap(e as unknown as MouseEvent<HTMLDivElement>); onSelect(); },
+    };
+  }
 
   return (
     <motion.div
