@@ -182,27 +182,40 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
         />
       )}
 
+      {/* Status pill (top-center, above plant) */}
+      {!isLocked && !isEmpty && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider
+            ${isReady
+              ? 'bg-neon-gold/90 text-background shadow-[0_0_8px_hsl(45_100%_55%/0.7)]'
+              : needsWater
+                ? 'bg-red-500/90 text-white'
+                : 'bg-background/70 text-primary border border-primary/40'}`}>
+            {isReady ? '✓ Reif' : needsWater ? 'Durstig' : `${slot.stage} ${Math.round(progressPercent)}%`}
+          </span>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full p-2">
+      <div className="relative z-10 flex flex-col items-center justify-center h-full pt-5 pb-9 px-2">
         {isLocked ? (
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <Lock size={32} />
-            <span className="text-xs font-medium">Locked</span>
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
+            <Lock size={26} />
+            <span className="text-[10px] font-medium">Locked</span>
           </div>
         ) : isEmpty ? (
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <motion.div
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <Plus size={32} className="text-primary/50" />
+              <Plus size={28} className="text-primary/50" />
             </motion.div>
-            <span className="text-xs font-medium">Empty Slot</span>
             {/* Soil badge when empty */}
-            {slot.soil && (
-              <button 
+            {slot.soil && slot.soil.id !== 'basic-soil' && (
+              <button
                 onClick={handleSoilClick}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/50 text-[10px] hover:bg-muted transition-colors"
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted/50 text-[9px] hover:bg-muted transition-colors"
               >
                 <span>{slot.soil.icon}</span>
                 <span className="truncate max-w-[60px]">{slot.soil.name}</span>
@@ -213,53 +226,33 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
           <>
             {/* Plant visualization with growing animation */}
             <motion.div
-              animate={isGrowing ? { 
+              animate={isGrowing ? {
                 scale: [1, 1.02, 1],
                 rotate: [-0.5, 0.5, -0.5]
               } : {}}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <PlantSVG 
-                stage={slot.stage} 
-                rarity={slot.seed!.rarity} 
+              <PlantSVG
+                stage={slot.stage}
+                rarity={slot.seed!.rarity}
                 traits={slot.seed!.traits}
-                size={80}
+                size={68}
                 budGrowth={slot.budGrowth ?? 0}
               />
             </motion.div>
-            
-            {/* Stage label */}
-            <span className="text-xs font-bold uppercase tracking-wider text-primary mt-1">
-              {slot.stage}
-            </span>
 
-            {/* Bud growth preview during flower stage */}
-            {(slot.stage === 'flower' || slot.stage === 'harvest') && (
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[10px]">🌸</span>
-                <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <motion.div 
-                    className="h-full bg-gradient-to-r from-pink-400 to-purple-500"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${slot.budGrowth ?? 0}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
-                </div>
-                <span className="text-[9px] font-bold text-pink-400">
-                  {Math.round(slot.budGrowth ?? 0)}%
-                </span>
-              </div>
+            {/* ETA chip during growing */}
+            {etaText && (
+              <span className="text-[9px] font-semibold text-muted-foreground mt-0.5">
+                ⏱ {etaText}
+              </span>
             )}
 
-            {/* Yield preview with range (baseYield ±20%) */}
+            {/* Bud growth + yield preview during flower stage */}
             {(slot.stage === 'flower' || slot.stage === 'harvest') && slot.seed && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-1 mt-0.5 px-2 py-0.5 bg-primary/10 rounded-full"
-              >
-                <span className="text-[9px] text-muted-foreground">🎲</span>
-                <span className="text-[10px] font-bold text-primary">
+              <div className="flex items-center gap-1 mt-0.5 px-1.5 py-0.5 bg-primary/10 rounded-full">
+                <span className="text-[9px]">🌸</span>
+                <span className="text-[9px] font-bold text-primary">
                   {(() => {
                     const budMult = 0.2 + ((slot.budGrowth ?? 0) / 100) * 0.8;
                     const baseYield = slot.seed.baseYield;
@@ -268,11 +261,27 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
                     return `${Math.round(yMin * budMult)}-${Math.round(yMax * budMult)}g`;
                   })()}
                 </span>
-              </motion.div>
+              </div>
             )}
           </>
         )}
       </div>
+
+      {/* PRIMARY ACTION BUTTON — always one clear CTA per slot */}
+      {!isLocked && (
+        <motion.button
+          type="button"
+          onClick={primary.onPress}
+          disabled={primary.disabled}
+          whileTap={primary.disabled ? undefined : { scale: 0.94 }}
+          animate={primary.pulse ? { scale: [1, 1.04, 1] } : {}}
+          transition={primary.pulse ? { duration: 1, repeat: Infinity, ease: 'easeInOut' } : undefined}
+          className={`absolute bottom-2 left-2 right-2 z-20 flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-bold uppercase tracking-wider ${primary.classes}`}
+        >
+          {primary.icon}
+          <span className="truncate">{primary.label}</span>
+        </motion.button>
+      )}
 
       {/* Supply indicators (top-left corner) */}
       {!isLocked && (
