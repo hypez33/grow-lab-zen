@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
-import { TrendingUp, Sprout, Package, DollarSign, Star } from 'lucide-react';
+import { useNavigationStore } from '@/store/navigationStore';
+import { useSmartCoach } from '@/hooks/useSmartCoach';
+import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
 export const MiniDashboard = () => {
