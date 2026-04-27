@@ -2,7 +2,25 @@ import { memo, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GrowSlot as GrowSlotType } from '@/store/gameStore';
 import { PlantSVG } from './PlantSVG';
-import { Lock, Plus, Sprout, Droplets, Scissors, ChevronDown, Sparkles } from 'lucide-react';
+import { Lock, Plus, Sprout, Droplets, Scissors, Sparkles, Zap } from 'lucide-react';
+
+// Rough ETA estimate (seconds) — passive ~0.5%/s baseline; bonuses speed it up.
+const estimateSecondsLeft = (slot: GrowSlotType): number => {
+  const remaining = Math.max(0, 100 - slot.progress);
+  const fertSpeed = slot.fertilizer?.growthBoost ?? 0;
+  const soilSpeed = slot.soil?.growthBoost ?? 0;
+  const ratePerSec = 0.5 * (1 + fertSpeed + soilSpeed);
+  return Math.ceil(remaining / Math.max(0.05, ratePerSec));
+};
+
+const formatETA = (sec: number): string => {
+  if (sec <= 0) return 'jetzt';
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `~${m}m`;
+  const h = Math.floor(m / 60);
+  return `~${h}h ${m % 60}m`;
+};
 
 interface GrowSlotProps {
   slot: GrowSlotType;
