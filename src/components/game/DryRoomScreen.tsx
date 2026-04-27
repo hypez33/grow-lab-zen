@@ -587,11 +587,14 @@ export const DryRoomScreen = () => {
         {dryingRacks.map(rack => (
           <motion.div
             key={rack.id}
+            ref={(el) => { rackRefs.current[rack.id] = el; }}
             whileTap={{ scale: rack.isUnlocked ? 0.95 : 1 }}
             onClick={() => handleRackClick(rack.id, rack)}
             className={`game-card p-3 cursor-pointer transition-all relative overflow-hidden ${
               !rack.isUnlocked ? 'opacity-50' : ''
-            } ${rack.bud?.dryingProgress === 100 ? 'glow-gold' : ''}`}
+            } ${rack.bud?.dryingProgress === 100 ? 'glow-gold' : ''} ${
+              highlightedRack === rack.id ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse' : ''
+            }`}
           >
             {/* Animated background for drying */}
             {rack.bud && rack.bud.dryingProgress < 100 && (
