@@ -262,9 +262,10 @@ const TraitMixBreakdown = ({
               <motion.div
                 key={m.name}
                 variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1, transition: { duration: 0.18 } } }}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
+                className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
                 title={`${m.chancePct.toFixed(2)}% Chance auf diese neue Eigenschaft`}
               >
+                <span className="text-[8px] font-bold leading-none px-1 py-0.5 rounded bg-neon-orange/25 text-neon-orange border border-neon-orange/40">MUT</span>
                 <Sparkles size={9} />
                 <span>{m.name}</span>
                 <span className="text-muted-foreground">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
