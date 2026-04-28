@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useTerritoryStore } from '@/store/territoryStore';
+import { useGameStore } from '@/store/gameStore';
+import { FEATURE_UNLOCKS } from '@/lib/progression';
 
 export type MethStage = 'maceration' | 'oxidation' | 'crystallization' | 'ready';
 export type MethLogType = 'sale' | 'dealer' | 'bonus' | 'risk' | 'info';
@@ -559,6 +561,10 @@ export const useMethStore = create<MethState>()(
 
       startMethCook: (slotId, recipeId) => {
         const state = get();
+        const playerLevel = useGameStore.getState().level;
+        if (playerLevel < FEATURE_UNLOCKS.meth.level) {
+          return { success: false, error: `Meth-Labor schaltet auf Level ${FEATURE_UNLOCKS.meth.level} frei.` };
+        }
         const slot = state.methSlots.find(s => s.id === slotId);
         if (!slot || !slot.isUnlocked) {
           return { success: false, error: 'Slot ist gesperrt.' };

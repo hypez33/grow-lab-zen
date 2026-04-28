@@ -4,6 +4,7 @@ import { breedCocaSeeds as breedCocaSeedsLib } from '@/lib/cocaBreedingSystem';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
 import { useTerritoryStore } from '@/store/territoryStore';
+import { FEATURE_UNLOCKS } from '@/lib/progression';
 
 // Types
 export type CocaRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -618,6 +619,11 @@ export const useCocaStore = create<CocaState>()(
       }),
 
       plantCocaSeed: (slotId: number, seed: CocaSeed) => set((state) => {
+        const playerLevel = useGameStore.getState().level;
+        if (playerLevel < FEATURE_UNLOCKS.koks.level) {
+          // Hard gate: ignore plant attempt before Koks unlocks
+          return state;
+        }
         const cocaSeeds = state.cocaSeeds.filter(s => s.id !== seed.id);
         const cocaGrowSlots = state.cocaGrowSlots.map(slot =>
           slot.id === slotId && slot.isUnlocked && !slot.seed
