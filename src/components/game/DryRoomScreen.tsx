@@ -589,7 +589,13 @@ export const DryRoomScreen = () => {
             key={rack.id}
             ref={(el) => { rackRefs.current[rack.id] = el; }}
             whileTap={{ scale: rack.isUnlocked ? 0.95 : 1 }}
-            onClick={() => handleRackClick(rack.id, rack)}
+            onClick={() => {
+              handleRackClick(rack.id, rack);
+              if (highlightedRack === rack.id) {
+                setHighlightedRack(null);
+                clearNavFocus();
+              }
+            }}
             className={`game-card p-3 cursor-pointer transition-all relative overflow-hidden ${
               !rack.isUnlocked ? 'opacity-50' : ''
             } ${rack.bud?.dryingProgress === 100 ? 'glow-gold' : ''} ${
