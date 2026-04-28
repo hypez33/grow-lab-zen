@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Seed } from '@/store/gameStore';
-import { previewBreeding, getGenerationDisplay, BreedingOutcome } from '@/lib/breedingSystem';
-import { AlertTriangle, Skull, CheckCircle2, Star, Flame, Crown, Sparkles } from 'lucide-react';
+import { previewBreeding, getGenerationDisplay, BreedingOutcome, TraitPreviewEntry, MutationPreviewEntry } from '@/lib/breedingSystem';
+import { AlertTriangle, Skull, CheckCircle2, Star, Flame, Crown, Sparkles, Dna, Zap } from 'lucide-react';
 
 interface Props {
   parent1?: Seed;
@@ -127,29 +127,13 @@ const PreviewContents = ({
         <Stat label="Ertrag (norm.)" value={<span className="text-neon-green">{preview.expectedYieldRange.min}-{preview.expectedYieldRange.max}g</span>} />
       </div>
 
-      {/* Trait mix */}
-      {preview.traitMix.length > 0 && (
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-            Trait-Mix ({preview.traitMix.length})
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {preview.traitMix.map(t => (
-              <div
-                key={t.name}
-                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border
-                  ${t.source === 'both'
-                    ? 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold'
-                    : 'border-primary/40 bg-primary/10 text-primary'}`}
-                title={`${t.source === 'both' ? 'Beide Eltern' : t.source === 'p1' ? parent1.name : parent2.name} • ~${t.survivalPct}% Übertragung`}
-              >
-                <span>{t.name}</span>
-                <span className="text-muted-foreground">{t.survivalPct}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Trait mix — grouped by source so the player sees exactly what comes from where */}
+      <TraitMixBreakdown
+        parent1={parent1}
+        parent2={parent2}
+        traitMix={preview.traitMix}
+        mutationPool={preview.mutationPool}
+      />
 
       {/* Confirm */}
       <motion.button
@@ -174,3 +158,148 @@ const Stat = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div className="text-xs font-bold mt-0.5">{value}</div>
   </div>
 );
+
+// ===== Trait mix breakdown ====================================================
+// Groups every trait by source (Parent 1 / Parent 2 / Shared) and shows the
+// per-outcome inheritance chance. A separate "Mutation" row reveals new traits
+// that can spawn on a godtier roll.
+
+const TraitMixBreakdown = ({
+  parent1, parent2, traitMix, mutationPool,
+}: {
+  parent1: Seed;
+  parent2: Seed;
+  traitMix: TraitPreviewEntry[];
+  mutationPool: MutationPreviewEntry[];
+}) => {
+  const sharedTraits = traitMix.filter(t => t.source === 'both');
+  const p1Only = traitMix.filter(t => t.source === 'p1');
+  const p2Only = traitMix.filter(t => t.source === 'p2');
+  const possibleMutations = mutationPool.filter(m => !m.alreadyPresent && m.chancePct > 0);
+
+  if (traitMix.length === 0 && possibleMutations.length === 0) {
+    return (
+      <div className="rounded-lg bg-background/40 border border-border/50 px-3 py-2 text-[11px] text-muted-foreground">
+        Beide Eltern haben keine Traits — Nachkomme startet ohne Boni (außer mögliche Mutationen).
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-background/40 border border-border/50 p-2.5 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Dna size={12} className="text-neon-purple" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Trait-Vererbung
+        </span>
+        <span className="ml-auto text-[9px] text-muted-foreground">
+          {traitMix.length} Eltern · {possibleMutations.length} Mutationen
+        </span>
+      </div>
+
+      {sharedTraits.length > 0 && (
+        <TraitGroup
+          title="Beide Eltern (verstärkt)"
+          subtitle="Höhere Übertragungs-Chance"
+          tone="gold"
+          traits={sharedTraits}
+        />
+      )}
+      {p1Only.length > 0 && (
+        <TraitGroup
+          title={`Nur ${parent1.name}`}
+          subtitle="Wird zufällig vererbt"
+          tone="cyan"
+          traits={p1Only}
+        />
+      )}
+      {p2Only.length > 0 && (
+        <TraitGroup
+          title={`Nur ${parent2.name}`}
+          subtitle="Wird zufällig vererbt"
+          tone="green"
+          traits={p2Only}
+        />
+      )}
+
+      {possibleMutations.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mt-1 mb-1">
+            <Zap size={11} className="text-neon-orange" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neon-orange">
+              Mögliche Mutationen
+            </span>
+            <span className="ml-auto text-[9px] text-muted-foreground">nur bei göttlicher Kreuzung</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {possibleMutations.map(m => (
+              <div
+                key={m.name}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
+                title={`${m.chancePct.toFixed(2)}% Chance auf diese neue Eigenschaft`}
+              >
+                <Sparkles size={9} />
+                <span>{m.name}</span>
+                <span className="text-muted-foreground">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug">
+        <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
+        Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
+        <span className="text-neon-green">Gut 70%</span> ·{' '}
+        <span className="text-neon-orange">Exz. 80%</span> ·{' '}
+        <span className="text-neon-gold">Göttl. 100%</span>{' '}
+        (geteilte Traits +15%)
+      </div>
+    </div>
+  );
+};
+
+const toneClasses: Record<'gold' | 'cyan' | 'green', { chip: string; dot: string; title: string }> = {
+  gold:  { chip: 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold',     dot: 'bg-neon-gold',   title: 'text-neon-gold' },
+  cyan:  { chip: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',     dot: 'bg-neon-cyan',   title: 'text-neon-cyan' },
+  green: { chip: 'border-neon-green/40 bg-neon-green/10 text-neon-green',  dot: 'bg-neon-green',  title: 'text-neon-green' },
+};
+
+const TraitGroup = ({
+  title, subtitle, tone, traits,
+}: {
+  title: string;
+  subtitle: string;
+  tone: 'gold' | 'cyan' | 'green';
+  traits: TraitPreviewEntry[];
+}) => {
+  const c = toneClasses[tone];
+  return (
+    <div>
+      <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`} />
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${c.title} truncate`}>{title}</span>
+        <span className="text-[9px] text-muted-foreground truncate">· {subtitle}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {traits.map(t => (
+          <div
+            key={t.name}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
+            title={
+              `Vererbungs-Chance pro Ergebnis:\n` +
+              `• Normal: ${t.survivalByOutcome.normal}%\n` +
+              `• Gut: ${t.survivalByOutcome.good}%\n` +
+              `• Exzellent: ${t.survivalByOutcome.excellent}%\n` +
+              `• Göttlich: ${t.survivalByOutcome.godtier}%\n` +
+              `• Schwach: ${t.survivalByOutcome.poor}%  • Fehl: ${t.survivalByOutcome.fail}%`
+            }
+          >
+            <span>{t.name}</span>
+            <span className="text-muted-foreground">{t.survivalPct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
