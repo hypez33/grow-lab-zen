@@ -293,6 +293,34 @@ export const CustomerModal = ({
     setShowJumpToLatest(false);
   };
 
+  // Push a casual player message into the active customer's chat. Uses the
+  // same shape as the store's createMessage so message rendering is identical.
+  const sendChatMessage = (text: string) => {
+    if (!customer) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setTypingPlayer(true);
+    useCustomerStore.setState(state => ({
+      customers: state.customers.map(c => {
+        if (c.id !== customer.id) return c;
+        const newMsg = {
+          id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          from: 'player' as const,
+          type: 'casual' as const,
+          message: trimmed,
+          timestamp: Date.now(),
+          read: true,
+        };
+        return { ...c, messages: [...c.messages, newMsg] };
+      }),
+    }));
+    // Brief typing-indicator hide so the bubble lands smoothly.
+    window.setTimeout(() => setTypingPlayer(false), reduceMotion ? 0 : 350);
+    setComposerText('');
+    // Auto-scroll on next paint.
+    requestAnimationFrame(() => scrollChatToBottom());
+  };
+
   useEffect(() => {
     if (!customer) return;
     if (!sampleOptions.some(bud => bud.id === sampleBudId)) {
