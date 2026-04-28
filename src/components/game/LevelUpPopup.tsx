@@ -13,6 +13,8 @@ interface LevelUpPopupProps {
 
 export const LevelUpPopup = ({ show, level, onClose }: LevelUpPopupProps) => {
   const { playLevelUp } = useGameSounds();
+  const navigateTo = useNavigationStore(s => s.navigateTo);
+  const newlyUnlocked = useMemo(() => getFeaturesUnlockedAt(level), [level]);
 
   // Play sound when popup shows
   useEffect(() => {
