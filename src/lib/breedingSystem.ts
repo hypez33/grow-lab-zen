@@ -385,6 +385,27 @@ export function getGenerationDisplay(generation: number | undefined): string {
 
 // ================== BREEDING PREVIEW (deterministic, no RNG) ==================
 
+/** Pool of bonus traits a godtier roll can mutate into the offspring. */
+export const GODTIER_MUTATION_POOL = ['Bountiful', 'GoldRush', 'DoubleHarvest', 'CritMaster', 'LuckyDrop'] as const;
+
+export interface TraitPreviewEntry {
+  name: string;
+  /** Which parent(s) contribute this trait. */
+  source: 'both' | 'p1' | 'p2';
+  /** Default survival % shown on the chip (uses the "normal" outcome). */
+  survivalPct: number;
+  /** Per-outcome survival probabilities (0..100), so the user sees what each result yields. */
+  survivalByOutcome: Record<BreedingOutcome, number>;
+}
+
+export interface MutationPreviewEntry {
+  name: string;
+  /** Probability (0..100) of this exact trait being added on top, given the breeding actually happens. */
+  chancePct: number;
+  /** Already present in one of the parents → cannot mutate in (would be a duplicate). */
+  alreadyPresent: boolean;
+}
+
 export interface BreedingPreview {
   /** Probability of each outcome (0..1), sums to 1 */
   probabilities: Record<BreedingOutcome, number>;
@@ -393,7 +414,9 @@ export interface BreedingPreview {
   /** Rarity range: minimum & maximum possible new rarity */
   rarityRange: { min: Rarity; max: Rarity; expected: Rarity };
   /** All trait names from both parents (union) and the chance each survives normal breeding */
-  traitMix: Array<{ name: string; source: 'both' | 'p1' | 'p2'; survivalPct: number }>;
+  traitMix: TraitPreviewEntry[];
+  /** Bonus traits that may mutate in on a godtier roll. */
+  mutationPool: MutationPreviewEntry[];
   /** Expected yield range (g) for the normal outcome */
   expectedYieldRange: { min: number; max: number };
   /** Resulting generation if successful */
@@ -430,17 +453,45 @@ export function previewBreeding(parent1: Seed, parent2: Seed): BreedingPreview {
   const maxIdx = Math.min(4, Math.max(r1, r2) + 2);                 // godtier-case
   const rarityRange = { min: rarities[minIdx], max: rarities[maxIdx], expected: rarities[avg] };
 
-  // Trait mix — survival chance under "normal" outcome (random()>0.4 → ~60% per trait)
+  // Trait mix — model the per-outcome survival chance for each parent trait.
+  // Mirrors combineTraits():
+  //   fail   → keep only 1 random trait (1 / N)
+  //   poor   → each trait kept with 50%, capped at 2 (≈ min(50, 200/N))
+  //   normal → each trait kept independently at 60%
+  //   good   → each trait kept independently at 70%
+  //   excellent → each trait kept independently at 80%
+  //   godtier → all traits kept (100%)
+  // Shared traits get a small reliability bonus (capped at 100%).
   const p1Set = new Set(parent1.traits);
   const p2Set = new Set(parent2.traits);
   const allTraits = Array.from(new Set([...parent1.traits, ...parent2.traits]));
-  const traitMix = allTraits.map(name => {
+  const N = Math.max(1, allTraits.length);
+  const sharedBonus = (base: number, inBoth: boolean) =>
+    Math.min(100, Math.round(base + (inBoth ? 15 : 0)));
+  const traitMix: TraitPreviewEntry[] = allTraits.map(name => {
     const inBoth = p1Set.has(name) && p2Set.has(name);
     const source: 'both' | 'p1' | 'p2' = inBoth ? 'both' : p1Set.has(name) ? 'p1' : 'p2';
-    // Shared traits are slightly more reliable (modeled as 75%, single-parent ~60%)
-    const survivalPct = inBoth ? 75 : 60;
-    return { name, source, survivalPct };
+    const survivalByOutcome: Record<BreedingOutcome, number> = {
+      fail:      Math.round((1 / N) * 100),
+      poor:      Math.min(100, Math.round(Math.min(50, (2 / N) * 100))),
+      normal:    sharedBonus(60, inBoth),
+      good:      sharedBonus(70, inBoth),
+      excellent: sharedBonus(80, inBoth),
+      godtier:   100,
+    };
+    return { name, source, survivalPct: survivalByOutcome.normal, survivalByOutcome };
   });
+
+  // Mutation pool — godtier has a 50% chance to add ONE random trait from this pool.
+  // Per-trait chance = P(godtier) × 0.5 × 1/poolSize (uniform pick).
+  const pool = GODTIER_MUTATION_POOL;
+  const presentSet = new Set(allTraits);
+  const baseMutationChance = probabilities.godtier * 0.5 * 100; // %
+  const mutationPool: MutationPreviewEntry[] = pool.map(name => ({
+    name,
+    chancePct: presentSet.has(name) ? 0 : baseMutationChance / pool.length,
+    alreadyPresent: presentSet.has(name),
+  }));
 
   // Yield range — mirror of normal-outcome stats with ±20% variance
   const avgYield = Math.floor((parent1.baseYield + parent2.baseYield) / 2);
@@ -449,5 +500,5 @@ export function previewBreeding(parent1: Seed, parent2: Seed): BreedingPreview {
     max: Math.floor(avgYield * 1.2),
   };
 
-  return { probabilities, failureRiskPct, rarityRange, traitMix, expectedYieldRange, newGeneration };
+  return { probabilities, failureRiskPct, rarityRange, traitMix, mutationPool, expectedYieldRange, newGeneration };
 }
