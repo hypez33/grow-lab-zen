@@ -217,7 +217,7 @@ export const CustomerModal = ({
       const el = chatContainerRef.current;
       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       const timer = setTimeout(() => {
-        if (chatContainerRef.current && (nearBottom || messagesOpen)) {
+        if (chatContainerRef.current && (nearBottom || tab === 'chat')) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
           setShowJumpToLatest(false);
         } else {
@@ -226,7 +226,7 @@ export const CustomerModal = ({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [customer?.messages?.length, messagesOpen, customer?.id]);
+  }, [customer?.messages?.length, tab, customer?.id]);
 
   const handleChatScroll = () => {
     const el = chatContainerRef.current;
