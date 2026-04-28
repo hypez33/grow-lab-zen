@@ -640,7 +640,7 @@ export const GrowScreen = () => {
                   handleSlotSelect(slot.id);
                 } else if (slot.stage === 'harvest') {
                   handleHarvest(slot.id, e);
-                } else if (slot.needsWater) {
+                } else if (slot.waterLevel < 30) {
                   if (waterPlant(slot.id)) toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
                 } else {
                   handleTap(e);
