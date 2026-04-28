@@ -167,6 +167,40 @@ export const LevelUpPopup = ({ show, level, onClose }: LevelUpPopupProps) => {
               </span>
             </motion.div>
 
+            {/* Newly unlocked features */}
+            {newlyUnlocked.length > 0 && (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="mt-4 w-full max-w-[280px] space-y-2"
+              >
+                <div className="text-center text-[10px] uppercase tracking-widest text-secondary font-bold">
+                  Neu freigeschaltet
+                </div>
+                {newlyUnlocked.map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      navigateTo(f.id as Parameters<typeof navigateTo>[0]);
+                      onClose();
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-secondary/20 to-primary/20 border border-secondary/40 hover:border-secondary text-left transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-foreground">{f.title}</div>
+                      <div className="text-[11px] text-muted-foreground line-clamp-2">{f.desc}</div>
+                      {f.reward && (
+                        <div className="text-[10px] text-primary mt-1">🎁 {f.reward.label}</div>
+                      )}
+                    </div>
+                    <ArrowRight size={18} className="text-secondary shrink-0" />
+                  </button>
+                ))}
+              </motion.div>
+            )}
+
             {/* Continue button */}
             <motion.button
               initial={{ y: 20, opacity: 0 }}
