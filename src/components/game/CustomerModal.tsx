@@ -520,9 +520,10 @@ export const CustomerModal = ({
               <button 
                 type="button" 
                 onClick={onClose} 
-                className="p-2 rounded-full bg-muted/40 hover:bg-muted/60 transition-colors"
+                aria-label="Schließen"
+                className="flex-shrink-0 w-10 h-10 rounded-full bg-muted/40 hover:bg-muted/60 active:bg-muted/80 transition-colors flex items-center justify-center"
               >
-                <X size={16} />
+                <X size={20} />
               </button>
             </div>
 
