@@ -243,6 +243,7 @@ export const CustomerCard = ({
           </div>
         )}
       </div>
+      </div>
     </motion.div>
   );
 };
