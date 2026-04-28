@@ -222,8 +222,9 @@ export const CustomerModal = ({
   const [sellOpen, setSellOpen] = useState(true);
   const [offerOpen, setOfferOpen] = useState(false);
 
-  // Chat auto-scroll ref
+  // Chat auto-scroll ref + jump-to-latest pill state
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   useEffect(() => {
     if (!customer) return;
@@ -239,18 +240,36 @@ export const CustomerModal = ({
     setOfferOpen(false);
   }, [customer?.id]);
 
-  // Auto-scroll chat to newest message
+  // Auto-scroll chat to newest message — but only if user is already near the bottom.
   useEffect(() => {
     if (chatContainerRef.current && customer?.messages?.length) {
-      // Use setTimeout to ensure DOM has rendered
+      const el = chatContainerRef.current;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       const timer = setTimeout(() => {
-        if (chatContainerRef.current) {
+        if (chatContainerRef.current && (nearBottom || messagesOpen)) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+          setShowJumpToLatest(false);
+        } else {
+          setShowJumpToLatest(true);
         }
       }, 50);
       return () => clearTimeout(timer);
     }
   }, [customer?.messages?.length, messagesOpen, customer?.id]);
+
+  const handleChatScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    setShowJumpToLatest(!nearBottom);
+  };
+
+  const scrollChatToBottom = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    setShowJumpToLatest(false);
+  };
 
   useEffect(() => {
     if (!customer) return;
