@@ -39,6 +39,20 @@ const DEFAULT_PRICE_PER_GRAM: Record<DrugType, number> = {
   meth: 80,
 };
 
+// Pre-canned chat replies grouped so the player can answer common situations
+// without typing on mobile. The label is the button text, the message is what
+// gets pushed into the chat as a casual player message.
+type QuickReply = { id: string; label: string; message: string; tone?: 'positive' | 'neutral' | 'warn' };
+const QUICK_REPLIES: QuickReply[] = [
+  { id: 'wait',     label: '⏳ Bisschen Geduld', message: 'Bin gerade dran, gib mir 5 Min 🙏', tone: 'neutral' },
+  { id: 'soon',     label: '🚀 Gleich da',       message: 'Gleich am Start, halt die Ohren steif!', tone: 'positive' },
+  { id: 'price',    label: '💸 Bester Preis',    message: 'Hab dir den besten Preis gemacht, Bruder.', tone: 'positive' },
+  { id: 'thanks',   label: '🙏 Danke dir',       message: 'Danke fürs Vertrauen — bis bald!', tone: 'positive' },
+  { id: 'oos',      label: '📉 Aktuell leer',    message: 'Bin grad ausverkauft, melde mich wenn frische Ware da ist.', tone: 'warn' },
+  { id: 'check',    label: '👀 Check ich',       message: 'Lass mich kurz checken, ich melde mich gleich.', tone: 'neutral' },
+];
+
+
 const formatTime = (timestamp: number) => {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
