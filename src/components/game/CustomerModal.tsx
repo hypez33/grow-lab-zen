@@ -6,11 +6,6 @@ import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/cus
 import type { BudItem } from '@/store/gameStore';
 import type { CocaProduct } from '@/store/cocaStore';
 import type { MethProduct } from '@/store/methStore';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 
 interface CustomerModalProps {
   customer: Customer | null;
