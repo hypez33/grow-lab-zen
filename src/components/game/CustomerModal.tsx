@@ -240,6 +240,12 @@ export const CustomerModal = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
+  // Composer state — quick-replies + free-text fallback.
+  const [composerText, setComposerText] = useState('');
+  const reduceMotion = useReducedMotion();
+  const [typingPlayer, setTypingPlayer] = useState(false); // brief typing indicator after sending
+
+
   useEffect(() => {
     if (!customer) return;
     setSampleBudId(sampleOptions[0]?.id ?? '');
