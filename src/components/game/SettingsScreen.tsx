@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SEED_CATALOG } from '@/store/gameStore';
-import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug, Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { PrestigeSystem } from './PrestigeSystem';
 import { AchievementBadges } from './AchievementBadges';
 import { LuckyWheel } from './LuckyWheel';
 import { DailyStreakSystem } from './DailyStreakSystem';
 import { CheatPanel } from './CheatPanel';
+import { RoadmapModal } from './RoadmapModal';
 
 export const SettingsScreen = () => {
   const { 
