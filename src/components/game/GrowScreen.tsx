@@ -623,27 +623,54 @@ export const GrowScreen = () => {
         {/* Grow Slots Grid - only show unlocked + next locked */}
         <div className="px-3">
           <div className="grid grid-cols-2 gap-2">
-            {visibleSlots.map(slot => (
-              <div
-                key={slot.id}
-                ref={(el) => { slotRefs.current[slot.id] = el; }}
-                className={`relative rounded-xl transition-all ${highlightedSlot === slot.id ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse' : ''}`}
-              >
-                <GrowSlot
-                  slot={slot}
-                  onTap={handleTap}
-                  onHarvest={(e) => handleHarvest(slot.id, e)}
-                  isSelected={selectedSlot === slot.id}
-                  onSelect={() => handleSlotSelect(slot.id)}
-                  onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
-                  onWater={() => {
-                    if (waterPlant(slot.id)) {
-                      toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
-                    }
-                  }}
-                />
-              </div>
-            ))}
+            {visibleSlots.map(slot => {
+              const isHighlighted = highlightedSlot === slot.id;
+              // When deep-link highlight is active, tapping anywhere on the slot
+              // wrapper auto-runs the primary action for that slot's current state.
+              const handleHighlightedTap = (e: React.MouseEvent) => {
+                if (!isHighlighted) return;
+                // Don't intercept clicks on inner interactive controls
+                const tgt = e.target as HTMLElement;
+                if (tgt.closest('button')) return;
+                if (!slot.isUnlocked) {
+                  if (canUnlock && nextLockedSlot?.id === slot.id) handleUnlockSlot();
+                  return;
+                }
+                if (!slot.seed) {
+                  handleSlotSelect(slot.id);
+                } else if (slot.stage === 'harvest') {
+                  handleHarvest(slot.id, e);
+                } else if (slot.needsWater) {
+                  if (waterPlant(slot.id)) toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                } else {
+                  handleTap(e);
+                }
+                setHighlightedSlot(null);
+                clearNavFocus();
+              };
+              return (
+                <div
+                  key={slot.id}
+                  ref={(el) => { slotRefs.current[slot.id] = el; }}
+                  onClick={handleHighlightedTap}
+                  className={`relative rounded-xl transition-all ${isHighlighted ? 'ring-4 ring-neon-purple/80 ring-offset-2 ring-offset-background animate-pulse cursor-pointer' : ''}`}
+                >
+                  <GrowSlot
+                    slot={slot}
+                    onTap={handleTap}
+                    onHarvest={(e) => handleHarvest(slot.id, e)}
+                    isSelected={selectedSlot === slot.id}
+                    onSelect={() => handleSlotSelect(slot.id)}
+                    onOpenSupplies={(mode) => handleOpenSupplies(slot.id, mode)}
+                    onWater={() => {
+                      if (waterPlant(slot.id)) {
+                        toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
+                      }
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
