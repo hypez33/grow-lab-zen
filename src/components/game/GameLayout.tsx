@@ -352,34 +352,33 @@ export const GameLayout = () => {
             {/* Bottom Navigation */}
             <nav className="bg-card border-t border-border safe-bottom shrink-0">
               <div className="flex items-center justify-between px-1 py-1.5">
-                {navItems.map(item => {
+                {primaryItems.map(item => {
                   const isActive = activeScreen === item.id;
                   const Icon = item.icon;
+                  const unlocked = isFeatureUnlocked(item.id, currentLevelForGate);
+                  const newDot = unlocked && isNew(item.id) && !isActive;
 
                   return (
                     <motion.button
                       key={item.id}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        // Initialize music on first interaction
-                        if (!hasInitializedMusicRef.current && musicEnabled) {
-                          hasInitializedMusicRef.current = true;
-                          // Start music immediately on first click
-                          changeScreen(item.id);
-                        }
-                        setActiveScreen(item.id);
-                      }}
+                      whileTap={{ scale: unlocked ? 0.9 : 1 }}
+                      onClick={() => handleNav(item.id)}
                       className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-lg transition-colors min-w-0 flex-1
-                        ${isActive ? 'text-primary' : 'text-muted-foreground'}
+                        ${!unlocked ? 'text-muted-foreground/50' : isActive ? 'text-primary' : 'text-muted-foreground'}
                       `}
+                      aria-label={item.label}
                     >
                       <motion.div
                         animate={isActive ? { scale: [1, 1.1, 1] } : {}}
                         transition={{ duration: 0.3 }}
                         className="relative"
                       >
-                        <Icon size={18} style={isActive ? { filter: 'drop-shadow(0 0 6px hsl(115 100% 62% / 0.6))' } : undefined} />
-                        {item.badge > 0 && (
+                        {unlocked ? (
+                          <Icon size={20} style={isActive ? { filter: 'drop-shadow(0 0 6px hsl(115 100% 62% / 0.6))' } : undefined} />
+                        ) : (
+                          <Lock size={16} />
+                        )}
+                        {unlocked && item.badge > 0 && (
                           <motion.span
                             animate={{ scale: [1, 1.15, 1] }}
                             transition={{ duration: 1.4, repeat: Infinity }}
@@ -388,13 +387,104 @@ export const GameLayout = () => {
                             {item.badge > 9 ? '9+' : item.badge}
                           </motion.span>
                         )}
+                        {newDot && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-secondary ring-2 ring-card" />
+                        )}
+                        {!unlocked && (
+                          <span className="absolute -bottom-1 -right-2 text-[8px] font-bold text-muted-foreground/70">
+                            L{FEATURE_UNLOCKS[item.id]?.level}
+                          </span>
+                        )}
                       </motion.div>
                       <span className="text-[9px] font-medium truncate">{item.label}</span>
                     </motion.button>
                   );
                 })}
+
+                {/* More button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowMoreDrawer(true)}
+                  className="flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-lg text-muted-foreground min-w-0 flex-1"
+                  aria-label="Mehr"
+                >
+                  <div className="relative">
+                    <MoreHorizontal size={20} />
+                    {newCountInDrawer > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-secondary ring-2 ring-card" />
+                    )}
+                  </div>
+                  <span className="text-[9px] font-medium">Mehr</span>
+                </motion.button>
               </div>
             </nav>
+
+            {/* More Drawer */}
+            <AnimatePresence>
+              {showMoreDrawer && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end justify-center"
+                  onClick={() => setShowMoreDrawer(false)}
+                >
+                  <motion.div
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                    className="w-full max-w-[480px] bg-card border-t border-border rounded-t-2xl p-4 pb-6 max-h-[75vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-base font-display font-bold">Mehr</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreDrawer(false)}
+                        className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"
+                        aria-label="Schließen"
+                      >
+                        <CloseIcon size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {secondaryItems.map(item => {
+                        const Icon = item.icon;
+                        const unlocked = isFeatureUnlocked(item.id, currentLevelForGate);
+                        const isActive = activeScreen === item.id;
+                        const newDot = unlocked && isNew(item.id);
+                        const lvl = FEATURE_UNLOCKS[item.id]?.level;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleNav(item.id)}
+                            className={`relative flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border transition-colors ${
+                              !unlocked
+                                ? 'bg-muted/20 border-border text-muted-foreground/60'
+                                : isActive
+                                  ? 'bg-primary/15 border-primary/40 text-primary'
+                                  : 'bg-muted/40 border-border text-foreground hover:bg-muted/60'
+                            }`}
+                          >
+                            {unlocked ? <Icon size={22} /> : <Lock size={18} />}
+                            <span className="text-[10px] font-semibold">{item.label}</span>
+                            {!unlocked && (
+                              <span className="text-[9px] text-muted-foreground/80">Lv {lvl}</span>
+                            )}
+                            {newDot && (
+                              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-secondary" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Level Up Popup */}
             <LevelUpPopup
