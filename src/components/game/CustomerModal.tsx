@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown, MessagesSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
@@ -38,6 +38,20 @@ const DEFAULT_PRICE_PER_GRAM: Record<DrugType, number> = {
   koks: 150,
   meth: 80,
 };
+
+// Pre-canned chat replies grouped so the player can answer common situations
+// without typing on mobile. The label is the button text, the message is what
+// gets pushed into the chat as a casual player message.
+type QuickReply = { id: string; label: string; message: string; tone?: 'positive' | 'neutral' | 'warn' };
+const QUICK_REPLIES: QuickReply[] = [
+  { id: 'wait',     label: '⏳ Bisschen Geduld', message: 'Bin gerade dran, gib mir 5 Min 🙏', tone: 'neutral' },
+  { id: 'soon',     label: '🚀 Gleich da',       message: 'Gleich am Start, halt die Ohren steif!', tone: 'positive' },
+  { id: 'price',    label: '💸 Bester Preis',    message: 'Hab dir den besten Preis gemacht, Bruder.', tone: 'positive' },
+  { id: 'thanks',   label: '🙏 Danke dir',       message: 'Danke fürs Vertrauen — bis bald!', tone: 'positive' },
+  { id: 'oos',      label: '📉 Aktuell leer',    message: 'Bin grad ausverkauft, melde mich wenn frische Ware da ist.', tone: 'warn' },
+  { id: 'check',    label: '👀 Check ich',       message: 'Lass mich kurz checken, ich melde mich gleich.', tone: 'neutral' },
+];
+
 
 const formatTime = (timestamp: number) => {
   const diff = Date.now() - timestamp;
@@ -226,6 +240,12 @@ export const CustomerModal = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
+  // Composer state — quick-replies + free-text fallback.
+  const [composerText, setComposerText] = useState('');
+  const reduceMotion = useReducedMotion();
+  const [typingPlayer, setTypingPlayer] = useState(false); // brief typing indicator after sending
+
+
   useEffect(() => {
     if (!customer) return;
     setSampleBudId(sampleOptions[0]?.id ?? '');
@@ -238,6 +258,8 @@ export const CustomerModal = ({
     setMessagesOpen(customer.messages.length > 0);
     setSellOpen(true);
     setOfferOpen(false);
+    setComposerText('');
+    setTypingPlayer(false);
   }, [customer?.id]);
 
   // Auto-scroll chat to newest message — but only if user is already near the bottom.
@@ -269,6 +291,34 @@ export const CustomerModal = ({
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     setShowJumpToLatest(false);
+  };
+
+  // Push a casual player message into the active customer's chat. Uses the
+  // same shape as the store's createMessage so message rendering is identical.
+  const sendChatMessage = (text: string) => {
+    if (!customer) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setTypingPlayer(true);
+    useCustomerStore.setState(state => ({
+      customers: state.customers.map(c => {
+        if (c.id !== customer.id) return c;
+        const newMsg = {
+          id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          from: 'player' as const,
+          type: 'casual' as const,
+          message: trimmed,
+          timestamp: Date.now(),
+          read: true,
+        };
+        return { ...c, messages: [...c.messages, newMsg] };
+      }),
+    }));
+    // Brief typing-indicator hide so the bubble lands smoothly.
+    window.setTimeout(() => setTypingPlayer(false), reduceMotion ? 0 : 350);
+    setComposerText('');
+    // Auto-scroll on next paint.
+    requestAnimationFrame(() => scrollChatToBottom());
   };
 
   useEffect(() => {
@@ -710,9 +760,9 @@ export const CustomerModal = ({
                                 </div>
                               )}
                               <motion.div
-                                initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                                initial={reduceMotion ? false : { opacity: 0, y: 5, scale: 0.98 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                transition={{ duration: 0.18 }}
+                                transition={{ duration: reduceMotion ? 0 : 0.18 }}
                                 className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${isGrouped ? 'mt-0.5' : 'mt-2'}`}
                               >
                                 {/* Customer Avatar (hidden on grouped follow-ups) */}
@@ -854,7 +904,90 @@ export const CustomerModal = ({
                         )}
                       </AnimatePresence>
                     </div>
-                    
+
+                    {/* Player typing indicator — brief animation while sending */}
+                    <AnimatePresence>
+                      {typingPlayer && (
+                        <motion.div
+                          initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                          className="px-3 pt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                        >
+                          <span>Du tippst</span>
+                          <span className="flex gap-0.5">
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '0ms' }} />
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '120ms' }} />
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '240ms' }} />
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Quick replies — pre-canned answers above the composer for fast mobile replies */}
+                    <div className="px-3 pt-2 pb-1.5 border-t border-border/20 bg-muted/5">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <MessagesSquare size={10} className="text-muted-foreground/70" />
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                          Schnellantworten
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1 snap-x">
+                        {QUICK_REPLIES.map(qr => {
+                          const toneClass =
+                            qr.tone === 'positive' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' :
+                            qr.tone === 'warn'     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' :
+                                                     'border-border/40 bg-card/60 text-foreground/80 hover:bg-card/80';
+                          return (
+                            <motion.button
+                              key={qr.id}
+                              type="button"
+                              whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                              onClick={() => sendChatMessage(qr.message)}
+                              className={`shrink-0 snap-start px-2.5 py-1.5 rounded-full border text-[11px] font-medium whitespace-nowrap min-h-[32px] transition-colors ${toneClass}`}
+                            >
+                              {qr.label}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Composer — mobile-friendly: large input, big send button, enter-to-send */}
+                    <div className="px-3 py-2 border-t border-border/20 bg-card/40 flex items-end gap-2">
+                      <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-background/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
+                        <textarea
+                          value={composerText}
+                          onChange={e => setComposerText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              sendChatMessage(composerText);
+                            }
+                          }}
+                          placeholder={`Nachricht an ${customer.name}…`}
+                          rows={1}
+                          className="w-full resize-none bg-transparent px-3 py-2 text-xs leading-snug placeholder:text-muted-foreground/50 focus:outline-none max-h-24"
+                          aria-label="Nachricht eingeben"
+                        />
+                      </div>
+                      <motion.button
+                        type="button"
+                        onClick={() => sendChatMessage(composerText)}
+                        disabled={!composerText.trim()}
+                        whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+                        aria-label="Senden"
+                        className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                          composerText.trim()
+                            ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30'
+                            : 'bg-muted/40 text-muted-foreground cursor-not-allowed'
+                        }`}
+                      >
+                        <Send size={16} />
+                      </motion.button>
+                    </div>
+
                     {/* Quick Actions Footer */}
                     {customer.messages.length > 0 && (
                       <div className="px-3 py-2 border-t border-border/20 bg-muted/10 flex items-center justify-between">
