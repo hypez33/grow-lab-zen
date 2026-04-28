@@ -60,6 +60,25 @@ export const SettingsScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+        {/* Roadmap entry */}
+        <button
+          type="button"
+          onClick={() => setShowRoadmap(true)}
+          className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-colors text-left"
+        >
+          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+            <MapIcon size={20} className="text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-sm">Empire Roadmap</div>
+            <div className="text-xs text-muted-foreground">Sieh dir alle Freischaltungen an</div>
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {showRoadmap && <RoadmapModal onClose={() => setShowRoadmap(false)} />}
+        </AnimatePresence>
+
         {/* Daily Streak */}
         <DailyStreakSystem />
 
