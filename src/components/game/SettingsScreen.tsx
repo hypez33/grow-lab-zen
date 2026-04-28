@@ -19,6 +19,7 @@ export const SettingsScreen = () => {
   } = useGameStore();
 
   const [showDevPanel, setShowDevPanel] = useState(false);
+  const [showRoadmap, setShowRoadmap] = useState(false);
   const [importData, setImportData] = useState('');
 
   const handleExport = () => {
