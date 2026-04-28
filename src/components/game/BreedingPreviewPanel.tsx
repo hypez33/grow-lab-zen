@@ -185,9 +185,26 @@ const TraitMixBreakdown = ({
     );
   }
 
+  // Stagger config — short, mobile-friendly. Replays when parent pair changes
+  // because the key bound to <motion.div> below changes.
+  const containerVariants = {
+    hidden: { opacity: 1 },
+    show:   { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
+  };
+  const groupVariants = {
+    hidden: { opacity: 0, y: 6 },
+    show:   { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
+  };
+
   return (
-    <div className="rounded-lg bg-background/40 border border-border/50 p-2.5 space-y-2">
-      <div className="flex items-center gap-1.5">
+    <motion.div
+      key={`${parent1.id}-${parent2.id}`}
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="rounded-lg bg-background/40 border border-border/50 p-2.5 space-y-2"
+    >
+      <motion.div variants={groupVariants} className="flex items-center gap-1.5">
         <Dna size={12} className="text-neon-purple" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Trait-Vererbung
@@ -195,35 +212,41 @@ const TraitMixBreakdown = ({
         <span className="ml-auto text-[9px] text-muted-foreground">
           {traitMix.length} Eltern · {possibleMutations.length} Mutationen
         </span>
-      </div>
+      </motion.div>
 
       {sharedTraits.length > 0 && (
-        <TraitGroup
-          title="Beide Eltern (verstärkt)"
-          subtitle="Höhere Übertragungs-Chance"
-          tone="gold"
-          traits={sharedTraits}
-        />
+        <motion.div variants={groupVariants}>
+          <TraitGroup
+            title="Beide Eltern (verstärkt)"
+            subtitle="Höhere Übertragungs-Chance"
+            tone="gold"
+            traits={sharedTraits}
+          />
+        </motion.div>
       )}
       {p1Only.length > 0 && (
-        <TraitGroup
-          title={`Nur ${parent1.name}`}
-          subtitle="Wird zufällig vererbt"
-          tone="cyan"
-          traits={p1Only}
-        />
+        <motion.div variants={groupVariants}>
+          <TraitGroup
+            title={`Nur ${parent1.name}`}
+            subtitle="Wird zufällig vererbt"
+            tone="cyan"
+            traits={p1Only}
+          />
+        </motion.div>
       )}
       {p2Only.length > 0 && (
-        <TraitGroup
-          title={`Nur ${parent2.name}`}
-          subtitle="Wird zufällig vererbt"
-          tone="green"
-          traits={p2Only}
-        />
+        <motion.div variants={groupVariants}>
+          <TraitGroup
+            title={`Nur ${parent2.name}`}
+            subtitle="Wird zufällig vererbt"
+            tone="green"
+            traits={p2Only}
+          />
+        </motion.div>
       )}
 
       {possibleMutations.length > 0 && (
-        <div>
+        <motion.div variants={groupVariants}>
           <div className="flex items-center gap-1.5 mt-1 mb-1">
             <Zap size={11} className="text-neon-orange" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-neon-orange">
@@ -231,31 +254,38 @@ const TraitMixBreakdown = ({
             </span>
             <span className="ml-auto text-[9px] text-muted-foreground">nur bei göttlicher Kreuzung</span>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <motion.div
+            className="flex flex-wrap gap-1"
+            variants={{ show: { transition: { staggerChildren: 0.03 } } }}
+          >
             {possibleMutations.map(m => (
-              <div
+              <motion.div
                 key={m.name}
+                variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1, transition: { duration: 0.18 } } }}
                 className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
                 title={`${m.chancePct.toFixed(2)}% Chance auf diese neue Eigenschaft`}
               >
                 <Sparkles size={9} />
                 <span>{m.name}</span>
                 <span className="text-muted-foreground">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
-              </div>
+              </motion.div>
             ))}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
-      <div className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug">
+      <motion.div
+        variants={groupVariants}
+        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug"
+      >
         <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
         Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
         <span className="text-neon-green">Gut 70%</span> ·{' '}
         <span className="text-neon-orange">Exz. 80%</span> ·{' '}
         <span className="text-neon-gold">Göttl. 100%</span>{' '}
         (geteilte Traits +15%)
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -281,10 +311,19 @@ const TraitGroup = ({
         <span className={`text-[10px] font-bold uppercase tracking-wider ${c.title} truncate`}>{title}</span>
         <span className="text-[9px] text-muted-foreground truncate">· {subtitle}</span>
       </div>
-      <div className="flex flex-wrap gap-1">
+      <motion.div
+        className="flex flex-wrap gap-1"
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.035 } } }}
+      >
         {traits.map(t => (
-          <div
+          <motion.div
             key={t.name}
+            variants={{
+              hidden: { opacity: 0, scale: 0.9, y: 4 },
+              show:   { opacity: 1, scale: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } },
+            }}
             className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
             title={
               `Vererbungs-Chance pro Ergebnis:\n` +
@@ -297,9 +336,9 @@ const TraitGroup = ({
           >
             <span>{t.name}</span>
             <span className="text-muted-foreground">{t.survivalPct}%</span>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 };
