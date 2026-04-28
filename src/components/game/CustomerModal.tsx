@@ -134,50 +134,8 @@ const calculateHardRevenue = (customer: Customer, grams: number, qualityScore: n
   return Math.floor(grams * pricePerGram * loyaltyMultiplier * spendingMultiplier);
 };
 
-// Section Header Component
-const SectionHeader = ({ 
-  icon: Icon, 
-  title, 
-  badge,
-  isOpen,
-  variant = 'default'
-}: { 
-  icon: React.ElementType; 
-  title: string; 
-  badge?: string;
-  isOpen: boolean;
-  variant?: 'default' | 'warning' | 'success';
-}) => {
-  const variantStyles = {
-    default: 'bg-card/60 border-border/50 hover:bg-card/80',
-    warning: 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20',
-    success: 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20',
-  };
+type ModalTab = 'chat' | 'sell' | 'offer';
 
-  const iconColors = {
-    default: 'text-primary',
-    warning: 'text-yellow-400',
-    success: 'text-emerald-400',
-  };
-
-  return (
-    <div className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg border transition-all ${variantStyles[variant]}`}>
-      <div className="flex items-center gap-2">
-        <Icon size={14} className={iconColors[variant]} />
-        <span className="text-xs font-medium">{title}</span>
-        {badge && (
-          <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-primary/20 text-primary">
-            {badge}
-          </span>
-        )}
-      </div>
-      <ChevronDown 
-        size={14} 
-        className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
-      />
-    </div>
-  );
-};
 
 export const CustomerModal = ({
   customer,
