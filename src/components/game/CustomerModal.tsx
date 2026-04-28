@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown, MessagesSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
