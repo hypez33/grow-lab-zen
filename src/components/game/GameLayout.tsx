@@ -42,6 +42,9 @@ export const GameLayout = () => {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [levelUpLevel, setLevelUpLevel] = useState(1);
+  const [showMoreDrawer, setShowMoreDrawer] = useState(false);
+  const markVisited = useOnboardingStore(s => s.markVisited);
+  const visitedFeatures = useOnboardingStore(s => s.visitedFeatures);
 
   const updateDryingProgress = useGameStore(state => state.updateDryingProgress);
   const runWorkerTick = useGameStore(state => state.runWorkerTick);
