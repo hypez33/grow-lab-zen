@@ -904,7 +904,90 @@ export const CustomerModal = ({
                         )}
                       </AnimatePresence>
                     </div>
-                    
+
+                    {/* Player typing indicator — brief animation while sending */}
+                    <AnimatePresence>
+                      {typingPlayer && (
+                        <motion.div
+                          initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                          className="px-3 pt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                        >
+                          <span>Du tippst</span>
+                          <span className="flex gap-0.5">
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '0ms' }} />
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '120ms' }} />
+                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '240ms' }} />
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Quick replies — pre-canned answers above the composer for fast mobile replies */}
+                    <div className="px-3 pt-2 pb-1.5 border-t border-border/20 bg-muted/5">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <MessagesSquare size={10} className="text-muted-foreground/70" />
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                          Schnellantworten
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1 snap-x">
+                        {QUICK_REPLIES.map(qr => {
+                          const toneClass =
+                            qr.tone === 'positive' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' :
+                            qr.tone === 'warn'     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' :
+                                                     'border-border/40 bg-card/60 text-foreground/80 hover:bg-card/80';
+                          return (
+                            <motion.button
+                              key={qr.id}
+                              type="button"
+                              whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                              onClick={() => sendChatMessage(qr.message)}
+                              className={`shrink-0 snap-start px-2.5 py-1.5 rounded-full border text-[11px] font-medium whitespace-nowrap min-h-[32px] transition-colors ${toneClass}`}
+                            >
+                              {qr.label}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Composer — mobile-friendly: large input, big send button, enter-to-send */}
+                    <div className="px-3 py-2 border-t border-border/20 bg-card/40 flex items-end gap-2">
+                      <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-background/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
+                        <textarea
+                          value={composerText}
+                          onChange={e => setComposerText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              sendChatMessage(composerText);
+                            }
+                          }}
+                          placeholder={`Nachricht an ${customer.name}…`}
+                          rows={1}
+                          className="w-full resize-none bg-transparent px-3 py-2 text-xs leading-snug placeholder:text-muted-foreground/50 focus:outline-none max-h-24"
+                          aria-label="Nachricht eingeben"
+                        />
+                      </div>
+                      <motion.button
+                        type="button"
+                        onClick={() => sendChatMessage(composerText)}
+                        disabled={!composerText.trim()}
+                        whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+                        aria-label="Senden"
+                        className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                          composerText.trim()
+                            ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30'
+                            : 'bg-muted/40 text-muted-foreground cursor-not-allowed'
+                        }`}
+                      >
+                        <Send size={16} />
+                      </motion.button>
+                    </div>
+
                     {/* Quick Actions Footer */}
                     {customer.messages.length > 0 && (
                       <div className="px-3 py-2 border-t border-border/20 bg-muted/10 flex items-center justify-between">
