@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Seed } from '@/store/gameStore';
-import { previewBreeding, getGenerationDisplay, BreedingOutcome } from '@/lib/breedingSystem';
-import { AlertTriangle, Skull, CheckCircle2, Star, Flame, Crown, Sparkles } from 'lucide-react';
+import { previewBreeding, getGenerationDisplay, BreedingOutcome, TraitPreviewEntry, MutationPreviewEntry } from '@/lib/breedingSystem';
+import { AlertTriangle, Skull, CheckCircle2, Star, Flame, Crown, Sparkles, Dna, Zap } from 'lucide-react';
 
 interface Props {
   parent1?: Seed;
