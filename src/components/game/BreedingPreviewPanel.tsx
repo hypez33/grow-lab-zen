@@ -277,14 +277,23 @@ const TraitMixBreakdown = ({
 
       <motion.div
         variants={groupVariants}
-        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug"
+        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug space-y-1"
       >
-        <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
-        Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
-        <span className="text-neon-green">Gut 70%</span> ·{' '}
-        <span className="text-neon-orange">Exz. 80%</span> ·{' '}
-        <span className="text-neon-gold">Göttl. 100%</span>{' '}
-        (geteilte Traits +15%)
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-foreground/80">Herkunft:</span>
+          <span className="px-1 py-0.5 rounded bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/40 font-bold text-[8px] leading-none">P1</span>
+          <span className="px-1 py-0.5 rounded bg-neon-green/25 text-neon-green border border-neon-green/40 font-bold text-[8px] leading-none">P2</span>
+          <span className="px-1 py-0.5 rounded bg-neon-gold/25 text-neon-gold border border-neon-gold/40 font-bold text-[8px] leading-none">BOTH</span>
+          <span className="px-1 py-0.5 rounded bg-neon-orange/25 text-neon-orange border border-neon-orange/40 font-bold text-[8px] leading-none">MUT</span>
+        </div>
+        <div>
+          <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
+          Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
+          <span className="text-neon-green">Gut 70%</span> ·{' '}
+          <span className="text-neon-orange">Exz. 80%</span> ·{' '}
+          <span className="text-neon-gold">Göttl. 100%</span>{' '}
+          (geteilte Traits +15%)
+        </div>
       </motion.div>
     </motion.div>
   );
