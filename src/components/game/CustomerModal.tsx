@@ -258,6 +258,8 @@ export const CustomerModal = ({
     setMessagesOpen(customer.messages.length > 0);
     setSellOpen(true);
     setOfferOpen(false);
+    setComposerText('');
+    setTypingPlayer(false);
   }, [customer?.id]);
 
   // Auto-scroll chat to newest message — but only if user is already near the bottom.
