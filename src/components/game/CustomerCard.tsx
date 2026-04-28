@@ -131,19 +131,8 @@ export const CustomerCard = ({
             </div>
           </div>
 
-          {/* Right Side Badges */}
+          {/* Right Side Badges (timer is already shown in the top urgency banner) */}
           <div className="flex flex-col items-end gap-1">
-            {customer.pendingRequest && (
-              <motion.div
-                initial={{ scale: 0.8 }}
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="flex items-center gap-1 rounded-full bg-red-500/20 border border-red-500/40 px-2 py-1 text-[10px] text-red-300"
-              >
-                <Clock size={10} className="text-red-400" />
-                <span>{formatTimeLeft(customer.pendingRequest.expiresAt)}</span>
-              </motion.div>
-            )}
             {hasHighAddiction && (
               <div className="flex items-center gap-1 text-[10px] text-orange-300">
                 <Zap size={10} />
