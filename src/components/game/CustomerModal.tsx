@@ -629,41 +629,48 @@ export const CustomerModal = ({
                 </div>
               )}
 
-              {/* Messages Section - Enhanced Chat UI */}
-              <Collapsible open={messagesOpen} onOpenChange={setMessagesOpen}>
-                <CollapsibleTrigger asChild>
-                  <button type="button" className="w-full">
-                    <SectionHeader 
-                      icon={MessageSquare} 
-                      title="Chat-Verlauf" 
-                      badge={customer.messages.filter(m => !m.read).length > 0 ? `${customer.messages.filter(m => !m.read).length} neu` : undefined}
-                      isOpen={messagesOpen}
-                    />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-2 rounded-xl border border-border/30 bg-gradient-to-b from-card/80 to-card/40 overflow-hidden">
-                    {/* Chat Header */}
-                    <div className="px-3 py-2 border-b border-border/20 bg-muted/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-sm">
-                          {customer.avatar}
-                        </div>
-                        <span className="text-[11px] font-medium">{customer.name}</span>
-                        <span className={`w-2 h-2 rounded-full ${customer.status === 'vip' ? 'bg-amber-400' : customer.status === 'loyal' ? 'bg-emerald-400' : 'bg-blue-400'} animate-pulse`} />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {customer.messages.length} Nachrichten
-                      </span>
-                    </div>
-                    
-                    {/* Messages Container */}
-                    <div className="relative">
-                      <div 
-                        ref={chatContainerRef}
-                        onScroll={handleChatScroll}
-                        className="max-h-[300px] overflow-y-auto p-3 space-y-1.5 scrollbar-hide"
-                      >
+              {/* Tab switcher: Chat / Verkaufen / Angebot — replaces 3 stacked collapsibles */}
+              <div className="flex gap-1 p-1 bg-muted/30 rounded-lg sticky top-0 z-10">
+                {([
+                  { key: 'chat',  label: 'Chat',      icon: MessageSquare, badge: customer.messages.filter(m => !m.read).length },
+                  { key: 'sell',  label: 'Verkaufen', icon: DollarSign,    badge: 0 },
+                  { key: 'offer', label: 'Angebot',   icon: Package,       badge: 0 },
+                ] as const).map(t => {
+                  const TabIcon = t.icon;
+                  const active = tab === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setTab(t.key)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-medium rounded-md transition-all min-h-[36px] ${
+                        active
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <TabIcon size={13} />
+                      {t.label}
+                      {t.badge > 0 && (
+                        <span className={`ml-0.5 px-1.5 py-0.5 text-[9px] rounded-full font-semibold ${active ? 'bg-primary-foreground/20' : 'bg-primary/20 text-primary'}`}>
+                          {t.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* === CHAT TAB === */}
+              {tab === 'chat' && (
+                <div className="rounded-xl border border-border/30 bg-gradient-to-b from-card/60 to-card/30 overflow-hidden">
+                  {/* Messages Container */}
+                  <div className="relative">
+                    <div
+                      ref={chatContainerRef}
+                      onScroll={handleChatScroll}
+                      className="max-h-[44vh] min-h-[200px] overflow-y-auto p-3 space-y-1.5 scrollbar-hide"
+                    >
                       {customer.messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                           <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
@@ -671,8 +678,8 @@ export const CustomerModal = ({
                           </div>
                           <p className="text-xs text-muted-foreground">Noch keine Nachrichten</p>
                           <p className="text-[10px] text-muted-foreground/60 mt-1 mb-3">
-                            {customer.status === 'prospect' 
-                              ? 'Gib ein Sample um die Konversation zu starten!' 
+                            {customer.status === 'prospect'
+                              ? 'Gib ein Sample um die Konversation zu starten!'
                               : 'Der Kunde wird sich bald melden...'}
                           </p>
                           {customer.status === 'prospect' && sampleOptions.length > 0 && (
@@ -692,11 +699,10 @@ export const CustomerModal = ({
                           const TypeIcon = typeInfo.icon;
                           const isCustomer = msg.from === 'customer';
                           const prev = customer.messages[index - 1];
-                          const showDateDivider = index === 0 || 
+                          const showDateDivider = index === 0 ||
                             new Date(msg.timestamp).toDateString() !== new Date(prev?.timestamp || 0).toDateString();
-                          // Group consecutive messages from the same author within ~2min — hide avatar + type badge.
                           const isGrouped = !showDateDivider && prev && prev.from === msg.from && (msg.timestamp - prev.timestamp) < 2 * 60 * 1000;
-                          
+
                           return (
                             <div key={msg.id}>
                               {showDateDivider && (
@@ -714,7 +720,6 @@ export const CustomerModal = ({
                                 transition={{ duration: reduceMotion ? 0 : 0.18 }}
                                 className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${isGrouped ? 'mt-0.5' : 'mt-2'}`}
                               >
-                                {/* Customer Avatar (hidden on grouped follow-ups) */}
                                 {isCustomer && (
                                   isGrouped
                                     ? <div className="flex-shrink-0 w-7" />
@@ -722,9 +727,8 @@ export const CustomerModal = ({
                                         {customer.avatar}
                                       </div>
                                 )}
-                                
+
                                 <div className={`max-w-[80%] ${isCustomer ? '' : 'text-right'}`}>
-                                  {/* Message Bubble */}
                                   <div
                                     className={`relative rounded-2xl px-3 py-2 text-xs leading-relaxed break-words ${
                                       isCustomer
@@ -733,8 +737,7 @@ export const CustomerModal = ({
                                     } ${!msg.read && isCustomer ? 'ring-1 ring-primary/40' : ''}`}
                                   >
                                     <div className="whitespace-pre-wrap">{msg.message}</div>
-                                    
-                                    {/* Inline Sell Button for purchase requests */}
+
                                     {isCustomer && (msg.type === 'purchase-request' || msg.type === 'request') && pendingRequest && (
                                       <motion.div
                                         initial={{ opacity: 0, scale: 0.95 }}
@@ -766,27 +769,23 @@ export const CustomerModal = ({
                                         </motion.button>
                                       </motion.div>
                                     )}
-                                    
-                                    {/* Unread indicator */}
+
                                     {!msg.read && isCustomer && (
                                       <div className="absolute -right-1 -top-1 w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
                                     )}
                                   </div>
-                                  
-                                  {/* Compact meta row: type label + timestamp inline (hidden on grouped) */}
+
                                   {!isGrouped && (
                                     <div className={`flex items-center gap-1.5 mt-1 ${isCustomer ? '' : 'justify-end'}`}>
                                       <TypeIcon size={9} className={typeInfo.color} />
                                       <span className={`text-[9px] font-medium ${typeInfo.color}`}>{typeInfo.label}</span>
                                       <span className="text-muted-foreground/40">·</span>
-                                      <Clock size={9} className="text-muted-foreground/50" />
                                       <span className="text-[9px] text-muted-foreground/60">{formatTime(msg.timestamp)}</span>
                                     </div>
                                   )}
-                                  
-                                  {/* Action Buttons */}
+
                                   {msg.actions && !msg.actionsUsed && (
-                                    <motion.div 
+                                    <motion.div
                                       initial={{ opacity: 0, y: -5 }}
                                       animate={{ opacity: 1, y: 0 }}
                                       className={`mt-2 flex flex-wrap gap-1.5 ${isCustomer ? '' : 'justify-end'}`}
@@ -820,8 +819,7 @@ export const CustomerModal = ({
                                     </motion.div>
                                   )}
                                 </div>
-                                
-                                {/* Player Avatar (hidden on grouped follow-ups) */}
+
                                 {!isCustomer && (
                                   isGrouped
                                     ? <div className="flex-shrink-0 w-7" />
@@ -834,319 +832,247 @@ export const CustomerModal = ({
                           );
                         })
                       )}
-                      </div>
-
-                      {/* Jump-to-latest pill */}
-                      <AnimatePresence>
-                        {showJumpToLatest && customer.messages.length > 3 && (
-                          <motion.button
-                            type="button"
-                            onClick={scrollChatToBottom}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute bottom-2 right-2 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold shadow-lg shadow-primary/30"
-                          >
-                            <ArrowDown size={11} />
-                            Neueste
-                          </motion.button>
-                        )}
-                      </AnimatePresence>
                     </div>
 
-                    {/* Player typing indicator — brief animation while sending */}
                     <AnimatePresence>
-                      {typingPlayer && (
-                        <motion.div
-                          initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                      {showJumpToLatest && customer.messages.length > 3 && (
+                        <motion.button
+                          type="button"
+                          onClick={scrollChatToBottom}
+                          initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                          className="px-3 pt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold shadow-lg shadow-primary/30"
                         >
-                          <span>Du tippst</span>
-                          <span className="flex gap-0.5">
-                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '0ms' }} />
-                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '120ms' }} />
-                            <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '240ms' }} />
-                          </span>
-                        </motion.div>
+                          <ArrowDown size={11} />
+                          Neueste
+                        </motion.button>
                       )}
                     </AnimatePresence>
+                  </div>
 
-                    {/* Quick replies — pre-canned answers above the composer for fast mobile replies */}
-                    <div className="px-3 pt-2 pb-1.5 border-t border-border/20 bg-muted/5">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <MessagesSquare size={10} className="text-muted-foreground/70" />
-                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
-                          Schnellantworten
+                  {/* Typing indicator */}
+                  <AnimatePresence>
+                    {typingPlayer && (
+                      <motion.div
+                        initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                        className="px-3 pt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                      >
+                        <span>Du tippst</span>
+                        <span className="flex gap-0.5">
+                          <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '0ms' }} />
+                          <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '120ms' }} />
+                          <span className={`w-1 h-1 rounded-full bg-primary/70 ${reduceMotion ? '' : 'animate-bounce'}`} style={{ animationDelay: '240ms' }} />
                         </span>
-                      </div>
-                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1 snap-x">
-                        {QUICK_REPLIES.map(qr => {
-                          const toneClass =
-                            qr.tone === 'positive' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' :
-                            qr.tone === 'warn'     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' :
-                                                     'border-border/40 bg-card/60 text-foreground/80 hover:bg-card/80';
-                          return (
-                            <motion.button
-                              key={qr.id}
-                              type="button"
-                              whileTap={reduceMotion ? undefined : { scale: 0.94 }}
-                              onClick={() => sendChatMessage(qr.message)}
-                              className={`shrink-0 snap-start px-2.5 py-1.5 rounded-full border text-[11px] font-medium whitespace-nowrap min-h-[32px] transition-colors ${toneClass}`}
-                            >
-                              {qr.label}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                    {/* Composer — mobile-friendly: large input, big send button, enter-to-send */}
-                    <div className="px-3 py-2 border-t border-border/20 bg-card/40 flex items-end gap-2">
-                      <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-background/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
-                        <textarea
-                          value={composerText}
-                          onChange={e => setComposerText(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              sendChatMessage(composerText);
-                            }
-                          }}
-                          placeholder={`Nachricht an ${customer.name}…`}
-                          rows={1}
-                          className="w-full resize-none bg-transparent px-3 py-2 text-xs leading-snug placeholder:text-muted-foreground/50 focus:outline-none max-h-24"
-                          aria-label="Nachricht eingeben"
-                        />
-                      </div>
-                      <motion.button
+                  {/* Quick replies — header removed for cleaner look, chips speak for themselves */}
+                  <div className="px-3 pt-2 border-t border-border/20">
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1.5 snap-x">
+                      {QUICK_REPLIES.map(qr => {
+                        const toneClass =
+                          qr.tone === 'positive' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' :
+                          qr.tone === 'warn'     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' :
+                                                   'border-border/40 bg-card/60 text-foreground/80 hover:bg-card/80';
+                        return (
+                          <motion.button
+                            key={qr.id}
+                            type="button"
+                            whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                            onClick={() => sendChatMessage(qr.message)}
+                            className={`shrink-0 snap-start px-2.5 py-1.5 rounded-full border text-[11px] font-medium whitespace-nowrap min-h-[32px] transition-colors ${toneClass}`}
+                          >
+                            {qr.label}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Composer */}
+                  <div className="px-3 py-2 border-t border-border/20 bg-card/40 flex items-end gap-2">
+                    <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-background/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
+                      <textarea
+                        value={composerText}
+                        onChange={e => setComposerText(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendChatMessage(composerText);
+                          }
+                        }}
+                        placeholder={`Nachricht an ${customer.name}…`}
+                        rows={1}
+                        className="w-full resize-none bg-transparent px-3 py-2 text-xs leading-snug placeholder:text-muted-foreground/50 focus:outline-none max-h-24"
+                        aria-label="Nachricht eingeben"
+                      />
+                    </div>
+                    <motion.button
+                      type="button"
+                      onClick={() => sendChatMessage(composerText)}
+                      disabled={!composerText.trim()}
+                      whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+                      aria-label="Senden"
+                      className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                        composerText.trim()
+                          ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30'
+                          : 'bg-muted/40 text-muted-foreground cursor-not-allowed'
+                      }`}
+                    >
+                      <Send size={16} />
+                    </motion.button>
+                  </div>
+                </div>
+              )}
+
+              {/* === SELL TAB === */}
+              {tab === 'sell' && (
+                <div className="space-y-3 rounded-xl bg-muted/10 p-3 border border-border/30">
+                  {/* Drug Type Tabs */}
+                  <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
+                    {drugTabs.map(t => (
+                      <button
+                        key={t.type}
                         type="button"
-                        onClick={() => sendChatMessage(composerText)}
-                        disabled={!composerText.trim()}
-                        whileTap={reduceMotion ? undefined : { scale: 0.92 }}
-                        aria-label="Senden"
-                        className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                          composerText.trim()
-                            ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30'
-                            : 'bg-muted/40 text-muted-foreground cursor-not-allowed'
+                        onClick={() => setActiveTab(t.type)}
+                        className={`flex-1 px-2 py-2 text-[11px] rounded-md transition-all ${
+                          activeTab === t.type
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                         }`}
                       >
-                        <Send size={16} />
-                      </motion.button>
-                    </div>
-
-                    {/* Quick Actions Footer */}
-                    {customer.messages.length > 0 && (
-                      <div className="px-3 py-2 border-t border-border/20 bg-muted/10 flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground">
-                          {customer.messages.filter(m => !m.actionsUsed && m.actions?.length).length > 0 
-                            ? `${customer.messages.filter(m => !m.actionsUsed && m.actions?.length).length} ausstehende Aktionen`
-                            : 'Alle Aktionen erledigt'}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] text-muted-foreground/60">Loyalität:</span>
-                          <div className="w-16 h-1.5 rounded-full bg-muted/30 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-500"
-                              style={{ width: `${customer.loyalty}%` }}
-                            />
-                          </div>
-                          <span className="text-[9px] text-primary font-medium">{customer.loyalty}%</span>
-                        </div>
-                      </div>
-                    )}
+                        {t.label}
+                        {t.count > 0 && <span className="ml-1 opacity-70">({t.count})</span>}
+                      </button>
+                    ))}
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
 
-              {/* Sell Section */}
-              <Collapsible open={sellOpen} onOpenChange={setSellOpen}>
-                <CollapsibleTrigger asChild>
-                  <button type="button" className="w-full">
-                    <SectionHeader 
-                      icon={DollarSign} 
-                      title="Verkaufen" 
-                      isOpen={sellOpen}
-                      variant="success"
-                    />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-2 space-y-3 rounded-lg bg-muted/10 p-3">
-                    {/* Drug Type Tabs */}
-                    <div className="flex gap-1 p-1 bg-muted/30 rounded-lg">
-                      {drugTabs.map(tab => (
+                  {renderProductSelect()}
+
+                  {/* Quick Amount Buttons */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span>Menge</span>
+                      <span>Verfügbar: <span className="text-foreground font-medium">{maxGrams.toFixed(1)}g</span></span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {suggestions.map(amount => (
                         <button
-                          key={tab.type}
+                          key={`${activeTab}-${amount}`}
                           type="button"
-                          onClick={() => setActiveTab(tab.type)}
-                          className={`flex-1 px-2 py-2 text-[11px] rounded-md transition-all ${
-                            activeTab === tab.type 
-                              ? 'bg-primary text-primary-foreground shadow-sm' 
-                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                          onClick={() => setSelectedDrug(prev => ({ ...prev, grams: amount }))}
+                          disabled={amount > maxGrams}
+                          className={`flex-1 py-2 text-[11px] rounded-lg border transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                            clampedGrams === amount
+                              ? 'border-primary bg-primary/20 text-primary'
+                              : 'border-border bg-card/60 hover:bg-muted/50'
                           }`}
                         >
-                          {tab.label}
-                          {tab.count > 0 && (
-                            <span className="ml-1 opacity-70">({tab.count})</span>
-                          )}
+                          {amount}g
                         </button>
                       ))}
-                    </div>
-
-                    {/* Product Dropdown */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-muted-foreground">Produkt wählen</label>
-                      {renderProductSelect()}
-                    </div>
-
-                    {/* Quick Amount Buttons */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-muted-foreground">Menge</label>
-                        <span className="text-[10px] text-muted-foreground">
-                          Verfügbar: <span className="text-foreground font-medium">{maxGrams.toFixed(1)}g</span>
-                        </span>
-                      </div>
-                      <div className="flex gap-1.5">
-                        {suggestions.map(amount => (
-                          <button
-                            key={`${activeTab}-${amount}`}
-                            type="button"
-                            onClick={() => setSelectedDrug(prev => ({ ...prev, grams: amount }))}
-                            disabled={amount > maxGrams}
-                            className={`flex-1 py-2 text-[11px] rounded-lg border transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-                              clampedGrams === amount 
-                                ? 'border-primary bg-primary/20 text-primary' 
-                                : 'border-border bg-card/60 hover:bg-muted/50'
-                            }`}
-                          >
-                            {amount}g
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDrug(prev => ({ ...prev, grams: Math.max(1, Math.floor(maxGrams)) }))}
-                          disabled={maxGrams <= 0}
-                          className="flex-1 py-2 text-[11px] rounded-lg border border-border bg-card/60 hover:bg-muted/50 transition-all disabled:opacity-30"
-                        >
-                          MAX
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Custom Input Row */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-muted-foreground">Menge (g)</label>
-                        <input
-                          type="number"
-                          min={0.1}
-                          step={0.1}
-                          value={clampedGrams}
-                          onChange={(event) => setSelectedDrug(prev => ({ ...prev, grams: Number(event.target.value) }))}
-                          className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-muted-foreground">$/g</label>
-                        <input
-                          type="number"
-                          min={0.1}
-                          step={0.1}
-                          value={pricePerGram[activeTab]}
-                          onChange={(event) => {
-                            const nextValue = Number(event.target.value);
-                            setPricePerGram(prev => ({ ...prev, [activeTab]: nextValue }));
-                            setPriceTouched(prev => ({ ...prev, [activeTab]: true }));
-                          }}
-                          className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Revenue Preview */}
-                    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                      <span className="text-[11px] text-muted-foreground">Einnahmen</span>
-                      <span className="text-sm font-bold text-emerald-400">${revenuePreview.toLocaleString()}</span>
-                    </div>
-
-                    {/* Sell Button */}
-                    <button
-                      type="button"
-                      onClick={handleUnifiedSell}
-                      disabled={maxGrams <= 0 || clampedGrams <= 0}
-                      className="btn-neon w-full py-3 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      💰 AN {customer.name.toUpperCase()} VERKAUFEN
-                    </button>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Make Offer Section */}
-              <Collapsible open={offerOpen} onOpenChange={setOfferOpen}>
-                <CollapsibleTrigger asChild>
-                  <button type="button" className="w-full">
-                    <SectionHeader 
-                      icon={Package} 
-                      title="Angebot machen" 
-                      isOpen={offerOpen}
-                      variant="warning"
-                    />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-2 space-y-3 rounded-lg bg-muted/10 p-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-muted-foreground">Droge wählen</label>
-                      <select
-                        value={offerDrug}
-                        onChange={e => setOfferDrug(e.target.value as 'koks' | 'meth')}
-                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDrug(prev => ({ ...prev, grams: Math.max(1, Math.floor(maxGrams)) }))}
+                        disabled={maxGrams <= 0}
+                        className="flex-1 py-2 text-[11px] rounded-lg border border-border bg-card/60 hover:bg-muted/50 transition-all disabled:opacity-30"
                       >
-                        <option value="koks">❄️ Koks</option>
-                        <option value="meth">🧪 Meth</option>
-                      </select>
+                        MAX
+                      </button>
                     </div>
-                    <div className="space-y-1">
+                  </div>
+
+                  {/* Custom Input Row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
                       <label className="text-[10px] text-muted-foreground">Menge (g)</label>
                       <input
                         type="number"
-                        value={offerGrams}
-                        onChange={e => setOfferGrams(Number(e.target.value))}
-                        min={1}
-                        max={50}
-                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                        min={0.1}
+                        step={0.1}
+                        value={clampedGrams}
+                        onChange={(event) => setSelectedDrug(prev => ({ ...prev, grams: Number(event.target.value) }))}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                       />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onOfferDrug(customer, offerDrug, offerGrams);
-                        setOfferOpen(false);
-                      }}
-                      className="btn-neon w-full py-2.5 text-xs"
-                    >
-                      💼 {offerGrams}g {offerDrug === 'koks' ? 'Koks' : 'Meth'} anbieten
-                    </button>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">$/g</label>
+                      <input
+                        type="number"
+                        min={0.1}
+                        step={0.1}
+                        value={pricePerGram[activeTab]}
+                        onChange={(event) => {
+                          const nextValue = Number(event.target.value);
+                          setPricePerGram(prev => ({ ...prev, [activeTab]: nextValue }));
+                          setPriceTouched(prev => ({ ...prev, [activeTab]: true }));
+                        }}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                      />
+                    </div>
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
+
+                  {/* Revenue Preview */}
+                  <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="text-[11px] text-muted-foreground">Einnahmen</span>
+                    <span className="text-sm font-bold text-emerald-400">${revenuePreview.toLocaleString()}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleUnifiedSell}
+                    disabled={maxGrams <= 0 || clampedGrams <= 0}
+                    className="btn-neon w-full py-3 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    💰 Verkaufen
+                  </button>
+                </div>
+              )}
+
+              {/* === OFFER TAB === */}
+              {tab === 'offer' && (
+                <div className="space-y-3 rounded-xl bg-muted/10 p-3 border border-border/30">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Droge</label>
+                    <select
+                      value={offerDrug}
+                      onChange={e => setOfferDrug(e.target.value as 'koks' | 'meth')}
+                      className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                    >
+                      <option value="koks">❄️ Koks</option>
+                      <option value="meth">🧪 Meth</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Menge (g)</label>
+                    <input
+                      type="number"
+                      value={offerGrams}
+                      onChange={e => setOfferGrams(Number(e.target.value))}
+                      min={1}
+                      max={50}
+                      className="w-full rounded-lg border border-border bg-card/60 px-3 py-2.5 text-xs focus:ring-2 focus:ring-primary/50 transition-all"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOfferDrug(customer, offerDrug, offerGrams);
+                      setTab('chat');
+                    }}
+                    className="btn-neon w-full py-2.5 text-xs"
+                  >
+                    💼 {offerGrams}g {offerDrug === 'koks' ? 'Koks' : 'Meth'} anbieten
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Footer */}
-            <div className="p-3 border-t border-border/30 bg-card/80">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full rounded-lg bg-muted/40 hover:bg-muted/60 px-4 py-2.5 text-xs font-medium transition-colors"
-              >
-                Schließen
-              </button>
-            </div>
           </motion.div>
         </motion.div>
       )}
