@@ -206,9 +206,7 @@ export const CustomerModal = ({
     setPriceTouched({ weed: false, koks: false, meth: false });
     setPendingOffer(null);
     setShowOfferPanel(false);
-    setMessagesOpen(customer.messages.length > 0);
-    setSellOpen(true);
-    setOfferOpen(false);
+    setTab('chat');
     setComposerText('');
     setTypingPlayer(false);
   }, [customer?.id]);
