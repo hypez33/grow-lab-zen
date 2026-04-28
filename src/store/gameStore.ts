@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTerritoryStore } from '@/store/territoryStore';
+import { getFeaturesUnlockedAt } from '@/lib/progression';
 
 // Types
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -1347,6 +1348,9 @@ export const useGameStore = create<GameState>()(
         let newXp = state.xp;
         let newLevel = state.level;
         let newSkillPoints = state.skillPoints;
+        let bonusBudcoins = 0;
+        let bonusGems = 0;
+        let bonusPremiumSeeds = 0;
         let levelsGained = 0;
 
         while (newXp >= getXpForLevel(newLevel)) {
@@ -1354,12 +1358,41 @@ export const useGameStore = create<GameState>()(
           newLevel++;
           newSkillPoints++;
           levelsGained++;
+
+          // Stage-unlock bonuses
+          const newlyUnlocked = getFeaturesUnlockedAt(newLevel);
+          newlyUnlocked.forEach(f => {
+            if (!f.reward) return;
+            if (f.reward.budcoins) bonusBudcoins += f.reward.budcoins;
+            if (f.reward.gems) bonusGems += f.reward.gems;
+            if (f.reward.skillPoints) newSkillPoints += f.reward.skillPoints;
+            if (f.reward.premiumSeed) bonusPremiumSeeds += 1;
+          });
         }
 
         if (levelsGained > 0) {
-          set({ xp: newXp, level: newLevel, skillPoints: newSkillPoints });
+          // Build a premium-seed reward (rare random pick from catalog)
+          let extraSeeds = state.seeds;
+          if (bonusPremiumSeeds > 0) {
+            const pool = SEED_CATALOG.filter(s => s.rarity === 'rare' || s.rarity === 'epic');
+            const newSeeds: typeof state.seeds = [];
+            for (let i = 0; i < bonusPremiumSeeds; i++) {
+              const pick = pool[Math.floor(Math.random() * pool.length)];
+              newSeeds.push({ ...pick, id: `bonus-${Date.now()}-${i}` });
+            }
+            extraSeeds = [...state.seeds, ...newSeeds];
+          }
+
+          set({
+            xp: newXp,
+            level: newLevel,
+            skillPoints: newSkillPoints,
+            budcoins: state.budcoins + bonusBudcoins,
+            gems: state.gems + bonusGems,
+            seeds: extraSeeds,
+          });
         }
-        
+
         return levelsGained;
       },
 
