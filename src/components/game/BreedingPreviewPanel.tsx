@@ -1,4 +1,5 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Seed } from '@/store/gameStore';
 import { previewBreeding, getGenerationDisplay, BreedingOutcome, TraitPreviewEntry, MutationPreviewEntry } from '@/lib/breedingSystem';
 import { AlertTriangle, Skull, CheckCircle2, Star, Flame, Crown, Sparkles, Dna, Zap } from 'lucide-react';
@@ -172,10 +173,22 @@ const TraitMixBreakdown = ({
   traitMix: TraitPreviewEntry[];
   mutationPool: MutationPreviewEntry[];
 }) => {
-  const sharedTraits = traitMix.filter(t => t.source === 'both');
-  const p1Only = traitMix.filter(t => t.source === 'p1');
-  const p2Only = traitMix.filter(t => t.source === 'p2');
-  const possibleMutations = mutationPool.filter(m => !m.alreadyPresent && m.chancePct > 0);
+  const reduceMotion = useReducedMotion();
+
+  // Stable, deterministic partition + sort — keyed on parent identity so chip
+  // identity (and therefore animation keys) stays consistent between renders.
+  const { sharedTraits, p1Only, p2Only, possibleMutations } = useMemo(() => {
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+    return {
+      sharedTraits: traitMix.filter(t => t.source === 'both').sort(byName),
+      p1Only:       traitMix.filter(t => t.source === 'p1').sort(byName),
+      p2Only:       traitMix.filter(t => t.source === 'p2').sort(byName),
+      possibleMutations: mutationPool
+        .filter(m => !m.alreadyPresent && m.chancePct > 0)
+        .sort((a, b) => b.chancePct - a.chancePct || a.name.localeCompare(b.name)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parent1.id, parent2.id, traitMix, mutationPool]);
 
   if (traitMix.length === 0 && possibleMutations.length === 0) {
     return (
@@ -185,16 +198,27 @@ const TraitMixBreakdown = ({
     );
   }
 
-  // Stagger config — short, mobile-friendly. Replays when parent pair changes
-  // because the key bound to <motion.div> below changes.
+  // Stagger config — disabled when reduced motion is requested.
+  const stagger = reduceMotion ? 0 : 0.06;
+  const groupDuration = reduceMotion ? 0 : 0.22;
   const containerVariants = {
     hidden: { opacity: 1 },
-    show:   { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
+    show:   { opacity: 1, transition: { staggerChildren: stagger, delayChildren: reduceMotion ? 0 : 0.04 } },
   };
   const groupVariants = {
-    hidden: { opacity: 0, y: 6 },
-    show:   { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' as const } },
+    hidden: { opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : 6 },
+    show:   { opacity: 1, y: 0, transition: { duration: groupDuration, ease: 'easeOut' as const } },
   };
+
+  // Total stagger duration for shimmer sweep — sync the neon highlight to the
+  // same timeline as the staggered group fade-ins.
+  const groupCount = 1 /* header */
+    + (sharedTraits.length > 0 ? 1 : 0)
+    + (p1Only.length > 0 ? 1 : 0)
+    + (p2Only.length > 0 ? 1 : 0)
+    + (possibleMutations.length > 0 ? 1 : 0)
+    + 1 /* legend footer */;
+  const shimmerDuration = Math.max(0.6, stagger * groupCount + groupDuration);
 
   return (
     <motion.div
@@ -202,16 +226,34 @@ const TraitMixBreakdown = ({
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="rounded-lg bg-background/40 border border-border/50 p-2.5 space-y-2"
+      className="rounded-lg bg-background/40 border border-border/50 p-3 space-y-2.5"
     >
-      <motion.div variants={groupVariants} className="flex items-center gap-1.5">
-        <Dna size={12} className="text-neon-purple" />
+      <motion.div variants={groupVariants} className="relative overflow-hidden flex items-center gap-1.5 -mx-1 px-1 py-1 rounded-md">
+        <Dna size={12} className="text-neon-purple shrink-0" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Trait-Vererbung
         </span>
         <span className="ml-auto text-[9px] text-muted-foreground">
           {traitMix.length} Eltern · {possibleMutations.length} Mutationen
         </span>
+
+        {/* Neon shimmer sweep — synced to the staggered group timeline. */}
+        {!reduceMotion && (
+          <motion.div
+            key={`shimmer-${parent1.id}-${parent2.id}`}
+            aria-hidden
+            initial={{ x: '-120%', opacity: 0 }}
+            animate={{ x: '120%', opacity: [0, 0.85, 0] }}
+            transition={{ duration: shimmerDuration, ease: 'easeOut' }}
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/2"
+            style={{
+              background:
+                'linear-gradient(90deg, transparent 0%, hsl(var(--neon-purple) / 0.0) 25%, hsl(var(--neon-purple) / 0.45) 50%, hsl(var(--neon-cyan) / 0.0) 75%, transparent 100%)',
+              filter: 'blur(4px)',
+              mixBlendMode: 'screen',
+            }}
+          />
+        )}
       </motion.div>
 
       {sharedTraits.length > 0 && (
@@ -221,6 +263,7 @@ const TraitMixBreakdown = ({
             subtitle="Höhere Übertragungs-Chance"
             tone="gold"
             traits={sharedTraits}
+            reduceMotion={!!reduceMotion}
           />
         </motion.div>
       )}
@@ -231,6 +274,7 @@ const TraitMixBreakdown = ({
             subtitle="Wird zufällig vererbt"
             tone="cyan"
             traits={p1Only}
+            reduceMotion={!!reduceMotion}
           />
         </motion.div>
       )}
@@ -241,13 +285,14 @@ const TraitMixBreakdown = ({
             subtitle="Wird zufällig vererbt"
             tone="green"
             traits={p2Only}
+            reduceMotion={!!reduceMotion}
           />
         </motion.div>
       )}
 
       {possibleMutations.length > 0 && (
         <motion.div variants={groupVariants}>
-          <div className="flex items-center gap-1.5 mt-1 mb-1">
+          <div className="flex items-center gap-1.5 mt-1 mb-1.5">
             <Zap size={11} className="text-neon-orange" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-neon-orange">
               Mögliche Mutationen
@@ -255,20 +300,24 @@ const TraitMixBreakdown = ({
             <span className="ml-auto text-[9px] text-muted-foreground">nur bei göttlicher Kreuzung</span>
           </div>
           <motion.div
-            className="flex flex-wrap gap-1"
-            variants={{ show: { transition: { staggerChildren: 0.03 } } }}
+            className="flex flex-wrap gap-1.5"
+            variants={{ show: { transition: { staggerChildren: reduceMotion ? 0 : 0.03 } } }}
           >
             {possibleMutations.map(m => (
               <motion.div
-                key={m.name}
-                variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1, transition: { duration: 0.18 } } }}
-                className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
+                key={`mut-${m.name}`}
+                layout="position"
+                variants={{
+                  hidden: { opacity: reduceMotion ? 1 : 0, scale: reduceMotion ? 1 : 0.9 },
+                  show:   { opacity: 1, scale: 1, transition: { duration: reduceMotion ? 0 : 0.18 } },
+                }}
+                className="flex items-center gap-1 pl-1 pr-1.5 py-1 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange leading-none"
                 title={`${m.chancePct.toFixed(2)}% Chance auf diese neue Eigenschaft`}
               >
                 <span className="text-[8px] font-bold leading-none px-1 py-0.5 rounded bg-neon-orange/25 text-neon-orange border border-neon-orange/40">MUT</span>
                 <Sparkles size={9} />
-                <span>{m.name}</span>
-                <span className="text-muted-foreground">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
+                <span className="whitespace-nowrap">{m.name}</span>
+                <span className="text-muted-foreground tabular-nums">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
               </motion.div>
             ))}
           </motion.div>
@@ -277,7 +326,7 @@ const TraitMixBreakdown = ({
 
       <motion.div
         variants={groupVariants}
-        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug space-y-1"
+        className="pt-2 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug space-y-1"
       >
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-semibold text-foreground/80">Herkunft:</span>
@@ -313,36 +362,38 @@ const toneLabel: Record<'gold' | 'cyan' | 'green', string> = {
 };
 
 const TraitGroup = ({
-  title, subtitle, tone, traits,
+  title, subtitle, tone, traits, reduceMotion,
 }: {
   title: string;
   subtitle: string;
   tone: 'gold' | 'cyan' | 'green';
   traits: TraitPreviewEntry[];
+  reduceMotion: boolean;
 }) => {
   const c = toneClasses[tone];
   const originLabel = toneLabel[tone];
   return (
     <div>
-      <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
+      <div className="flex items-baseline gap-1.5 mb-1.5 min-w-0">
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`} />
         <span className={`text-[10px] font-bold uppercase tracking-wider ${c.title} truncate`}>{title}</span>
         <span className="text-[9px] text-muted-foreground truncate">· {subtitle}</span>
       </div>
       <motion.div
-        className="flex flex-wrap gap-1"
+        className="flex flex-wrap gap-1.5"
         initial="hidden"
         animate="show"
-        variants={{ show: { transition: { staggerChildren: 0.035 } } }}
+        variants={{ show: { transition: { staggerChildren: reduceMotion ? 0 : 0.035 } } }}
       >
         {traits.map(t => (
           <motion.div
-            key={t.name}
+            key={`${tone}-${t.name}`}
+            layout="position"
             variants={{
-              hidden: { opacity: 0, scale: 0.9, y: 4 },
-              show:   { opacity: 1, scale: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } },
+              hidden: { opacity: reduceMotion ? 1 : 0, scale: reduceMotion ? 1 : 0.9, y: reduceMotion ? 0 : 4 },
+              show:   { opacity: 1, scale: 1, y: 0, transition: { duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' } },
             }}
-            className={`flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
+            className={`flex items-center gap-1 pl-1 pr-1.5 py-1 rounded-full text-[10px] font-medium border leading-none ${c.chip}`}
             title={
               `Vererbungs-Chance pro Ergebnis:\n` +
               `• Normal: ${t.survivalByOutcome.normal}%\n` +
@@ -353,8 +404,8 @@ const TraitGroup = ({
             }
           >
             <span className={`text-[8px] font-bold leading-none px-1 py-0.5 rounded ${c.tag}`}>{originLabel}</span>
-            <span>{t.name}</span>
-            <span className="text-muted-foreground">{t.survivalPct}%</span>
+            <span className="whitespace-nowrap">{t.name}</span>
+            <span className="text-muted-foreground tabular-nums">{t.survivalPct}%</span>
           </motion.div>
         ))}
       </motion.div>
