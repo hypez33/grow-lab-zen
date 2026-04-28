@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SEED_CATALOG } from '@/store/gameStore';
-import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug, Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { PrestigeSystem } from './PrestigeSystem';
 import { AchievementBadges } from './AchievementBadges';
 import { LuckyWheel } from './LuckyWheel';
 import { DailyStreakSystem } from './DailyStreakSystem';
 import { CheatPanel } from './CheatPanel';
+import { RoadmapModal } from './RoadmapModal';
 
 export const SettingsScreen = () => {
   const { 
@@ -18,6 +19,7 @@ export const SettingsScreen = () => {
   } = useGameStore();
 
   const [showDevPanel, setShowDevPanel] = useState(false);
+  const [showRoadmap, setShowRoadmap] = useState(false);
   const [importData, setImportData] = useState('');
 
   const handleExport = () => {
@@ -58,6 +60,25 @@ export const SettingsScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+        {/* Roadmap entry */}
+        <button
+          type="button"
+          onClick={() => setShowRoadmap(true)}
+          className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-primary/20 hover:border-primary/40 transition-colors text-left"
+        >
+          <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+            <MapIcon size={20} className="text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-sm">Empire Roadmap</div>
+            <div className="text-xs text-muted-foreground">Sieh dir alle Freischaltungen an</div>
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {showRoadmap && <RoadmapModal onClose={() => setShowRoadmap(false)} />}
+        </AnimatePresence>
+
         {/* Daily Streak */}
         <DailyStreakSystem />
 

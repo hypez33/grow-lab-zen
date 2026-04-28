@@ -12,6 +12,8 @@ import { GoldenHourEvent } from './GoldenHourEvent';
 import { LiveStatsPanel } from './LiveStatsPanel';
 import { QuickActionsBar } from './QuickActionsBar';
 import { MiniDashboard } from './MiniDashboard';
+import { MilestoneHUD } from './MilestoneHUD';
+import { FirstStepsChecklist } from './FirstStepsChecklist';
 import { toast } from 'sonner';
 import { X, Zap, Unlock, Wind, Droplets } from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
@@ -586,6 +588,12 @@ export const GrowScreen = () => {
         {/* Golden Hour Event Banner */}
         <div className="px-3 pt-2">
           <GoldenHourEvent />
+        </div>
+
+        {/* Progression HUD + Onboarding */}
+        <div className="px-3 pt-2 space-y-2">
+          <MilestoneHUD />
+          <FirstStepsChecklist />
         </div>
 
         {/* Mini Dashboard */}
