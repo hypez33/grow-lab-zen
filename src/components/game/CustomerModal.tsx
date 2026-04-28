@@ -760,9 +760,9 @@ export const CustomerModal = ({
                                 </div>
                               )}
                               <motion.div
-                                initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                                initial={reduceMotion ? false : { opacity: 0, y: 5, scale: 0.98 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                transition={{ duration: 0.18 }}
+                                transition={{ duration: reduceMotion ? 0 : 0.18 }}
                                 className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${isGrouped ? 'mt-0.5' : 'mt-2'}`}
                               >
                                 {/* Customer Avatar (hidden on grouped follow-ups) */}
