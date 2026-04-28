@@ -127,29 +127,13 @@ const PreviewContents = ({
         <Stat label="Ertrag (norm.)" value={<span className="text-neon-green">{preview.expectedYieldRange.min}-{preview.expectedYieldRange.max}g</span>} />
       </div>
 
-      {/* Trait mix */}
-      {preview.traitMix.length > 0 && (
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-            Trait-Mix ({preview.traitMix.length})
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {preview.traitMix.map(t => (
-              <div
-                key={t.name}
-                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border
-                  ${t.source === 'both'
-                    ? 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold'
-                    : 'border-primary/40 bg-primary/10 text-primary'}`}
-                title={`${t.source === 'both' ? 'Beide Eltern' : t.source === 'p1' ? parent1.name : parent2.name} • ~${t.survivalPct}% Übertragung`}
-              >
-                <span>{t.name}</span>
-                <span className="text-muted-foreground">{t.survivalPct}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Trait mix — grouped by source so the player sees exactly what comes from where */}
+      <TraitMixBreakdown
+        parent1={parent1}
+        parent2={parent2}
+        traitMix={preview.traitMix}
+        mutationPool={preview.mutationPool}
+      />
 
       {/* Confirm */}
       <motion.button
