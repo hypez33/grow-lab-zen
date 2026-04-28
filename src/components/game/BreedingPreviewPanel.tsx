@@ -289,10 +289,17 @@ const TraitMixBreakdown = ({
   );
 };
 
-const toneClasses: Record<'gold' | 'cyan' | 'green', { chip: string; dot: string; title: string }> = {
-  gold:  { chip: 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold',     dot: 'bg-neon-gold',   title: 'text-neon-gold' },
-  cyan:  { chip: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',     dot: 'bg-neon-cyan',   title: 'text-neon-cyan' },
-  green: { chip: 'border-neon-green/40 bg-neon-green/10 text-neon-green',  dot: 'bg-neon-green',  title: 'text-neon-green' },
+const toneClasses: Record<'gold' | 'cyan' | 'green', { chip: string; dot: string; title: string; tag: string }> = {
+  gold:  { chip: 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold',     dot: 'bg-neon-gold',   title: 'text-neon-gold',  tag: 'bg-neon-gold/25 text-neon-gold border border-neon-gold/40' },
+  cyan:  { chip: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',     dot: 'bg-neon-cyan',   title: 'text-neon-cyan',  tag: 'bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/40' },
+  green: { chip: 'border-neon-green/40 bg-neon-green/10 text-neon-green',  dot: 'bg-neon-green',  title: 'text-neon-green', tag: 'bg-neon-green/25 text-neon-green border border-neon-green/40' },
+};
+
+// Short origin label shown directly on each trait chip so source is readable at a glance.
+const toneLabel: Record<'gold' | 'cyan' | 'green', string> = {
+  gold:  'BOTH',
+  cyan:  'P1',
+  green: 'P2',
 };
 
 const TraitGroup = ({
@@ -304,6 +311,7 @@ const TraitGroup = ({
   traits: TraitPreviewEntry[];
 }) => {
   const c = toneClasses[tone];
+  const originLabel = toneLabel[tone];
   return (
     <div>
       <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
