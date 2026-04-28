@@ -227,20 +227,47 @@ export const GameLayout = () => {
   const driedStock = gameState.inventory.filter(b => b.state === 'dried').length;
   const waitingCustomers = customerState.customers?.length ?? 0;
 
-  const navItems = [
+  const allNavItems = [
     { id: 'grow' as Screen, icon: Home, label: 'Grow', badge: harvestReady },
     { id: 'dryroom' as Screen, icon: Wind, label: 'Dry', badge: dryReady },
     { id: 'customers' as Screen, icon: Users, label: 'Kunden', badge: waitingCustomers },
-    { id: 'turf' as Screen, icon: Map, label: 'Turf', badge: 0 },
+    { id: 'shop' as Screen, icon: ShoppingBag, label: 'Shop', badge: 0 },
     { id: 'business' as Screen, icon: Briefcase, label: 'Business', badge: 0 },
+    { id: 'turf' as Screen, icon: Map, label: 'Turf', badge: 0 },
     { id: 'koks' as Screen, icon: Snowflake, label: 'Koks', badge: 0 },
     { id: 'meth' as Screen, icon: FlaskConical, label: 'Meth', badge: 0 },
-    { id: 'shop' as Screen, icon: ShoppingBag, label: 'Shop', badge: 0 },
     { id: 'genetics' as Screen, icon: Dna, label: 'Genetics', badge: 0 },
-    { id: 'quests' as Screen, icon: ListTodo, label: 'Quests', badge: 0 },
     { id: 'collection' as Screen, icon: Book, label: 'Album', badge: 0 },
-    { id: 'settings' as Screen, icon: SettingsIcon, label: 'More', badge: 0 },
+    { id: 'quests' as Screen, icon: ListTodo, label: 'Quests', badge: 0 },
+    { id: 'settings' as Screen, icon: SettingsIcon, label: 'Setup', badge: 0 },
   ];
+
+  // Split into primary (always visible if unlocked) + secondary (in More drawer)
+  const PRIMARY_IDS: Screen[] = ['grow', 'dryroom', 'customers', 'shop'];
+  const currentLevelForGate = gameState.level;
+
+  const primaryItems = allNavItems.filter(i => PRIMARY_IDS.includes(i.id));
+  const secondaryItems = allNavItems.filter(i => !PRIMARY_IDS.includes(i.id));
+
+  // Show "NEW" dot on tabs that just unlocked but were never opened
+  const isNew = (id: Screen) =>
+    isFeatureUnlocked(id, currentLevelForGate) && !visitedFeatures.includes(id);
+  const newCountInDrawer = secondaryItems.filter(i => isNew(i.id)).length;
+
+  const handleNav = (id: Screen) => {
+    if (!isFeatureUnlocked(id, currentLevelForGate)) {
+      const f = FEATURE_UNLOCKS[id];
+      toast.info(`🔒 ${f?.title ?? id} schaltet auf Level ${f?.level ?? '?'} frei`);
+      return;
+    }
+    if (!hasInitializedMusicRef.current && musicEnabled) {
+      hasInitializedMusicRef.current = true;
+      changeScreen(id);
+    }
+    setActiveScreen(id);
+    markVisited(id);
+    setShowMoreDrawer(false);
+  };
 
   const renderScreen = () => {
     switch (activeScreen) {
