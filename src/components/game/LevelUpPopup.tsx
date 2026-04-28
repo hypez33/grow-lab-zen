@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Star, Zap, Trophy } from 'lucide-react';
+import { Sparkles, Star, Zap, Trophy, ArrowRight } from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
+import { getFeaturesUnlockedAt } from '@/lib/progression';
+import { useNavigationStore } from '@/store/navigationStore';
 
 interface LevelUpPopupProps {
   show: boolean;
