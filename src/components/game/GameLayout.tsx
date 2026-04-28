@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map } from 'lucide-react';
+import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map, Lock, MoreHorizontal, X as CloseIcon } from 'lucide-react';
+import { isFeatureUnlocked, FEATURE_UNLOCKS } from '@/lib/progression';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import { GrowScreen } from './GrowScreen';
 import { ShopScreen } from './ShopScreen';
 import { SkillsScreen } from './SkillsScreen';
