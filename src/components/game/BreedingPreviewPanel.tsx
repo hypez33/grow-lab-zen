@@ -332,7 +332,7 @@ const TraitGroup = ({
               hidden: { opacity: 0, scale: 0.9, y: 4 },
               show:   { opacity: 1, scale: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } },
             }}
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
+            className={`flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
             title={
               `Vererbungs-Chance pro Ergebnis:\n` +
               `• Normal: ${t.survivalByOutcome.normal}%\n` +
@@ -342,6 +342,7 @@ const TraitGroup = ({
               `• Schwach: ${t.survivalByOutcome.poor}%  • Fehl: ${t.survivalByOutcome.fail}%`
             }
           >
+            <span className={`text-[8px] font-bold leading-none px-1 py-0.5 rounded ${c.tag}`}>{originLabel}</span>
             <span>{t.name}</span>
             <span className="text-muted-foreground">{t.survivalPct}%</span>
           </motion.div>
