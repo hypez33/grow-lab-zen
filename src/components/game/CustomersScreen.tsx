@@ -264,26 +264,34 @@ export const CustomersScreen = () => {
           </div>
           
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {filterButtons.map(({ key, label, icon: Icon, count }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveFilter(key)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeFilter === key
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'
-                }`}
-              >
-                <Icon size={12} />
-                {label}
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                  activeFilter === key ? 'bg-primary-foreground/20' : 'bg-background/50'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            ))}
+            {filterButtons.map(({ key, label, icon: Icon, count }) => {
+              const tint =
+                key === 'vip'      ? 'bg-amber-500/20 text-amber-300' :
+                key === 'loyal'    ? 'bg-emerald-500/20 text-emerald-300' :
+                key === 'active'   ? 'bg-blue-500/20 text-blue-300' :
+                key === 'prospect' ? 'bg-muted/50 text-muted-foreground' :
+                                     'bg-primary/15 text-primary';
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveFilter(key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    activeFilter === key
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  <Icon size={12} />
+                  {label}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    activeFilter === key ? 'bg-primary-foreground/20' : tint
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
