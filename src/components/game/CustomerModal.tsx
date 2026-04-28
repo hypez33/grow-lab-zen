@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp } from 'lucide-react';
+import { X, ChevronDown, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Bot, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
@@ -222,8 +222,9 @@ export const CustomerModal = ({
   const [sellOpen, setSellOpen] = useState(true);
   const [offerOpen, setOfferOpen] = useState(false);
 
-  // Chat auto-scroll ref
+  // Chat auto-scroll ref + jump-to-latest pill state
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   useEffect(() => {
     if (!customer) return;
@@ -239,18 +240,36 @@ export const CustomerModal = ({
     setOfferOpen(false);
   }, [customer?.id]);
 
-  // Auto-scroll chat to newest message
+  // Auto-scroll chat to newest message — but only if user is already near the bottom.
   useEffect(() => {
     if (chatContainerRef.current && customer?.messages?.length) {
-      // Use setTimeout to ensure DOM has rendered
+      const el = chatContainerRef.current;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       const timer = setTimeout(() => {
-        if (chatContainerRef.current) {
+        if (chatContainerRef.current && (nearBottom || messagesOpen)) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+          setShowJumpToLatest(false);
+        } else {
+          setShowJumpToLatest(true);
         }
       }, 50);
       return () => clearTimeout(timer);
     }
   }, [customer?.messages?.length, messagesOpen, customer?.id]);
+
+  const handleChatScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    setShowJumpToLatest(!nearBottom);
+  };
+
+  const scrollChatToBottom = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    setShowJumpToLatest(false);
+  };
 
   useEffect(() => {
     if (!customer) return;
@@ -520,9 +539,10 @@ export const CustomerModal = ({
               <button 
                 type="button" 
                 onClick={onClose} 
-                className="p-2 rounded-full bg-muted/40 hover:bg-muted/60 transition-colors"
+                aria-label="Schließen"
+                className="flex-shrink-0 w-10 h-10 rounded-full bg-muted/40 hover:bg-muted/60 active:bg-muted/80 transition-colors flex items-center justify-center"
               >
-                <X size={16} />
+                <X size={20} />
               </button>
             </div>
 
@@ -639,29 +659,44 @@ export const CustomerModal = ({
                     </div>
                     
                     {/* Messages Container */}
-                    <div 
-                      ref={chatContainerRef}
-                      className="max-h-[280px] overflow-y-auto p-3 space-y-3 scrollbar-hide"
-                    >
+                    <div className="relative">
+                      <div 
+                        ref={chatContainerRef}
+                        onScroll={handleChatScroll}
+                        className="max-h-[300px] overflow-y-auto p-3 space-y-1.5 scrollbar-hide"
+                      >
                       {customer.messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-center">
                           <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center mb-3">
                             <MessageSquare size={20} className="text-muted-foreground" />
                           </div>
                           <p className="text-xs text-muted-foreground">Noch keine Nachrichten</p>
-                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          <p className="text-[10px] text-muted-foreground/60 mt-1 mb-3">
                             {customer.status === 'prospect' 
                               ? 'Gib ein Sample um die Konversation zu starten!' 
                               : 'Der Kunde wird sich bald melden...'}
                           </p>
+                          {customer.status === 'prospect' && sampleOptions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleSampleClick}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 text-[11px] font-medium transition-all"
+                            >
+                              <Gift size={12} />
+                              Sample geben (0.5g)
+                            </button>
+                          )}
                         </div>
                       ) : (
                         customer.messages.map((msg, index) => {
                           const typeInfo = getMessageTypeLabel(msg.type);
                           const TypeIcon = typeInfo.icon;
                           const isCustomer = msg.from === 'customer';
+                          const prev = customer.messages[index - 1];
                           const showDateDivider = index === 0 || 
-                            new Date(msg.timestamp).toDateString() !== new Date(customer.messages[index - 1]?.timestamp || 0).toDateString();
+                            new Date(msg.timestamp).toDateString() !== new Date(prev?.timestamp || 0).toDateString();
+                          // Group consecutive messages from the same author within ~2min — hide avatar + type badge.
+                          const isGrouped = !showDateDivider && prev && prev.from === msg.from && (msg.timestamp - prev.timestamp) < 2 * 60 * 1000;
                           
                           return (
                             <div key={msg.id}>
@@ -677,31 +712,25 @@ export const CustomerModal = ({
                               <motion.div
                                 initial={{ opacity: 0, y: 5, scale: 0.98 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                transition={{ duration: 0.2 }}
-                                className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'}`}
+                                transition={{ duration: 0.18 }}
+                                className={`flex gap-2 ${isCustomer ? 'justify-start' : 'justify-end'} ${isGrouped ? 'mt-0.5' : 'mt-2'}`}
                               >
-                                {/* Customer Avatar */}
+                                {/* Customer Avatar (hidden on grouped follow-ups) */}
                                 {isCustomer && (
-                                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center text-sm border border-border/30">
-                                    {customer.avatar}
-                                  </div>
+                                  isGrouped
+                                    ? <div className="flex-shrink-0 w-7" />
+                                    : <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center text-sm border border-border/30">
+                                        {customer.avatar}
+                                      </div>
                                 )}
                                 
                                 <div className={`max-w-[80%] ${isCustomer ? '' : 'text-right'}`}>
-                                  {/* Message Type Badge */}
-                                  <div className={`flex items-center gap-1.5 mb-1 ${isCustomer ? '' : 'justify-end'}`}>
-                                    <TypeIcon size={10} className={typeInfo.color} />
-                                    <span className={`text-[9px] font-medium ${typeInfo.color}`}>
-                                      {typeInfo.label}
-                                    </span>
-                                  </div>
-                                  
                                   {/* Message Bubble */}
                                   <div
-                                    className={`relative rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed break-words ${
+                                    className={`relative rounded-2xl px-3 py-2 text-xs leading-relaxed break-words ${
                                       isCustomer
-                                        ? 'bg-gradient-to-br from-muted/60 to-muted/40 text-foreground rounded-tl-md border border-border/20'
-                                        : 'bg-gradient-to-br from-primary/30 to-primary/20 text-foreground rounded-tr-md border border-primary/20'
+                                        ? `bg-gradient-to-br from-muted/60 to-muted/40 text-foreground border border-border/20 ${isGrouped ? 'rounded-tl-2xl' : 'rounded-tl-md'}`
+                                        : `bg-gradient-to-br from-primary/30 to-primary/20 text-foreground border border-primary/20 ${isGrouped ? 'rounded-tr-2xl' : 'rounded-tr-md'}`
                                     } ${!msg.read && isCustomer ? 'ring-1 ring-primary/40' : ''}`}
                                   >
                                     <div className="whitespace-pre-wrap">{msg.message}</div>
@@ -727,7 +756,7 @@ export const CustomerModal = ({
                                           disabled={!hasRequestStock}
                                           whileHover={{ scale: hasRequestStock ? 1.02 : 1 }}
                                           whileTap={{ scale: hasRequestStock ? 0.98 : 1 }}
-                                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold rounded-lg transition-all ${
+                                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-all min-h-[34px] ${
                                             hasRequestStock
                                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
                                               : 'bg-muted/30 text-muted-foreground border border-border/30 cursor-not-allowed'
@@ -745,56 +774,85 @@ export const CustomerModal = ({
                                     )}
                                   </div>
                                   
-                                  {/* Timestamp */}
-                                  <div className={`flex items-center gap-1 mt-1 ${isCustomer ? '' : 'justify-end'}`}>
-                                    <Clock size={9} className="text-muted-foreground/50" />
-                                    <span className="text-[9px] text-muted-foreground/60">{formatTime(msg.timestamp)}</span>
-                                  </div>
+                                  {/* Compact meta row: type label + timestamp inline (hidden on grouped) */}
+                                  {!isGrouped && (
+                                    <div className={`flex items-center gap-1.5 mt-1 ${isCustomer ? '' : 'justify-end'}`}>
+                                      <TypeIcon size={9} className={typeInfo.color} />
+                                      <span className={`text-[9px] font-medium ${typeInfo.color}`}>{typeInfo.label}</span>
+                                      <span className="text-muted-foreground/40">·</span>
+                                      <Clock size={9} className="text-muted-foreground/50" />
+                                      <span className="text-[9px] text-muted-foreground/60">{formatTime(msg.timestamp)}</span>
+                                    </div>
+                                  )}
                                   
                                   {/* Action Buttons */}
                                   {msg.actions && !msg.actionsUsed && (
                                     <motion.div 
                                       initial={{ opacity: 0, y: -5 }}
                                       animate={{ opacity: 1, y: 0 }}
-                                      className="mt-2 flex flex-wrap gap-1.5"
+                                      className={`mt-2 flex flex-wrap gap-1.5 ${isCustomer ? '' : 'justify-end'}`}
                                     >
-                                      {msg.actions.map(action => (
-                                        <motion.button
-                                          key={action.id}
-                                          type="button"
-                                          onClick={() => handleMessageAction(msg.id, action)}
-                                          whileHover={{ scale: 1.02 }}
-                                          whileTap={{ scale: 0.98 }}
-                                          className={`px-2.5 py-1.5 text-[10px] font-medium rounded-lg transition-all ${
-                                            action.type === 'accept-request' || action.type === 'offer-drug'
-                                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
-                                              : action.type === 'ignore'
-                                                ? 'bg-muted/40 text-muted-foreground border border-border/30 hover:bg-muted/60'
-                                                : 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
-                                          }`}
-                                        >
-                                          {action.type === 'accept-request' && '✓ '}
-                                          {action.type === 'offer-drug' && '💊 '}
-                                          {action.type === 'counter-offer' && '🔄 '}
-                                          {action.type === 'ignore' && '✗ '}
-                                          {action.label}
-                                        </motion.button>
-                                      ))}
+                                      {msg.actions.map(action => {
+                                        const ActionIcon =
+                                          action.type === 'accept-request' ? Check :
+                                          action.type === 'offer-drug' ? Pill :
+                                          action.type === 'counter-offer' ? Repeat :
+                                          action.type === 'ignore' ? XCircle : Sparkles;
+                                        return (
+                                          <motion.button
+                                            key={action.id}
+                                            type="button"
+                                            onClick={() => handleMessageAction(msg.id, action)}
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium rounded-lg transition-all min-h-[34px] ${
+                                              action.type === 'accept-request' || action.type === 'offer-drug'
+                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                                : action.type === 'ignore'
+                                                  ? 'bg-muted/40 text-muted-foreground border border-border/30 hover:bg-muted/60'
+                                                  : 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
+                                            }`}
+                                          >
+                                            <ActionIcon size={12} />
+                                            {action.label}
+                                          </motion.button>
+                                        );
+                                      })}
                                     </motion.div>
                                   )}
                                 </div>
                                 
-                                {/* Player Avatar */}
+                                {/* Player Avatar (hidden on grouped follow-ups) */}
                                 {!isCustomer && (
-                                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
-                                    <User size={12} className="text-primary" />
-                                  </div>
+                                  isGrouped
+                                    ? <div className="flex-shrink-0 w-7" />
+                                    : <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
+                                        <User size={12} className="text-primary" />
+                                      </div>
                                 )}
                               </motion.div>
                             </div>
                           );
                         })
                       )}
+                      </div>
+
+                      {/* Jump-to-latest pill */}
+                      <AnimatePresence>
+                        {showJumpToLatest && customer.messages.length > 3 && (
+                          <motion.button
+                            type="button"
+                            onClick={scrollChatToBottom}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute bottom-2 right-2 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold shadow-lg shadow-primary/30"
+                          >
+                            <ArrowDown size={11} />
+                            Neueste
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
                     </div>
                     
                     {/* Quick Actions Footer */}

@@ -79,8 +79,20 @@ export const CustomerCard = ({
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => onOpen(customer)}
-      className={`relative rounded-xl border ${statusConfig.border} ${statusConfig.bg} p-3 cursor-pointer transition-all hover:shadow-lg ${statusConfig.glow} overflow-hidden`}
+      className={`relative rounded-xl border ${statusConfig.border} ${statusConfig.bg} ${customer.pendingRequest ? 'pt-0' : 'p-3'} cursor-pointer transition-all hover:shadow-lg ${statusConfig.glow} overflow-hidden`}
     >
+      {/* Pending request urgency banner */}
+      {customer.pendingRequest && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1 bg-red-500/20 border-b border-red-500/30 text-[10px] text-red-200 font-medium">
+          <span className="flex items-center gap-1">
+            <Clock size={10} className="text-red-300" />
+            {customer.pendingRequest.gramsRequested}g {customer.pendingRequest.drug}
+          </span>
+          <span className="text-red-300">{formatTimeLeft(customer.pendingRequest.expiresAt)}</span>
+        </div>
+      )}
+
+      <div className={customer.pendingRequest ? 'p-3' : ''}>
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-current transform translate-x-16 -translate-y-16" />
@@ -119,19 +131,8 @@ export const CustomerCard = ({
             </div>
           </div>
 
-          {/* Right Side Badges */}
+          {/* Right Side Badges (timer is already shown in the top urgency banner) */}
           <div className="flex flex-col items-end gap-1">
-            {customer.pendingRequest && (
-              <motion.div
-                initial={{ scale: 0.8 }}
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="flex items-center gap-1 rounded-full bg-red-500/20 border border-red-500/40 px-2 py-1 text-[10px] text-red-300"
-              >
-                <Clock size={10} className="text-red-400" />
-                <span>{formatTimeLeft(customer.pendingRequest.expiresAt)}</span>
-              </motion.div>
-            )}
             {hasHighAddiction && (
               <div className="flex items-center gap-1 text-[10px] text-orange-300">
                 <Zap size={10} />
@@ -230,6 +231,7 @@ export const CustomerCard = ({
             ${customer.totalSpent.toLocaleString()}
           </div>
         )}
+      </div>
       </div>
     </motion.div>
   );

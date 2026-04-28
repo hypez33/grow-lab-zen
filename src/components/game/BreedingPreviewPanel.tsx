@@ -262,9 +262,10 @@ const TraitMixBreakdown = ({
               <motion.div
                 key={m.name}
                 variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1, transition: { duration: 0.18 } } }}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
+                className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border border-neon-orange/40 bg-neon-orange/10 text-neon-orange"
                 title={`${m.chancePct.toFixed(2)}% Chance auf diese neue Eigenschaft`}
               >
+                <span className="text-[8px] font-bold leading-none px-1 py-0.5 rounded bg-neon-orange/25 text-neon-orange border border-neon-orange/40">MUT</span>
                 <Sparkles size={9} />
                 <span>{m.name}</span>
                 <span className="text-muted-foreground">{m.chancePct < 0.1 ? '<0.1' : m.chancePct.toFixed(1)}%</span>
@@ -276,23 +277,39 @@ const TraitMixBreakdown = ({
 
       <motion.div
         variants={groupVariants}
-        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug"
+        className="pt-1.5 mt-1 border-t border-border/40 text-[9px] text-muted-foreground leading-snug space-y-1"
       >
-        <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
-        Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
-        <span className="text-neon-green">Gut 70%</span> ·{' '}
-        <span className="text-neon-orange">Exz. 80%</span> ·{' '}
-        <span className="text-neon-gold">Göttl. 100%</span>{' '}
-        (geteilte Traits +15%)
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-foreground/80">Herkunft:</span>
+          <span className="px-1 py-0.5 rounded bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/40 font-bold text-[8px] leading-none">P1</span>
+          <span className="px-1 py-0.5 rounded bg-neon-green/25 text-neon-green border border-neon-green/40 font-bold text-[8px] leading-none">P2</span>
+          <span className="px-1 py-0.5 rounded bg-neon-gold/25 text-neon-gold border border-neon-gold/40 font-bold text-[8px] leading-none">BOTH</span>
+          <span className="px-1 py-0.5 rounded bg-neon-orange/25 text-neon-orange border border-neon-orange/40 font-bold text-[8px] leading-none">MUT</span>
+        </div>
+        <div>
+          <span className="font-semibold text-foreground/80">Übertragung:</span>{' '}
+          Fehl ≈ 1/N · Schwach ≤ 50% · <span className="text-primary">Normal 60%</span> ·{' '}
+          <span className="text-neon-green">Gut 70%</span> ·{' '}
+          <span className="text-neon-orange">Exz. 80%</span> ·{' '}
+          <span className="text-neon-gold">Göttl. 100%</span>{' '}
+          (geteilte Traits +15%)
+        </div>
       </motion.div>
     </motion.div>
   );
 };
 
-const toneClasses: Record<'gold' | 'cyan' | 'green', { chip: string; dot: string; title: string }> = {
-  gold:  { chip: 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold',     dot: 'bg-neon-gold',   title: 'text-neon-gold' },
-  cyan:  { chip: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',     dot: 'bg-neon-cyan',   title: 'text-neon-cyan' },
-  green: { chip: 'border-neon-green/40 bg-neon-green/10 text-neon-green',  dot: 'bg-neon-green',  title: 'text-neon-green' },
+const toneClasses: Record<'gold' | 'cyan' | 'green', { chip: string; dot: string; title: string; tag: string }> = {
+  gold:  { chip: 'border-neon-gold/50 bg-neon-gold/10 text-neon-gold',     dot: 'bg-neon-gold',   title: 'text-neon-gold',  tag: 'bg-neon-gold/25 text-neon-gold border border-neon-gold/40' },
+  cyan:  { chip: 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan',     dot: 'bg-neon-cyan',   title: 'text-neon-cyan',  tag: 'bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/40' },
+  green: { chip: 'border-neon-green/40 bg-neon-green/10 text-neon-green',  dot: 'bg-neon-green',  title: 'text-neon-green', tag: 'bg-neon-green/25 text-neon-green border border-neon-green/40' },
+};
+
+// Short origin label shown directly on each trait chip so source is readable at a glance.
+const toneLabel: Record<'gold' | 'cyan' | 'green', string> = {
+  gold:  'BOTH',
+  cyan:  'P1',
+  green: 'P2',
 };
 
 const TraitGroup = ({
@@ -304,6 +321,7 @@ const TraitGroup = ({
   traits: TraitPreviewEntry[];
 }) => {
   const c = toneClasses[tone];
+  const originLabel = toneLabel[tone];
   return (
     <div>
       <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
@@ -324,7 +342,7 @@ const TraitGroup = ({
               hidden: { opacity: 0, scale: 0.9, y: 4 },
               show:   { opacity: 1, scale: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } },
             }}
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
+            className={`flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full text-[10px] font-medium border ${c.chip}`}
             title={
               `Vererbungs-Chance pro Ergebnis:\n` +
               `• Normal: ${t.survivalByOutcome.normal}%\n` +
@@ -334,6 +352,7 @@ const TraitGroup = ({
               `• Schwach: ${t.survivalByOutcome.poor}%  • Fehl: ${t.survivalByOutcome.fail}%`
             }
           >
+            <span className={`text-[8px] font-bold leading-none px-1 py-0.5 rounded ${c.tag}`}>{originLabel}</span>
             <span>{t.name}</span>
             <span className="text-muted-foreground">{t.survivalPct}%</span>
           </motion.div>
