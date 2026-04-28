@@ -184,10 +184,8 @@ export const CustomerModal = ({
   const [offerDrug, setOfferDrug] = useState<'koks' | 'meth'>('koks');
   const [offerGrams, setOfferGrams] = useState(5);
 
-  // Collapsible states
-  const [messagesOpen, setMessagesOpen] = useState(true);
-  const [sellOpen, setSellOpen] = useState(true);
-  const [offerOpen, setOfferOpen] = useState(false);
+  // Active tab — replaces three nested Collapsibles to reduce visual noise.
+  const [tab, setTab] = useState<ModalTab>('chat');
 
   // Chat auto-scroll ref + jump-to-latest pill state
   const chatContainerRef = useRef<HTMLDivElement>(null);
