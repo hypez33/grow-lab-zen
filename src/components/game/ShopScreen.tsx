@@ -9,6 +9,8 @@ import { useTerritoryStore } from '@/store/territoryStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { isFeatureUnlocked, FEATURE_UNLOCKS, type FeatureId } from '@/lib/progression';
 import { getCurrentRank, getNextRank, getRankProgress, getRankStats, formatRequirements } from '@/data/ranks';
+import { detectBottlenecks, getBottleneckCtx, type BottleneckHint } from '@/lib/bottlenecks';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import { PlayCircle, PauseCircle } from 'lucide-react';
 import { ResourceBadge } from './ResourceIcon';
 import {
@@ -166,44 +168,36 @@ export const ShopScreen = () => {
   const turfUnlocked = isFeatureUnlocked('turf', level);
   const customersUnlocked = isFeatureUnlocked('customers', level);
 
-  // ----- recommendation context ------------------------------------------
-  const recommendations = useMemo(() => {
-    const emptySlots = growSlots.filter(s => s.isUnlocked && !s.seed).length;
-    const totalSlots = growSlots.filter(s => s.isUnlocked).length;
-    const wetBuds = inventory.filter(b => b.state === 'wet' || b.state === 'drying').length;
-    const driedBuds = inventory.filter(b => b.state === 'dried').length;
-    const freeRacks = dryingRacks.filter(r => r.isUnlocked && !r.bud).length;
-    const totalRacks = dryingRacks.filter(r => r.isUnlocked).length;
-    const pendingCustomers = customers.filter(c => c.pendingRequest !== null).length;
-    const weedWorkersOwned = workers.filter(w => w.owned).length;
-    const hasWarehouse = businesses.some(b => b.owned && b.id.startsWith('warehouse-'));
-    const territoriesOwned = territories.filter(t => t.assignedDealerIds.length > 0).length;
-    const dealersAssigned = territories.reduce((sum, t) => sum + (t.assignedDealerIds?.length ?? 0), 0);
-
-    return buildRecommendations({
-      level,
-      budcoins,
-      emptySlots,
-      totalSlots,
-      seedsCount: seeds.length,
-      wetBuds,
-      driedBuds,
-      freeRacks,
-      totalRacks,
-      pendingCustomers,
-      customersUnlocked,
-      weedWorkersOwned,
-      weedWorkersAvailable: workers.length,
-      autoSellEnabled: autoSellSettings?.enabled ?? false,
-      hasWarehouse,
-      hasBusinessUnlock: businessUnlocked,
-      hasTurfUnlock: turfUnlocked,
-      territoriesOwned,
-      dealersAssigned,
-    });
+  // ----- recommendation list (shared bottleneck detector) ----------------
+  const visited = useOnboardingStore(s => s.visitedFeatures);
+  const recommendations = useMemo<Recommendation[]>(() => {
+    const ctx = getBottleneckCtx(visited as string[]);
+    const hints = detectBottlenecks(ctx);
+    if (hints.length === 0) {
+      return [{
+        id: 'all-good',
+        problem: 'Alles läuft rund 🎉',
+        action: 'Erkunde die anderen Tabs für Upgrades',
+        why: 'Stocke Equipment, Workers oder Style auf, um den nächsten Sprung zu machen.',
+        cta: 'Zu Upgrades',
+        goToTab: 'growroom',
+        severity: 'info',
+      }];
+    }
+    return hints.slice(0, 6).map((h: BottleneckHint): Recommendation => ({
+      id: h.id,
+      problem: h.text,
+      action: h.ctaLabel ? `${h.icon} ${h.ctaLabel}` : `${h.icon} ${h.text}`,
+      why: h.reason ?? '',
+      cta: h.ctaLabel ?? 'Öffnen',
+      badge: SEVERITY_BADGE[h.severity],
+      goToTab: h.shopTab as ShopTabId | undefined,
+      goToScreen: h.action as FeatureId | undefined,
+      severity: h.severity,
+    }));
   }, [
-    level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
-    workers, autoSellSettings, businesses, territories, businessUnlocked, turfUnlocked, customersUnlocked,
+    visited, level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
+    workers, autoSellSettings, businesses, territories,
   ]);
 
   // ----- handlers --------------------------------------------------------
