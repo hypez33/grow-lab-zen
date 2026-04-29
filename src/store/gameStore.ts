@@ -1406,6 +1406,108 @@ export const useGameStore = create<GameState>()(
         set({ xp: newXp, level: newLevel, skillPoints: newSkillPoints });
       },
 
+      // ============ Reputation & Heat ============
+      addReputation: (amount: number, reason?: string) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const inc = Math.round(amount);
+        set((state) => ({
+          reputation: Math.max(0, state.reputation + inc),
+          totalReputationEarned: state.totalReputationEarned + inc,
+        }));
+        // Console log only — toast feedback happens in higher-level callers to avoid spam
+        if (reason && import.meta.env.DEV) {
+          console.log(`+${inc} Rep (${reason})`);
+        }
+      },
+
+      addHeat: (amount: number, reason?: string) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        // Apply territory heat-reduction & business heat-reduction modifiers
+        let modifier = 1;
+        try {
+          const territory = useTerritoryStore.getState();
+          const bonuses = territory.getActiveBonuses?.() ?? [];
+          const heatRed = bonuses
+            .filter(b => b.type === 'heat-reduction')
+            .reduce((sum, b) => sum + b.value, 0);
+          modifier *= Math.max(0.2, 1 - heatRed / 100);
+        } catch { /* noop */ }
+        try {
+          const biz = useBusinessStore.getState();
+          const ownedFronts = (biz.businesses ?? []).filter((b: any) => b.owned).length;
+          // Each owned front cuts incoming heat by 8%, capped at 50%
+          const bizCut = Math.min(0.5, ownedFronts * 0.08);
+          modifier *= 1 - bizCut;
+        } catch { /* noop */ }
+
+        const finalAmount = Math.max(0, amount * modifier);
+        if (finalAmount <= 0) return;
+        set((state) => ({
+          heat: Math.max(0, Math.min(state.maxHeat, state.heat + finalAmount)),
+          totalHeatGenerated: state.totalHeatGenerated + finalAmount,
+        }));
+        if (reason && import.meta.env.DEV) {
+          console.log(`+${finalAmount.toFixed(1)} Heat (${reason})`);
+        }
+      },
+
+      reduceHeat: (amount: number, reason?: string) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        set((state) => ({
+          heat: Math.max(0, state.heat - amount),
+        }));
+        if (reason && import.meta.env.DEV) {
+          console.log(`-${amount.toFixed(1)} Heat (${reason})`);
+        }
+      },
+
+      getReputationTier: () => {
+        const rep = get().reputation;
+        const tiers = [
+          { id: 'unknown',  name: 'Unbekannt',     min: 0,    next: 50,    icon: '👤', color: 'text-muted-foreground' },
+          { id: 'rookie',   name: 'Rookie',        min: 50,   next: 200,   icon: '🌱', color: 'text-emerald-300' },
+          { id: 'hustler',  name: 'Hustler',       min: 200,  next: 500,   icon: '🔥', color: 'text-cyan-300' },
+          { id: 'plug',     name: 'The Plug',      min: 500,  next: 1500,  icon: '⭐', color: 'text-blue-300' },
+          { id: 'kingpin',  name: 'Kingpin',       min: 1500, next: 5000,  icon: '👑', color: 'text-amber-300' },
+          { id: 'legend',   name: 'Untergrund-Legende', min: 5000, icon: '💎', color: 'text-purple-300' },
+        ] as const;
+        let active = tiers[0];
+        for (const t of tiers) if (rep >= t.min) active = t;
+        return active as ReturnType<GameState['getReputationTier']>;
+      },
+
+      getHeatLevel: () => {
+        const { heat, maxHeat } = get();
+        const pct = Math.min(100, (heat / Math.max(1, maxHeat)) * 100);
+        if (pct >= 80) return { id: 'critical' as const, name: 'Kritisch', pct, color: 'text-red-300' };
+        if (pct >= 55) return { id: 'high' as const, name: 'Hoch', pct, color: 'text-amber-300' };
+        if (pct >= 25) return { id: 'warm' as const, name: 'Warm', pct, color: 'text-yellow-300' };
+        return { id: 'safe' as const, name: 'Ruhig', pct, color: 'text-emerald-300' };
+      },
+
+      runRepHeatTick: (deltaMinutes: number) => {
+        if (!Number.isFinite(deltaMinutes) || deltaMinutes <= 0) return;
+        const state = get();
+        if (state.heat <= 0) return;
+        // Base decay: ~6 heat per game-hour. Boosted by territory & business safety.
+        let perHour = 6;
+        try {
+          const territory = useTerritoryStore.getState();
+          const bonuses = territory.getActiveBonuses?.() ?? [];
+          const heatRed = bonuses.filter(b => b.type === 'heat-reduction').reduce((s, b) => s + b.value, 0);
+          perHour += heatRed * 0.05; // up to ~+2/hr per 40% reduction
+        } catch { /* noop */ }
+        try {
+          const biz = useBusinessStore.getState();
+          const owned = (biz.businesses ?? []).filter((b: any) => b.owned).length;
+          perHour += owned * 1.2;
+        } catch { /* noop */ }
+
+        const decay = (perHour / 60) * deltaMinutes;
+        if (decay <= 0) return;
+        set((s) => ({ heat: Math.max(0, s.heat - decay) }));
+      },
+
       // Check and process any pending level ups
       checkLevelUp: () => {
         const state = get();
