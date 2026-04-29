@@ -961,7 +961,7 @@ export const useBusinessStore = create<BusinessState>()(
     }),
     {
       name: 'business-save',
-      version: 4,
+      version: 5,
       migrate: (persistedState: any) => {
         const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
         const existingBusinesses = Array.isArray(state.businesses) ? state.businesses : [];
