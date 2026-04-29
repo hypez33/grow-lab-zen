@@ -715,6 +715,39 @@ const createProspect = (existingNames: string[]): Customer => {
     }),
   ];
 
+  // Personality-driven trait baselines for the new fields.
+  const priceSensitivity = clamp(
+    Math.floor(
+      personalityType === 'paranoid' ? randomBetween(60, 90) :
+      personalityType === 'casual'   ? randomBetween(40, 70) :
+      personalityType === 'adventurous' ? randomBetween(25, 55) :
+      /* hardcore */                    randomBetween(15, 40)
+    ),
+    0, 100
+  );
+  const riskTolerance = clamp(
+    Math.floor(
+      personalityType === 'paranoid' ? randomBetween(5, 25) :
+      personalityType === 'casual'   ? randomBetween(20, 50) :
+      personalityType === 'adventurous' ? randomBetween(55, 85) :
+      /* hardcore */                    randomBetween(70, 100)
+    ),
+    0, 100
+  );
+  // Initial favorite — biased to weed unless personality suggests otherwise.
+  const favoriteProductType: DrugType =
+    drugPreferences.meth ? 'meth' :
+    drugPreferences.koks && riskTolerance > 60 ? 'koks' :
+    'weed';
+  const minQualityPreference = clamp(
+    Math.floor(
+      personalityType === 'hardcore' ? randomBetween(30, 60) :
+      personalityType === 'paranoid' ? randomBetween(20, 50) :
+                                       randomBetween(10, 40)
+    ),
+    0, 100
+  );
+
   return {
     id: `cust-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
@@ -735,6 +768,12 @@ const createProspect = (existingNames: string[]): Customer => {
     requestHistory: [],
     personalityType,
     nextRequestAtMinutes: 0,
+    preferredTraits: [],
+    minQualityPreference,
+    priceSensitivity,
+    riskTolerance,
+    favoriteProductType,
+    lastReferralAtMinutes: 0,
   };
 };
 
