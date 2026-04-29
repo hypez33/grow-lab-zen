@@ -4,10 +4,22 @@ import { useCocaStore, CocaQuest } from '@/store/cocaStore';
 import { ResourceIcon } from './ResourceIcon';
 import { CheckCircle, Gift, Clock, Trophy, Snowflake, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuestStreakStore } from '@/store/questStreakStore';
+import { QuestStreakBadge } from './QuestStreakBadge';
 
 export const QuestsScreen = () => {
   const { quests, claimQuest, budcoins, gems } = useGameStore();
   const { cocaQuests, claimCocaQuest, cocaSeeds } = useCocaStore();
+  const registerQuestClaim = useQuestStreakStore(s => s.registerQuestClaim);
+
+  const handleClaimWeed = (id: string) => {
+    const quest = quests.find(q => q.id === id);
+    claimQuest(id);
+    if (quest?.type === 'daily') {
+      const newStreak = registerQuestClaim();
+      if (newStreak > 0) toast(`🔥 Streak: ${newStreak} ${newStreak === 1 ? 'Tag' : 'Tage'}`);
+    }
+  };
   const updateBudcoins = (amount: number) => {
     useGameStore.setState(state => ({ budcoins: state.budcoins + amount }));
   };
@@ -36,6 +48,10 @@ export const QuestsScreen = () => {
   const handleClaimCocaQuest = (quest: CocaQuest) => {
     const result = claimCocaQuest(quest.id);
     if (result.success && result.reward) {
+      if (quest.type === 'daily') {
+        const newStreak = registerQuestClaim();
+        if (newStreak > 0) toast(`🔥 Streak: ${newStreak} ${newStreak === 1 ? 'Tag' : 'Tage'}`);
+      }
       if (result.reward.type === 'budcoins') {
         updateBudcoins(result.reward.amount);
         toast.success(`💰 +${result.reward.amount}$ erhalten!`);
@@ -54,11 +70,14 @@ export const QuestsScreen = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-between p-4 gap-2">
         <h1 className="text-2xl font-display font-bold text-neon-cyan">Quests</h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock size={16} />
-          <span>Resets daily</span>
+        <div className="flex items-center gap-2">
+          <QuestStreakBadge />
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock size={14} />
+            <span>Resets daily</span>
+          </div>
         </div>
       </div>
 
@@ -75,7 +94,7 @@ export const QuestsScreen = () => {
                 <QuestCard
                   key={quest.id}
                   quest={quest}
-                  onClaim={() => claimQuest(quest.id)}
+                  onClaim={() => handleClaimWeed(quest.id)}
                   index={index}
                 />
               ))}
