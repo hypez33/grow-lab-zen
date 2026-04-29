@@ -496,7 +496,7 @@ export const ShopScreen = () => {
   };
 
   // ----- tab definitions --------------------------------------------------
-  const tabs: { id: ShopTabId; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  const tabs: { id: ShopTabId; label: string; icon: React.ElementType }[] = [
     { id: 'recommended', label: 'Empfohlen', icon: Sparkles },
     { id: 'seeds', label: 'Seeds', icon: Sprout },
     { id: 'growroom', label: 'Growroom', icon: Zap },
@@ -911,7 +911,7 @@ export const ShopScreen = () => {
                   <h3 className="font-display font-bold text-sm">Turf & Territorien</h3>
                 </div>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Übernimm Stadtteile für passives Einkommen. Eingenommen: {territories.filter(t => t.controlledBy === 'player').length}/{territories.length}.
+                  Übernimm Stadtteile für passives Einkommen. Eingenommen: {territories.filter(t => t.assignedDealerIds.length > 0).length}/{territories.length}.
                 </p>
                 <button
                   onClick={() => navigateTo('turf')}
@@ -1040,7 +1040,7 @@ export const ShopScreen = () => {
 // ============================================================================
 
 const SectionHeader: React.FC<{
-  icon: React.ComponentType<{ size?: number }>;
+  icon: React.ElementType;
   label: string;
   color: string;
   locked?: string | null;
