@@ -233,7 +233,7 @@ export const GrowScreen = () => {
   const [floatingNumbers, setFloatingNumbers] = useState<{ id: number; value: string; x: number; y: number }[]>([]);
   const [tapRipples, setTapRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [showOfflinePopup, setShowOfflinePopup] = useState(false);
-  const [offlineEarnings, setOfflineEarnings] = useState({ coins: 0, harvests: 0 });
+  const [offlineEarnings, setOfflineEarnings] = useState({ plantsAdvanced: 0, plantsReady: 0, autoHarvested: 0, wetGrams: 0, coins: 0, harvests: 0 });
   const [showHarvestBreakdown, setShowHarvestBreakdown] = useState(false);
   const [harvestBreakdownData, setHarvestBreakdownData] = useState<HarvestBreakdownData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
