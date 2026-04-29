@@ -281,6 +281,20 @@ export const BusinessScreen = () => {
       return next.slice(-120);
     });
 
+    // Reputation & Heat integration: bulk warehouse sales raise heat,
+    // high-quality / large lots also build reputation.
+    const gameStore = useGameStore.getState();
+    const heatGain = (result.gramsSold / 40) * (drug === 'koks' ? 1.4 : 1);
+    if (heatGain >= 0.5) {
+      gameStore.addHeat?.(heatGain, `Bulk ${drug === 'weed' ? 'Weed' : 'Koks'} verkauf`);
+    }
+    if (result.averageQuality >= 70 || result.gramsSold >= 200) {
+      const qualityBoost = Math.max(0, (result.averageQuality - 50) / 25);
+      const sizeBoost = Math.min(3, result.gramsSold / 250);
+      const repGain = Math.max(0.5, qualityBoost + sizeBoost);
+      gameStore.addReputation?.(repGain, `Premium ${drug === 'weed' ? 'Weed' : 'Koks'} Lot`);
+    }
+
     toast.success(
       <div className="flex flex-col gap-1">
         <div className="font-bold">Verkauft!</div>
