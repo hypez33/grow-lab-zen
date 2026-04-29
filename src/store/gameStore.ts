@@ -316,6 +316,9 @@ export interface GameState {
   claimedAchievements: string[];
   totalBreedings: number;
 
+  // Career rank rewards already granted (RankId[])
+  claimedRanks: string[];
+
   // Reputation & Heat (global meta-progression)
   reputation: number;
   heat: number;
@@ -775,6 +778,7 @@ export const useGameStore = create<GameState>()(
 
       // Achievements
       claimedAchievements: [],
+      claimedRanks: [],
       totalBreedings: 0,
 
       // Reputation & Heat
@@ -3177,7 +3181,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 16, // v16: Reputation & Heat system
+      version: 17, // v17: Career Rank rewards tracking
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3463,6 +3467,10 @@ export const useGameStore = create<GameState>()(
           if (!Number.isFinite(persistedState.totalHeatGenerated)) persistedState.totalHeatGenerated = 0;
           if (!Number.isFinite(persistedState.lastRepHeatToastAt)) persistedState.lastRepHeatToastAt = 0;
           if (!Number.isFinite(persistedState.lastHeatDecayAt)) persistedState.lastHeatDecayAt = 0;
+        }
+
+        if (version < 17) {
+          if (!Array.isArray(persistedState.claimedRanks)) persistedState.claimedRanks = [];
         }
 
         return persistedState;

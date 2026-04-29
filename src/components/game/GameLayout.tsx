@@ -30,6 +30,7 @@ import { useMethStore } from '@/store/methStore';
 import { useCustomerStore } from '@/store/customerStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { toast } from 'sonner';
+import { getCurrentRank, getRankStats } from '@/data/ranks';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -187,6 +188,37 @@ export const GameLayout = () => {
         const newLevel = useGameStore.getState().level;
         setLevelUpLevel(newLevel);
         setShowLevelUp(true);
+      }
+
+      // Career rank check — derive from stats, grant rewards once per rank.
+      try {
+        const stats = getRankStats();
+        const rank = getCurrentRank(stats);
+        const claimed: string[] = useGameStore.getState().claimedRanks ?? [];
+        if (rank && !claimed.includes(rank.id) && rank.id !== 'homegrower') {
+          useGameStore.setState((s: any) => {
+            const reward = rank.reward;
+            return {
+              claimedRanks: [...(s.claimedRanks ?? []), rank.id],
+              budcoins: s.budcoins + (reward?.budcoins ?? 0),
+              totalCoinsEarned: s.totalCoinsEarned + (reward?.budcoins ?? 0),
+              gems: s.gems + (reward?.gems ?? 0),
+              skillPoints: s.skillPoints + (reward?.skillPoints ?? 0),
+            };
+          });
+          toast.success(
+            `${rank.icon} Neuer Rang: ${rank.name}!`,
+            { description: rank.reward?.label ?? rank.description, duration: 6000 }
+          );
+          shake({ intensity: 'light', duration: 0.4 });
+        } else if (rank && !claimed.includes(rank.id) && rank.id === 'homegrower') {
+          // Mark starter rank as claimed silently.
+          useGameStore.setState((s: any) => ({
+            claimedRanks: [...(s.claimedRanks ?? []), rank.id],
+          }));
+        }
+      } catch {
+        /* ranks module optional — never block tick */
       }
     }, 1000);
     return () => clearInterval(interval);
