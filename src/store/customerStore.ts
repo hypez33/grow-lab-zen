@@ -1585,9 +1585,20 @@ export const useCustomerStore = create<CustomerState>()(
     }),
     {
       name: 'customer-network-save',
-      version: 6,
+      version: 7,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState;
+        const ensureRequest = (req: any): PurchaseRequest | null => {
+          if (!req) return null;
+          return {
+            ...req,
+            status: req.status ?? 'pending',
+            source: req.source ?? 'customer',
+            minQuality: req.minQuality ?? 0,
+            priceMultiplier: req.priceMultiplier ?? 1,
+            xpReward: req.xpReward ?? Math.max(2, Math.floor((req.gramsRequested ?? 1) * 1)),
+          };
+        };
         return {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
@@ -1595,8 +1606,10 @@ export const useCustomerStore = create<CustomerState>()(
                 ...customer,
                 drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
                 addiction: customer.addiction ?? { koks: 0, meth: 0 },
-                pendingRequest: customer.pendingRequest ?? null,
-                requestHistory: customer.requestHistory ?? [],
+                pendingRequest: ensureRequest(customer.pendingRequest),
+                requestHistory: Array.isArray(customer.requestHistory)
+                  ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
+                  : [],
                 personalityType: customer.personalityType ?? 'casual',
                 nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
                   ? customer.nextRequestAtMinutes
