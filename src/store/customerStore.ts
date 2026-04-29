@@ -289,6 +289,41 @@ const getTerritorySalesMultiplier = (drug: DrugType) => {
   }
 };
 
+/**
+ * Cheap accessor — returns the aggregated territory demand profile.
+ * Falls back to a neutral profile if territory store is unavailable / pre-migration.
+ */
+const getTerritoryProfile = () => {
+  try {
+    const territoryState = useTerritoryStore?.getState?.();
+    if (territoryState && typeof territoryState.getControlledDemandProfile === 'function') {
+      return territoryState.getControlledDemandProfile();
+    }
+  } catch { /* noop */ }
+  return {
+    drugWeights: { weed: 0, koks: 0, meth: 0 },
+    rarityWeights: {} as Record<string, number>,
+    traitWeights: {} as Record<string, number>,
+    customerTypeWeights: {} as Record<string, number>,
+    averageOrderSizeModifier: 1,
+    priceModifier: 1,
+    contributingTerritoryNames: [] as string[],
+  };
+};
+
+/** Pick a key from a weighted record. Returns null if all weights are 0. */
+const pickFromWeights = <K extends string>(weights: Partial<Record<K, number>>): K | null => {
+  const entries = (Object.entries(weights) as Array<[K, number]>).filter(([, w]) => (w ?? 0) > 0);
+  if (entries.length === 0) return null;
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [key, w] of entries) {
+    if (roll < w) return key;
+    roll -= w;
+  }
+  return entries[entries.length - 1][0];
+};
+
 const calculateMaxPrice = (
   customer: Customer,
   drug: DrugType,
