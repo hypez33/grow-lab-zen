@@ -120,6 +120,7 @@ export interface BusinessState {
   totalEventProfit: number;
   totalEventLoss: number;
   lastEventCheckMinutes: number;
+  lastProfitLogMinutes: number;
 
   buyBusiness: (businessId: string, budcoins: number, playerLevel: number, gameMinutes: number) => PurchaseResult;
   upgradeBusiness: (businessId: string, budcoins: number, gameMinutes: number) => PurchaseResult;
