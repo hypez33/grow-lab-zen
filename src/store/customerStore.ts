@@ -1047,10 +1047,15 @@ export const useCustomerStore = create<CustomerState>()(
           }),
         }));
 
-        // XP reward (defaults for old requests without xpReward)
+        // XP + Reputation + Heat reward (defaults for old requests)
         const xpReward = pending.xpReward ?? Math.max(2, Math.floor(pending.gramsRequested * (pending.drug === 'weed' ? 1 : 2)));
+        const repReward = pending.reputationReward ?? (pending.source === 'vip' ? 5 : 2);
+        const heatReward = pending.heatGain ?? (pending.drug === 'weed' ? Math.max(0.2, pending.gramsRequested / 30) : Math.max(1, pending.gramsRequested / 8));
         try {
-          useGameStore.getState().addXp?.(xpReward);
+          const gs = useGameStore.getState();
+          gs.addXp?.(xpReward);
+          gs.addReputation?.(repReward, 'Bestellung erfüllt');
+          if (heatReward > 0) gs.addHeat?.(heatReward, `Bestellung ${pending.drug}`);
         } catch { /* noop */ }
 
         if (customer) {
