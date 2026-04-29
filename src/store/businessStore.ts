@@ -855,6 +855,32 @@ export const useBusinessStore = create<BusinessState>()(
           }
         }
 
+        // ----- Passive business cashflow -----
+        // Sum profit/h for owned, unpaused businesses, then scale by elapsed game-minutes.
+        const profitPerHour = businesses.reduce((sum, business) => {
+          if (!business.owned) return sum;
+          if (business.pausedUntilMinutes && business.pausedUntilMinutes > gameMinutes) return sum;
+          return sum + getBusinessProfitPerHour(business);
+        }, 0);
+        const profit = Math.max(0, Math.floor(profitPerHour * (safeDelta / GAME_MINUTES_PER_HOUR)));
+
+        // Throttled cashflow log (~once per game-hour, only if cashflow active).
+        const lastProfitLog = state.lastProfitLogMinutes ?? 0;
+        if (profitPerHour > 0 && gameMinutes - lastProfitLog >= BUSINESS_PROFIT_LOG_INTERVAL_MINUTES) {
+          // Pick a representative business name for flavor.
+          const anchor = businesses.find(b => b.owned && (!b.pausedUntilMinutes || b.pausedUntilMinutes <= gameMinutes));
+          const sinceMin = Math.max(safeDelta, gameMinutes - lastProfitLog);
+          const periodProfit = Math.max(0, Math.floor(profitPerHour * (sinceMin / GAME_MINUTES_PER_HOUR)));
+          if (anchor && periodProfit > 0) {
+            businessLogs.unshift({
+              id: createBusinessLogId(),
+              timestampMinutes: gameMinutes,
+              message: `${anchor.name} & co. erwirtschafteten +${periodProfit.toLocaleString()}$ Cashflow.`,
+              type: 'business',
+            });
+          }
+        }
+
         if (businessLogs.length > BUSINESS_LOG_LIMIT) {
           businessLogs = businessLogs.slice(0, BUSINESS_LOG_LIMIT);
         }
@@ -864,8 +890,12 @@ export const useBusinessStore = create<BusinessState>()(
           importContracts,
           shipments: updatedShipments,
           warehouseLots,
-          totalBusinessRevenue: state.totalBusinessRevenue,
+          totalBusinessRevenue: state.totalBusinessRevenue + profit,
           businessLogs: businessLogs.slice(0, BUSINESS_LOG_LIMIT),
+          lastProfitLogMinutes:
+            profitPerHour > 0 && gameMinutes - lastProfitLog >= BUSINESS_PROFIT_LOG_INTERVAL_MINUTES
+              ? gameMinutes
+              : state.lastProfitLogMinutes,
         });
 
         const currentHour = Math.floor(gameMinutes / GAME_MINUTES_PER_HOUR);
