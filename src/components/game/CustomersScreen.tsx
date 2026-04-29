@@ -8,6 +8,7 @@ import { useMethStore } from '@/store/methStore';
 import { useGameStore } from '@/store/gameStore';
 import { CustomerCard } from './CustomerCard';
 import { CustomerModal } from './CustomerModal';
+import { OrderBoardPanel } from './OrderBoardPanel';
 
 const statusOrder: Record<Customer['status'], number> = {
   vip: 0,
