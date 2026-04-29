@@ -624,7 +624,63 @@ export const matchWeedRequest = (request: PurchaseRequest, inventory: BudItem[])
   return { matches: candidates, best, issues: [] };
 };
 
-const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null => {
+// ---------------------------------------------------------------------------
+// Best-match helper for "Sell" UI (no pending request needed).
+// Considers preferred strain, traits, rarity, and minQualityPreference.
+// ---------------------------------------------------------------------------
+export interface CustomerMatch {
+  bud: BudItem | null;
+  reasons: string[];
+  warnings: string[];
+}
+
+export const findBestMatchForCustomer = (
+  customer: Customer,
+  inventory: BudItem[],
+  minGrams: number = 1
+): CustomerMatch => {
+  const dried = inventory.filter(b => b.state === 'dried' && b.grams >= minGrams);
+  if (dried.length === 0) {
+    return { bud: null, reasons: [], warnings: ['Keine getrockneten Buds im Lager'] };
+  }
+
+  const minQ = customer.minQualityPreference ?? 0;
+  const wantStrain = customer.preferredStrain;
+  const wantTraits = customer.preferredTraits ?? [];
+  const wantRarity = customer.preferredRarity;
+  const wantRarityRank = wantRarity ? RARITY_RANK[wantRarity] : 0;
+
+  const scored = dried.map(b => {
+    let score = 0;
+    if (wantStrain && b.strainName === wantStrain) score += 100;
+    const overlap = wantTraits.filter(t => (b.traits ?? []).includes(t)).length;
+    score += overlap * 25;
+    const budRarityRank = RARITY_RANK[b.rarity as RequestRarity] ?? 0;
+    if (budRarityRank >= wantRarityRank) score += 15;
+    score += b.quality * 0.5;
+    if (b.quality < minQ) score -= 30;
+    return { bud: b, score, overlap, budRarityRank };
+  }).sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  if (!top) return { bud: null, reasons: [], warnings: [] };
+
+  const reasons: string[] = [];
+  const warnings: string[] = [];
+  if (wantStrain && top.bud.strainName === wantStrain) reasons.push(`Lieblings-Strain ${wantStrain}`);
+  if (top.overlap > 0) reasons.push(`${top.overlap} passendes Trait`);
+  if (wantRarity && top.budRarityRank >= wantRarityRank) reasons.push(`Rarität ${top.bud.rarity} ✓`);
+  if (top.bud.quality >= minQ + 20) reasons.push(`Qualität ${top.bud.quality}% > Min`);
+  else if (top.bud.quality >= minQ) reasons.push(`Qualität ${top.bud.quality}% ok`);
+
+  if (wantStrain && top.bud.strainName !== wantStrain) warnings.push(`Möchte eigentlich ${wantStrain}`);
+  if (wantRarity && top.budRarityRank < wantRarityRank) warnings.push(`Wünscht ≥ ${wantRarity}`);
+  if (top.bud.quality < minQ) warnings.push(`Qualität unter Min (${minQ}%)`);
+
+  return { bud: top.bud, reasons, warnings };
+};
+
+
   if (customer.status === 'prospect') return null;
   const maxAddiction = getMaxAddiction(customer);
   const requestChance =
