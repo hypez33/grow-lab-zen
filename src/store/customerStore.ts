@@ -341,8 +341,25 @@ const calculateWeedSaleRevenue = (customer: Customer, grams: number, quality: nu
   return Math.floor(grams * BASE_WEED_PRICE * loyaltyBonus * spendingMultiplier * qualityMultiplier);
 };
 
+const RARITY_RANK: Record<RequestRarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+};
+
+const inferSource = (customer: Customer): RequestSource => {
+  if (customer.status === 'vip') return 'vip';
+  if (customer.status === 'loyal') return 'customer';
+  return 'customer';
+};
+
 const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseRequest => {
   const addiction = drug === 'koks' ? customer.addiction.koks : drug === 'meth' ? customer.addiction.meth : 0;
+  let playerLevel = 1;
+  try { playerLevel = useGameStore.getState().level || 1; } catch { /* noop */ }
+
   const urgency =
     addiction > 80
       ? 'desperate'
@@ -352,7 +369,13 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
           ? 'medium'
           : 'low';
 
-  const gramsRequested =
+  // Base grams scale with loyalty, spending power, status & level
+  const loyaltyScale = 0.6 + (customer.loyalty / 100) * 1.4;
+  const spendScale = 0.7 + (customer.spendingPower / 100) * 0.8;
+  const statusScale = customer.status === 'vip' ? 1.6 : customer.status === 'loyal' ? 1.25 : 1;
+  const levelScale = 1 + Math.min(playerLevel, 50) * 0.04;
+
+  const baseGrams =
     urgency === 'desperate'
       ? 10 + Math.random() * 40
       : urgency === 'high'
@@ -360,6 +383,8 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
         : urgency === 'medium'
           ? 2 + Math.random() * 10
           : 1 + Math.random() * 5;
+
+  const gramsRequested = Math.max(0.5, baseGrams * loyaltyScale * spendScale * statusScale * levelScale * (drug === 'weed' ? 1 : 0.4));
 
   const expiryMinutes =
     urgency === 'desperate'
@@ -372,15 +397,65 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
 
   const roundedGrams = Math.round(gramsRequested * 10) / 10;
 
+  // Quality / rarity / strain / traits requirements scale with status & satisfaction
+  let minQuality = 0;
+  let minRarity: RequestRarity | undefined;
+  let preferredStrain: string | undefined;
+  let preferredTraits: string[] | undefined;
+  let priceMultiplier = 1;
+  let reputationReward = 0;
+
+  if (customer.status === 'loyal') {
+    minQuality = 50 + Math.floor(Math.random() * 15);
+    priceMultiplier = 1.1;
+    reputationReward = 1;
+    if (customer.preferredStrain && Math.random() < 0.4) {
+      preferredStrain = customer.preferredStrain;
+    }
+  } else if (customer.status === 'vip') {
+    minQuality = 70 + Math.floor(Math.random() * 20);
+    priceMultiplier = 1.35;
+    reputationReward = 3;
+    if (customer.preferredStrain && Math.random() < 0.7) {
+      preferredStrain = customer.preferredStrain;
+    }
+    if (drug === 'weed' && Math.random() < 0.4) {
+      minRarity = Math.random() < 0.5 ? 'rare' : 'uncommon';
+    }
+    if (drug === 'weed' && Math.random() < 0.25) {
+      const traitPool = ['Glitter', 'Frost', 'GoldRush', 'EssenceFlow', 'Bountiful', 'Lucky'];
+      preferredTraits = [traitPool[Math.floor(Math.random() * traitPool.length)]];
+    }
+  } else {
+    // Active / early: keep it simple
+    minQuality = customer.satisfaction > 70 ? 40 : 0;
+    priceMultiplier = 1;
+  }
+
+  const baseMaxPrice = calculateMaxPrice(customer, drug, urgency, roundedGrams);
+  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier);
+
+  const xpReward = Math.max(2, Math.floor(roundedGrams * (drug === 'weed' ? 1 : 2) * (1 + reputationReward * 0.2)));
+
   return {
     id: `req-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     timestamp: Date.now(),
     drug,
     gramsRequested: roundedGrams,
-    maxPrice: calculateMaxPrice(customer, drug, urgency, roundedGrams),
+    maxPrice,
     expiresAt: Date.now() + expiryMinutes * 60000,
     urgency,
     message: generateRequestMessage(drug, urgency),
+    minQuality,
+    preferredStrain,
+    preferredTraits,
+    minRarity,
+    priceMultiplier,
+    reputationReward,
+    heatGain: drug === 'weed' ? 0 : Math.ceil(roundedGrams / 10),
+    xpReward,
+    source: inferSource(customer),
+    status: 'pending',
   };
 };
 
