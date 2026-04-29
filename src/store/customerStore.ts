@@ -681,6 +681,7 @@ export const findBestMatchForCustomer = (
 };
 
 
+const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null => {
   if (customer.status === 'prospect') return null;
   const maxAddiction = getMaxAddiction(customer);
   const requestChance =
