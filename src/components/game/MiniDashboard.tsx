@@ -281,3 +281,81 @@ const StatMini = ({ icon, value, label, color, highlight }: StatMiniProps) => (
     <span className="text-[8px] text-muted-foreground">{label}</span>
   </motion.div>
 );
+
+const formatVal = (key: string, n: number) => {
+  if (key === 'totalSalesRevenue') return `${n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : n}$`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k`;
+  return `${n}`;
+};
+
+const RankWidget = () => {
+  // Subscribe to representative store values so this re-renders when stats change.
+  // (Selectors are kept in MiniDashboard's main hook above; we re-derive here.)
+  // Using individual selectors keeps the work minimal.
+  const totalGramsSold = useGameStore(s => s.totalGramsSold);
+  const totalHarvests = useGameStore(s => s.totalHarvests);
+  const totalSalesRevenue = useGameStore(s => s.totalSalesRevenue);
+  const level = useGameStore(s => s.level);
+
+  // Touch dependent stores so Zustand triggers a re-render when they change.
+  // We don't strictly need their values here — getRankStats() pulls fresh snapshots.
+  // (Imports kept light to avoid cycles.)
+  const stats = getRankStats();
+  void totalGramsSold; void totalHarvests; void totalSalesRevenue; void level;
+
+  const progress = getRankProgress(stats);
+  const { current, next, overall, checklist } = progress;
+
+  return (
+    <div className="rounded-lg bg-muted/15 px-2.5 py-2 border border-border/30">
+      <div className="flex items-center gap-2">
+        <div className={`text-xl shrink-0 ${current.color}`} title={current.description}>
+          {current.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Rang</span>
+            <span className={`text-xs font-bold truncate ${current.color}`}>{current.name}</span>
+          </div>
+          {next ? (
+            <div className="mt-1 h-1.5 bg-muted/40 rounded-full overflow-hidden" title={`Nächster Rang: ${next.name}`}>
+              <div
+                className="h-full bg-gradient-to-r from-secondary via-neon-purple to-neon-gold transition-all"
+                style={{ width: `${Math.round(overall * 100)}%` }}
+              />
+            </div>
+          ) : (
+            <div className="mt-1 text-[10px] text-neon-gold">Maximaler Rang erreicht 👑</div>
+          )}
+        </div>
+      </div>
+
+      {next && checklist.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>Auf dem Weg zu <span className={next.color}>{next.icon} {next.name}</span></span>
+            <span>{Math.round(overall * 100)}%</span>
+          </div>
+          <div className="grid grid-cols-1 gap-0.5">
+            {checklist.map(item => (
+              <div
+                key={item.key}
+                className={`flex items-center gap-1.5 text-[11px] ${item.done ? 'text-emerald-300/80' : 'text-foreground/80'}`}
+              >
+                {item.done
+                  ? <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />
+                  : <Circle size={11} className="text-muted-foreground shrink-0" />}
+                <span className="flex-1 truncate">
+                  {item.label}
+                </span>
+                <span className={`tabular-nums ${item.done ? 'text-emerald-300' : 'text-muted-foreground'}`}>
+                  {formatVal(item.key, item.current)}/{formatVal(item.key, item.needed)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
