@@ -122,6 +122,11 @@ export const SalesScreen = () => {
         </div>
       </div>
 
+      {/* Customer Orders — connect Sales to Customers */}
+      <div className="mb-4">
+        <OrderBoardPanel variant="compact" maxItems={4} title="📋 Kunden-Bestellungen" />
+      </div>
+
       <div className="game-card p-4 mb-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold">Auto-Sell</div>
