@@ -777,6 +777,15 @@ export const useGameStore = create<GameState>()(
       claimedAchievements: [],
       totalBreedings: 0,
 
+      // Reputation & Heat
+      reputation: 0,
+      heat: 0,
+      maxHeat: 100,
+      totalReputationEarned: 0,
+      totalHeatGenerated: 0,
+      lastRepHeatToastAt: 0,
+      lastHeatDecayAt: 0,
+
       // Actions
       tap: () => set((state) => {
         const newTaps = state.totalTaps + 1;
