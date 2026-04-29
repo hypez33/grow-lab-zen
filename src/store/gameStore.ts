@@ -3,6 +3,24 @@ import { persist } from 'zustand/middleware';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { getFeaturesUnlockedAt } from '@/lib/progression';
+import {
+  SEED_CATALOG,
+  COLLECTION_BONUSES,
+  INITIAL_SEEDS,
+} from '@/data/seeds';
+import { INITIAL_UPGRADES } from '@/data/upgrades';
+import { INITIAL_SKILLS } from '@/data/skills';
+import { INITIAL_QUESTS } from '@/data/quests';
+import { INITIAL_COSMETICS } from '@/data/cosmetics';
+import { INITIAL_WORKERS } from '@/data/workers';
+import { INITIAL_SALES_CHANNELS } from '@/data/salesChannels';
+import { FERTILIZER_CATALOG, SOIL_CATALOG } from '@/data/supplies';
+import {
+  SALES_WINDOW_MS,
+  STAGE_THRESHOLDS,
+  getStageFromProgress,
+  getXpForLevel,
+} from '@/lib/gameHelpers';
 
 // Types
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -162,8 +180,10 @@ export interface Worker {
 }
 
 // Seed catalog - all possible seeds that can be discovered
-// Catalogs are defined in /data/seeds.ts and re-exported here for backwards compat.
-export { SEED_CATALOG, COLLECTION_BONUSES } from '@/data/seeds';
+// Catalogs are defined in /data/seeds.ts and re-exported here for backwards compat
+// (consumers do `import { SEED_CATALOG, COLLECTION_BONUSES } from '@/store/gameStore'`).
+export { SEED_CATALOG, COLLECTION_BONUSES };
+export { FERTILIZER_CATALOG, SOIL_CATALOG };
 
 // Dealer drug effect
 export interface DealerDrugEffect {
