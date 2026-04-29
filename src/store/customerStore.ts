@@ -459,6 +459,93 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
   };
 };
 
+import type { BudItem } from '@/store/gameStore';
+
+export interface RequestMatchIssue {
+  code: 'no-stock' | 'not-enough-grams' | 'low-quality' | 'wrong-strain' | 'low-rarity' | 'missing-trait';
+  message: string;
+}
+
+export interface RequestMatchResult {
+  matches: BudItem[];
+  best: BudItem | null;
+  issues: RequestMatchIssue[];
+}
+
+/**
+ * Find dried buds that satisfy a weed PurchaseRequest. Older requests without
+ * the optional fields are treated as "no extra requirements".
+ */
+export const matchWeedRequest = (request: PurchaseRequest, inventory: BudItem[]): RequestMatchResult => {
+  if (request.drug !== 'weed') {
+    return { matches: [], best: null, issues: [{ code: 'no-stock', message: 'Nicht-Weed Anfrage' }] };
+  }
+
+  const dried = inventory.filter(b => b.state === 'dried' && b.grams > 0);
+  if (dried.length === 0) {
+    return { matches: [], best: null, issues: [{ code: 'no-stock', message: 'Keine getrockneten Buds' }] };
+  }
+
+  const enough = dried.filter(b => b.grams >= request.gramsRequested);
+  if (enough.length === 0) {
+    return { matches: [], best: null, issues: [{ code: 'not-enough-grams', message: `Brauche ${request.gramsRequested}g am Stück` }] };
+  }
+
+  let candidates = enough;
+  const issues: RequestMatchIssue[] = [];
+
+  if (request.minQuality && request.minQuality > 0) {
+    const filtered = candidates.filter(b => b.quality >= (request.minQuality ?? 0));
+    if (filtered.length === 0) {
+      issues.push({ code: 'low-quality', message: `Min. ${request.minQuality}% Qualität` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.minRarity) {
+    const minRank = RARITY_RANK[request.minRarity];
+    const filtered = candidates.filter(b => (RARITY_RANK[(b.rarity as RequestRarity)] ?? 0) >= minRank);
+    if (filtered.length === 0) {
+      issues.push({ code: 'low-rarity', message: `Min. Seltenheit ${request.minRarity}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.preferredStrain) {
+    const filtered = candidates.filter(b => b.strainName === request.preferredStrain);
+    if (filtered.length === 0) {
+      issues.push({ code: 'wrong-strain', message: `Möchte ${request.preferredStrain}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.preferredTraits && request.preferredTraits.length > 0) {
+    const filtered = candidates.filter(b =>
+      (request.preferredTraits ?? []).every(t => (b.traits ?? []).includes(t))
+    );
+    if (filtered.length === 0) {
+      issues.push({ code: 'missing-trait', message: `Trait benötigt: ${request.preferredTraits.join(', ')}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+
+  if (issues.length > 0) {
+    return { matches: [], best: null, issues };
+  }
+
+  // Best match: prefer matching strain, then highest quality, then highest rarity
+  const best = [...candidates].sort((a, b) => {
+    const sA = request.preferredStrain && a.strainName === request.preferredStrain ? 1 : 0;
+    const sB = request.preferredStrain && b.strainName === request.preferredStrain ? 1 : 0;
+    if (sA !== sB) return sB - sA;
+    if (b.quality !== a.quality) return b.quality - a.quality;
+    return (RARITY_RANK[(b.rarity as RequestRarity)] ?? 0) - (RARITY_RANK[(a.rarity as RequestRarity)] ?? 0);
+  })[0] ?? null;
+
+  return { matches: candidates, best, issues: [] };
+};
+
 const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null => {
   if (customer.status === 'prospect') return null;
   const maxAddiction = getMaxAddiction(customer);
