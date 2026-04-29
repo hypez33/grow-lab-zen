@@ -340,6 +340,14 @@ export interface GameState {
   checkLevelUp: () => number;
   discoverSeed: (seedName: string) => void;
   getCollectionBonus: (rarity: Rarity) => boolean;
+
+  // Reputation & Heat
+  addReputation: (amount: number, reason?: string) => void;
+  addHeat: (amount: number, reason?: string) => void;
+  reduceHeat: (amount: number, reason?: string) => void;
+  getReputationTier: () => { id: string; name: string; min: number; next?: number; icon: string; color: string };
+  getHeatLevel: () => { id: 'safe' | 'warm' | 'high' | 'critical'; name: string; pct: number; color: string };
+  runRepHeatTick: (deltaMinutes: number) => void;
   toggleSound: () => void;
   toggleMusic: () => void;
   toggleReducedMotion: () => void;
