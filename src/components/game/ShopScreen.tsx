@@ -1,17 +1,41 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useGameStore, Upgrade, Worker, SEED_CATALOG, Rarity } from '@/store/gameStore';
 import { useBusinessStore } from '@/store/businessStore';
-import { useCocaStore, CocaWorker, COCA_WORKERS, COCA_SEED_CATALOG, CocaRarity } from '@/store/cocaStore';
+import { useCocaStore, CocaWorker, COCA_SEED_CATALOG, CocaRarity } from '@/store/cocaStore';
 import { useMethStore, MethWorker } from '@/store/methStore';
+import { useCustomerStore } from '@/store/customerStore';
+import { useTerritoryStore } from '@/store/territoryStore';
+import { useNavigationStore } from '@/store/navigationStore';
+import { isFeatureUnlocked, FEATURE_UNLOCKS, type FeatureId } from '@/lib/progression';
 import { PlayCircle, PauseCircle } from 'lucide-react';
 import { ResourceBadge } from './ResourceIcon';
-import { Zap, Leaf, Bot, Palette, Lock, Check, Users, ArrowUp, Sprout, Snowflake, FlaskConical } from 'lucide-react';
+import {
+  Zap,
+  Leaf,
+  Bot,
+  Palette,
+  Lock,
+  Check,
+  Users,
+  ArrowUp,
+  Sprout,
+  Snowflake,
+  FlaskConical,
+  Wind,
+  Sparkles,
+  Building2,
+  ShoppingBag,
+  AlertCircle,
+  ChevronRight,
+} from 'lucide-react';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-import { Wind } from 'lucide-react';
+// ============================================================================
+// Constants & helpers
+// ============================================================================
 
 const categoryIcons = {
   equipment: Zap,
@@ -19,7 +43,8 @@ const categoryIcons = {
   automation: Bot,
   cosmetics: Palette,
   drying: Wind,
-};
+  sales: ShoppingBag,
+} as const;
 
 const categoryColors = {
   equipment: 'text-neon-green',
@@ -27,9 +52,10 @@ const categoryColors = {
   automation: 'text-neon-cyan',
   cosmetics: 'text-neon-pink',
   drying: 'text-neon-gold',
-};
+  sales: 'text-neon-cyan',
+} as const;
 
-const getSeedPrice = (rarity: Rarity): number => {
+const getSeedPrice = (rarity: Rarity | CocaRarity): number => {
   switch (rarity) {
     case 'common': return 5;
     case 'uncommon': return 15;
@@ -40,7 +66,7 @@ const getSeedPrice = (rarity: Rarity): number => {
   }
 };
 
-const getRarityColor = (rarity: Rarity): string => {
+const getRarityColor = (rarity: Rarity | CocaRarity): string => {
   switch (rarity) {
     case 'legendary': return 'hsl(45 100% 55%)';
     case 'epic': return 'hsl(270 70% 55%)';
@@ -50,97 +76,382 @@ const getRarityColor = (rarity: Rarity): string => {
   }
 };
 
+type ShopTabId =
+  | 'recommended'
+  | 'seeds'
+  | 'growroom'
+  | 'drying'
+  | 'sales'
+  | 'crew'
+  | 'business'
+  | 'style';
+
+// ============================================================================
+// Recommendation engine
+// ============================================================================
+
+interface Recommendation {
+  id: string;
+  problem: string;
+  action: string;
+  why: string;
+  cta: string;
+  badge?: string;
+  /** If set, clicking jumps to that tab instead of navigating away. */
+  goToTab?: ShopTabId;
+  /** If set, clicking navigates to the given screen. */
+  goToScreen?: FeatureId;
+  cost?: number;
+  locked?: string | null;
+}
+
+interface RecoCtx {
+  level: number;
+  budcoins: number;
+  emptySlots: number;
+  totalSlots: number;
+  seedsCount: number;
+  wetBuds: number;
+  driedBuds: number;
+  freeRacks: number;
+  totalRacks: number;
+  pendingCustomers: number;
+  customersUnlocked: boolean;
+  weedWorkersOwned: number;
+  weedWorkersAvailable: number;
+  autoSellEnabled: boolean;
+  hasWarehouse: boolean;
+  hasBusinessUnlock: boolean;
+  hasTurfUnlock: boolean;
+  territoriesOwned: number;
+  dealersAssigned: number;
+}
+
+const buildRecommendations = (ctx: RecoCtx): Recommendation[] => {
+  const recos: Recommendation[] = [];
+
+  // Empty grow slots
+  if (ctx.emptySlots > 0 && ctx.seedsCount > 0) {
+    recos.push({
+      id: 'plant',
+      problem: `${ctx.emptySlots} leere Slot${ctx.emptySlots === 1 ? '' : 's'} im Grow-Raum`,
+      action: 'Pflanze einen Seed',
+      why: 'Leere Slots produzieren nichts. Mehr Pflanzen = mehr Ware = mehr Cash.',
+      cta: 'Zum Grow-Raum',
+      goToScreen: 'grow',
+      badge: 'Sofort',
+    });
+  } else if (ctx.emptySlots > 0 && ctx.seedsCount === 0) {
+    recos.push({
+      id: 'buy-seeds',
+      problem: 'Du hast leere Slots aber keine Seeds',
+      action: 'Kaufe günstige Common Seeds',
+      why: 'Common Seeds wachsen schnell und bringen den Loop in Gang.',
+      cta: 'Seeds ansehen',
+      goToTab: 'seeds',
+      cost: 5,
+      badge: 'Sofort',
+    });
+  }
+
+  // Drying bottleneck
+  if (ctx.wetBuds >= 3 && ctx.freeRacks === 0 && ctx.totalRacks > 0) {
+    recos.push({
+      id: 'more-racks',
+      problem: `${ctx.wetBuds} feuchte Buds, aber alle Racks voll`,
+      action: 'Kaufe ein Drying Rack oder upgrade die Trocknung',
+      why: 'Ohne freie Racks stapelt sich nasse Ware. Trocknen macht sie verkaufsfähig.',
+      cta: 'Trocknung verbessern',
+      goToTab: 'drying',
+      badge: 'Engpass',
+    });
+  } else if (ctx.wetBuds >= 5 && ctx.totalRacks === 0) {
+    recos.push({
+      id: 'first-rack',
+      problem: 'Feuchte Buds aber kein Drying Rack',
+      action: 'Schalte einen Drying Rack frei',
+      why: 'Nasse Buds lassen sich nicht verkaufen — Trocknung ist Pflicht.',
+      cta: 'Zum Trockenraum',
+      goToScreen: 'dryroom',
+      badge: 'Engpass',
+    });
+  }
+
+  // Lots of dried inventory but no auto-sell
+  if (ctx.driedBuds >= 6 && !ctx.autoSellEnabled) {
+    recos.push({
+      id: 'auto-sell',
+      problem: `${ctx.driedBuds} getrocknete Buds liegen rum`,
+      action: 'Aktiviere Auto-Sell im Verkaufs-Bildschirm',
+      why: 'Auto-Sell verkauft kontinuierlich an die besten Kanäle, auch offline.',
+      cta: 'Zum Verkauf',
+      goToScreen: 'sales',
+      badge: 'Optimieren',
+    });
+  }
+
+  // Customers waiting
+  if (ctx.customersUnlocked && ctx.pendingCustomers > 0 && ctx.driedBuds === 0) {
+    recos.push({
+      id: 'no-stock',
+      problem: `${ctx.pendingCustomers} Kunde${ctx.pendingCustomers === 1 ? '' : 'n'} wartet, kein getrocknetes Lager`,
+      action: 'Trockne Buds & verbessere Qualität',
+      why: 'Kunden zahlen Premium für hohe Qualität — leere Vitrine = verlorener Umsatz.',
+      cta: 'Trocknung & Qualität',
+      goToTab: 'drying',
+      badge: 'Engpass',
+    });
+  }
+
+  // First worker
+  if (ctx.level >= 5 && ctx.weedWorkersOwned === 0 && ctx.weedWorkersAvailable > 0) {
+    recos.push({
+      id: 'first-worker',
+      problem: 'Du machst noch alles per Hand',
+      action: 'Stelle deinen ersten Worker ein',
+      why: 'Worker pflanzen, ernten und trocknen automatisch — auch offline.',
+      cta: 'Crew anschauen',
+      goToTab: 'crew',
+      badge: 'Skalieren',
+    });
+  }
+
+  // Business unlocked but no warehouse
+  if (ctx.hasBusinessUnlock && !ctx.hasWarehouse) {
+    recos.push({
+      id: 'warehouse',
+      problem: 'Business freigeschaltet, aber kein Warehouse',
+      action: 'Eröffne ein Lagerhaus',
+      why: 'Lager schalten Großhandel und Premium-Verkäufe frei.',
+      cta: 'Zum Business',
+      goToScreen: 'business',
+      badge: 'Mid-Game',
+    });
+  }
+
+  // Turf unlocked but no dealers assigned
+  if (ctx.hasTurfUnlock && ctx.territoriesOwned > 0 && ctx.dealersAssigned === 0) {
+    recos.push({
+      id: 'assign-dealer',
+      problem: 'Territorium gekauft, aber niemand verteidigt es',
+      action: 'Weise Dealer dem Territorium zu',
+      why: 'Ohne Dealer kein passives Einkommen aus Turf.',
+      cta: 'Zum Turf',
+      goToScreen: 'turf',
+      badge: 'Mid-Game',
+    });
+  }
+
+  if (recos.length === 0) {
+    recos.push({
+      id: 'all-good',
+      problem: 'Alles läuft rund 🎉',
+      action: 'Erkunde die anderen Tabs für Upgrades',
+      why: 'Stocke Equipment, Workers oder Style auf, um den nächsten Sprung zu machen.',
+      cta: 'Zu Upgrades',
+      goToTab: 'growroom',
+    });
+  }
+
+  return recos;
+};
+
+// ============================================================================
+// Main component
+// ============================================================================
+
 export const ShopScreen = () => {
-  const [activeTab, setActiveTab] = useState<'equipment' | 'genetics' | 'automation' | 'cosmetics' | 'workers' | 'seeds' | 'drying'>('equipment');
+  const [activeTab, setActiveTab] = useState<ShopTabId>('recommended');
   const [bulkSeed, setBulkSeed] = useState<{ name: string; rarity: Rarity | CocaRarity; type: 'weed' | 'coca' } | null>(null);
   const [bulkQuantity, setBulkQuantity] = useState(1);
-  const { upgrades, budcoins, buyUpgrade, workers, buyWorker, upgradeWorker, buySeed, seeds, toggleWorkerPause } = useGameStore();
+
+  const {
+    upgrades, budcoins, buyUpgrade, workers, buyWorker, upgradeWorker, buySeed, seeds,
+    toggleWorkerPause, level, growSlots, inventory, dryingRacks, autoSellSettings,
+  } = useGameStore();
+
   const koksGrams = useBusinessStore(state => state.warehouseLots.reduce((sum, lot) => (
     lot.drug === 'koks' ? sum + lot.grams : sum
   ), 0));
+  const businesses = useBusinessStore(state => state.businesses);
   const { cocaWorkers, buyCocaWorker, upgradeCocaWorker, toggleCocaWorkerPause, cocaSeeds, buyCocaSeed } = useCocaStore();
   const { methWorkers, buyMethWorker, upgradeMethWorker, toggleMethWorkerPause } = useMethStore();
-  const updateBudcoins = (amount: number) => {
-    useGameStore.setState(state => ({ budcoins: state.budcoins + amount }));
-  };
+  const customers = useCustomerStore(state => state.customers);
+  const territories = useTerritoryStore(state => state.territories);
+  const navigateTo = useNavigationStore(state => state.navigateTo);
+
   const { playPurchase, playError } = useGameSounds();
 
-  const filteredUpgrades = upgrades.filter(u => u.category === activeTab);
-
-  const handleBuy = (upgradeId: string, canAfford: boolean) => {
-    if (canAfford) {
-      buyUpgrade(upgradeId);
-      playPurchase();
-    } else {
+  // ----- centralized payment helpers --------------------------------------
+  const canAfford = (amount: number) => budcoins >= amount;
+  const spendCash = (amount: number, reason?: string) => {
+    if (!canAfford(amount)) {
       playError();
+      toast.error(`Nicht genug $${reason ? ` für ${reason}` : ''}!`);
+      return false;
     }
+    useGameStore.setState(state => ({ budcoins: state.budcoins - amount }));
+    return true;
+  };
+
+  // ----- feature unlocks --------------------------------------------------
+  const cocaUnlocked = isFeatureUnlocked('koks', level);
+  const methUnlocked = isFeatureUnlocked('meth', level);
+  const businessUnlocked = isFeatureUnlocked('business', level);
+  const turfUnlocked = isFeatureUnlocked('turf', level);
+  const customersUnlocked = isFeatureUnlocked('customers', level);
+
+  // ----- recommendation context ------------------------------------------
+  const recommendations = useMemo(() => {
+    const emptySlots = growSlots.filter(s => s.isUnlocked && !s.seed).length;
+    const totalSlots = growSlots.filter(s => s.isUnlocked).length;
+    const wetBuds = inventory.filter(b => b.state === 'wet' || b.state === 'drying').length;
+    const driedBuds = inventory.filter(b => b.state === 'dried').length;
+    const freeRacks = dryingRacks.filter(r => r.isUnlocked && !r.budId).length;
+    const totalRacks = dryingRacks.filter(r => r.isUnlocked).length;
+    const pendingCustomers = customers.filter(c => c.state === 'awaiting' || c.state === 'chatting').length;
+    const weedWorkersOwned = workers.filter(w => w.owned).length;
+    const hasWarehouse = businesses.some(b => b.owned && b.category === 'warehouse');
+    const territoriesOwned = territories.filter(t => t.controlledBy === 'player').length;
+    const dealersAssigned = territories.reduce((sum, t) => sum + (t.assignedDealerIds?.length ?? 0), 0);
+
+    return buildRecommendations({
+      level,
+      budcoins,
+      emptySlots,
+      totalSlots,
+      seedsCount: seeds.length,
+      wetBuds,
+      driedBuds,
+      freeRacks,
+      totalRacks,
+      pendingCustomers,
+      customersUnlocked,
+      weedWorkersOwned,
+      weedWorkersAvailable: workers.length,
+      autoSellEnabled: autoSellSettings?.enabled ?? false,
+      hasWarehouse,
+      hasBusinessUnlock: businessUnlocked,
+      hasTurfUnlock: turfUnlocked,
+      territoriesOwned,
+      dealersAssigned,
+    });
+  }, [
+    level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
+    workers, autoSellSettings, businesses, territories, businessUnlocked, turfUnlocked, customersUnlocked,
+  ]);
+
+  // ----- handlers --------------------------------------------------------
+  const handleBuyUpgrade = (upgradeId: string, cost: number) => {
+    if (!canAfford(cost)) {
+      playError();
+      return;
+    }
+    buyUpgrade(upgradeId);
+    playPurchase();
   };
 
   const handleBuyWorker = (workerId: string) => {
     const worker = workers.find(w => w.id === workerId);
-    if (!worker) return;
-    
-    if (worker.owned) {
-      playError();
-      return;
-    }
-
+    if (!worker || worker.owned) { playError(); return; }
     const needsKoks = (worker.costKoksGrams ?? 0) > 0;
     if (needsKoks) {
       if (koksGrams < (worker.costKoksGrams ?? 0)) {
         playError();
-        toast.error('Nicht genug Koks!', {
-          description: `${worker.costKoksGrams}g benötigt.`,
-        });
+        toast.error('Nicht genug Koks!', { description: `${worker.costKoksGrams}g benötigt.` });
         return;
       }
-    } else if (budcoins < worker.cost) {
+    } else if (!canAfford(worker.cost)) {
       playError();
       toast.error('Nicht genug $!');
       return;
     }
-
-    const success = buyWorker(workerId);
-    if (success) {
+    if (buyWorker(workerId)) {
       playPurchase();
-      toast.success(`${worker.name} eingestellt!`, {
-        description: worker.description,
-      });
-    } else {
-      playError();
-      toast.error('Einstellen fehlgeschlagen.');
+      toast.success(`${worker.name} eingestellt!`, { description: worker.description });
     }
   };
 
   const handleUpgradeWorker = (workerId: string) => {
     const worker = workers.find(w => w.id === workerId);
     if (!worker || !worker.owned) return;
-    
     const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
-    
-    if (budcoins >= upgradeCost) {
-      const success = upgradeWorker(workerId);
-      if (success) {
-        playPurchase();
-        toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
-      }
+    if (!canAfford(upgradeCost)) { playError(); toast.error('Nicht genug $!'); return; }
+    if (upgradeWorker(workerId)) {
+      playPurchase();
+      toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
+    }
+  };
+
+  const handleBuySeed = (seedName: string, rarity: Rarity) => {
+    const cost = getSeedPrice(rarity);
+    if (!canAfford(cost)) { playError(); toast.error('Nicht genug $!'); return; }
+    if (buySeed(seedName, cost)) {
+      playPurchase();
+      toast.success(`${seedName} gekauft!`);
+    }
+  };
+
+  const handleBuyCocaSeed = (seedName: string, rarity: CocaRarity) => {
+    const cost = getSeedPrice(rarity);
+    const result = buyCocaSeed(seedName, cost, budcoins);
+    if (result.success) {
+      spendCash(cost, seedName);
+      playPurchase();
+      toast.success(`${seedName} gekauft!`);
     } else {
       playError();
       toast.error('Nicht genug $!');
     }
   };
 
-  const handleBuySeed = (seedName: string, rarity: Rarity) => {
-    const cost = getSeedPrice(rarity);
-    if (budcoins >= cost) {
-      const success = buySeed(seedName, cost);
-      if (success) {
-        playPurchase();
-        toast.success(`${seedName} gekauft!`);
-      }
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
+  const handleBuyCocaWorker = (workerId: string) => {
+    const worker = cocaWorkers.find(w => w.id === workerId);
+    if (!worker || worker.owned) { playError(); return; }
+    if (!canAfford(worker.cost)) { playError(); toast.error('Nicht genug $!'); return; }
+    const result = buyCocaWorker(workerId, budcoins);
+    if (result.success) {
+      spendCash(result.cost, worker.name);
+      playPurchase();
+      toast.success(`${worker.name} angeheuert!`, { description: worker.description });
+    }
+  };
+
+  const handleUpgradeCocaWorker = (workerId: string) => {
+    const worker = cocaWorkers.find(w => w.id === workerId);
+    if (!worker || !worker.owned) return;
+    const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
+    if (!canAfford(upgradeCost)) { playError(); toast.error('Nicht genug $!'); return; }
+    const result = upgradeCocaWorker(workerId, budcoins);
+    if (result.success) {
+      spendCash(result.cost, worker.name);
+      playPurchase();
+      toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
+    }
+  };
+
+  const handleBuyMethWorker = (workerId: string) => {
+    const worker = methWorkers.find(w => w.id === workerId);
+    if (!worker || worker.owned) { playError(); return; }
+    if (!canAfford(worker.cost)) { playError(); toast.error('Nicht genug $!'); return; }
+    const result = buyMethWorker(workerId, budcoins);
+    if (result.success) {
+      spendCash(result.cost, worker.name);
+      playPurchase();
+      toast.success(`${worker.name} angeheuert!`, { description: worker.description });
+    }
+  };
+
+  const handleUpgradeMethWorker = (workerId: string) => {
+    const worker = methWorkers.find(w => w.id === workerId);
+    if (!worker || !worker.owned) return;
+    const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
+    if (!canAfford(upgradeCost)) { playError(); toast.error('Nicht genug $!'); return; }
+    const result = upgradeMethWorker(workerId, budcoins);
+    if (result.success) {
+      spendCash(result.cost, worker.name);
+      playPurchase();
+      toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
     }
   };
 
@@ -151,21 +462,15 @@ export const ShopScreen = () => {
 
   const handleBulkSeedBuy = () => {
     if (!bulkSeed) return;
-    const unitCost = getSeedPrice(bulkSeed.rarity as Rarity);
+    const unitCost = getSeedPrice(bulkSeed.rarity);
     const maxAffordable = unitCost > 0 ? Math.floor(useGameStore.getState().budcoins / unitCost) : 0;
-    if (maxAffordable <= 0) {
-      playError();
-      toast.error('Nicht genug $!');
-      return;
-    }
-
+    if (maxAffordable <= 0) { playError(); toast.error('Nicht genug $!'); return; }
     const desiredQuantity = Math.min(Math.max(1, bulkQuantity), maxAffordable);
     let purchased = 0;
 
     if (bulkSeed.type === 'weed') {
       for (let i = 0; i < desiredQuantity; i += 1) {
-        const success = buySeed(bulkSeed.name, unitCost);
-        if (!success) break;
+        if (!buySeed(bulkSeed.name, unitCost)) break;
         purchased += 1;
       }
     } else {
@@ -177,9 +482,7 @@ export const ShopScreen = () => {
         remaining -= unitCost;
         purchased += 1;
       }
-      if (purchased > 0) {
-        useGameStore.setState(state => ({ budcoins: state.budcoins - unitCost * purchased }));
-      }
+      if (purchased > 0) spendCash(unitCost * purchased, bulkSeed.name);
     }
 
     if (purchased > 0) {
@@ -192,114 +495,29 @@ export const ShopScreen = () => {
     }
   };
 
-  const handleBuyCocaSeed = (seedName: string, rarity: CocaRarity) => {
-    const cost = getSeedPrice(rarity);
-    const result = buyCocaSeed(seedName, cost, budcoins);
-    if (result.success) {
-      updateBudcoins(-cost);
-      playPurchase();
-      toast.success(`${seedName} gekauft!`);
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
-    }
-  };
-
-  const handleBuyCocaWorker = (workerId: string) => {
-    const worker = cocaWorkers.find(w => w.id === workerId);
-    if (!worker) return;
-    
-    if (worker.owned) {
-      playError();
-      return;
-    }
-    
-    if (budcoins >= worker.cost) {
-      const result = buyCocaWorker(workerId, budcoins);
-      if (result.success) {
-        updateBudcoins(-result.cost);
-        playPurchase();
-        toast.success(`${worker.name} angeheuert!`, {
-          description: worker.description,
-        });
-      }
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
-    }
-  };
-
-  const handleUpgradeCocaWorker = (workerId: string) => {
-    const worker = cocaWorkers.find(w => w.id === workerId);
-    if (!worker || !worker.owned) return;
-    
-    const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
-    
-    if (budcoins >= upgradeCost) {
-      const result = upgradeCocaWorker(workerId, budcoins);
-      if (result.success) {
-        updateBudcoins(-result.cost);
-        playPurchase();
-        toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
-      }
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
-    }
-  };
-
-  const handleBuyMethWorker = (workerId: string) => {
-    const worker = methWorkers.find(w => w.id === workerId);
-    if (!worker) return;
-
-    if (worker.owned) {
-      playError();
-      return;
-    }
-
-    if (budcoins >= worker.cost) {
-      const result = buyMethWorker(workerId, budcoins);
-      if (result.success) {
-        updateBudcoins(-result.cost);
-        playPurchase();
-        toast.success(`${worker.name} angeheuert!`, {
-          description: worker.description,
-        });
-      }
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
-    }
-  };
-
-  const handleUpgradeMethWorker = (workerId: string) => {
-    const worker = methWorkers.find(w => w.id === workerId);
-    if (!worker || !worker.owned) return;
-
-    const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
-
-    if (budcoins >= upgradeCost) {
-      const result = upgradeMethWorker(workerId, budcoins);
-      if (result.success) {
-        updateBudcoins(-result.cost);
-        playPurchase();
-        toast.success(`${worker.name} auf Level ${worker.level + 1} verbessert!`);
-      }
-    } else {
-      playError();
-      toast.error('Nicht genug $!');
-    }
-  };
-
-  const tabs = [
-    { id: 'equipment' as const, label: 'Equip', icon: Zap },
-    { id: 'drying' as const, label: 'Trocknung', icon: Wind },
-    { id: 'seeds' as const, label: 'Seeds', icon: Sprout },
-    { id: 'workers' as const, label: 'Workers', icon: Users },
-    { id: 'automation' as const, label: 'Auto', icon: Bot },
-    { id: 'genetics' as const, label: 'Genes', icon: Leaf },
-    { id: 'cosmetics' as const, label: 'Style', icon: Palette },
+  // ----- tab definitions --------------------------------------------------
+  const tabs: { id: ShopTabId; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+    { id: 'recommended', label: 'Empfohlen', icon: Sparkles },
+    { id: 'seeds', label: 'Seeds', icon: Sprout },
+    { id: 'growroom', label: 'Growroom', icon: Zap },
+    { id: 'drying', label: 'Trocknung', icon: Wind },
+    { id: 'sales', label: 'Verkauf', icon: ShoppingBag },
+    { id: 'crew', label: 'Crew', icon: Users },
+    { id: 'business', label: 'Business', icon: Building2 },
+    { id: 'style', label: 'Style', icon: Palette },
   ];
+
+  // Filter upgrades by intended tab
+  const growroomUpgrades = upgrades.filter(u => u.category === 'equipment' || (u.category === 'automation' && u.id !== 'tap-power'));
+  const dryingUpgrades = upgrades.filter(u => u.category === 'drying');
+  const salesUpgrades = upgrades.filter(u => u.category === 'sales');
+  const cosmeticUpgrades = upgrades.filter(u => u.category === 'cosmetics');
+  const geneticsUpgrades = upgrades.filter(u => u.category === 'genetics');
+
+  const handleRecoClick = (reco: Recommendation) => {
+    if (reco.goToTab) setActiveTab(reco.goToTab);
+    else if (reco.goToScreen) navigateTo(reco.goToScreen);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -313,13 +531,14 @@ export const ShopScreen = () => {
       <div className="flex gap-1 px-4 pb-2 overflow-x-auto scrollbar-hide">
         {tabs.map(tab => {
           const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition-all
-                ${activeTab === tab.id 
-                  ? 'bg-primary text-primary-foreground' 
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap transition-all flex-shrink-0
+                ${isActive
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
                 }
               `}
@@ -333,227 +552,270 @@ export const ShopScreen = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
-        {activeTab === 'seeds' ? (
+        {/* RECOMMENDED ----------------------------------------------------- */}
+        {activeTab === 'recommended' && (
           <div className="grid gap-3">
             <div className="text-sm text-muted-foreground mb-2">
-              Kaufe Seeds um deine Sammlung zu erweitern!
-            </div>
-
-            {/* Weed Seeds */}
-            <div className="text-xs font-bold text-neon-green mb-1 flex items-center gap-2">
-              <Leaf size={14} /> Weed Seeds ({seeds.length})
+              Personalisierte Vorschläge basierend auf deinem aktuellen Spielstand.
             </div>
             <AnimatePresence mode="popLayout">
-              {SEED_CATALOG.map((catalogSeed, index) => {
-                const cost = getSeedPrice(catalogSeed.rarity);
-                const canAfford = budcoins >= cost;
-                return (
-                  <motion.div
-                    key={catalogSeed.name}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                    className={`game-card p-3 cursor-pointer transition-all rarity-${catalogSeed.rarity}`}
-                    onClick={() => canAfford && handleBuySeed(catalogSeed.name, catalogSeed.rarity)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
-                        style={{ 
-                          backgroundColor: `${getRarityColor(catalogSeed.rarity)}20`,
-                          boxShadow: `0 0 12px ${getRarityColor(catalogSeed.rarity)}40`
-                        }}
-                      >
-                        🌱
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm">{catalogSeed.name}</h3>
-                          <span 
-                            className="text-[10px] px-1.5 py-0.5 rounded-full capitalize"
-                            style={{ 
-                              backgroundColor: `${getRarityColor(catalogSeed.rarity)}20`,
-                              color: getRarityColor(catalogSeed.rarity)
-                            }}
-                          >
-                            {catalogSeed.rarity}
+              {recommendations.map((reco, idx) => (
+                <motion.button
+                  key={reco.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: idx * 0.04 }}
+                  onClick={() => handleRecoClick(reco)}
+                  className="game-card p-4 text-left hover:border-primary/60 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-neon-green/10 text-neon-green flex-shrink-0">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-display font-bold text-foreground">{reco.action}</h3>
+                        {reco.badge && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-neon-green/20 text-neon-green font-bold uppercase">
+                            {reco.badge}
                           </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {catalogSeed.traits.slice(0, 2).map(trait => (
-                            <span key={trait} className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">
-                              {trait}
-                            </span>
-                          ))}
-                          <span className="text-[9px] text-muted-foreground">
-                            +{catalogSeed.baseYield} yield
-                          </span>
-                        </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <motion.button
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (canAfford) handleBuySeed(catalogSeed.name, catalogSeed.rarity);
-                          }}
-                          disabled={!canAfford}
-                          className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg font-bold text-xs transition-all
-                            ${canAfford 
-                              ? 'btn-neon'
-                              : 'bg-muted/50 text-muted-foreground border border-border'
-                            }
-                          `}
-                        >
-                          {canAfford ? (
-                            <>
-                              <span>KAUFEN</span>
-                              <span>{cost}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock size={14} />
-                              <span>{cost}</span>
-                            </>
-                          )}
-                        </motion.button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (canAfford) openBulkSeedModal(catalogSeed.name, catalogSeed.rarity, 'weed');
-                          }}
-                          disabled={!canAfford}
-                          className={`h-[52px] min-w-[52px] rounded-lg border text-[10px] font-bold uppercase transition-colors
-                            ${canAfford
-                              ? 'border-neon-green/60 text-neon-green hover:bg-neon-green/10'
-                              : 'border-border text-muted-foreground'
-                            }
-                          `}
-                        >
-                          MEHR
-                        </button>
+                      <p className="text-xs text-muted-foreground mb-1">{reco.problem}</p>
+                      <p className="text-xs text-foreground/70 italic">{reco.why}</p>
+                      <div className="flex items-center gap-1 mt-2 text-xs font-semibold text-neon-green">
+                        {reco.cta}
+                        <ChevronRight size={14} />
                       </div>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-
-            {/* Coca Seeds */}
-            <div className="text-xs font-bold text-amber-400 mb-1 mt-4 flex items-center gap-2">
-              <Snowflake size={14} /> Coca Seeds ({cocaSeeds.length})
-            </div>
-            <AnimatePresence mode="popLayout">
-              {COCA_SEED_CATALOG.map((catalogSeed, index) => {
-                const cost = getSeedPrice(catalogSeed.rarity);
-                const canAfford = budcoins >= cost;
-                return (
-                  <motion.div
-                    key={catalogSeed.name}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                    className={`game-card p-3 cursor-pointer transition-all rarity-${catalogSeed.rarity}`}
-                    onClick={() => canAfford && handleBuyCocaSeed(catalogSeed.name, catalogSeed.rarity)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
-                        style={{
-                          backgroundColor: `${getRarityColor(catalogSeed.rarity)}20`,
-                          boxShadow: `0 0 12px ${getRarityColor(catalogSeed.rarity)}40`
-                        }}
-                      >
-                        🌿
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm">{catalogSeed.name}</h3>
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-full capitalize"
-                            style={{
-                              backgroundColor: `${getRarityColor(catalogSeed.rarity)}20`,
-                              color: getRarityColor(catalogSeed.rarity)
-                            }}
-                          >
-                            {catalogSeed.rarity}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {catalogSeed.traits.slice(0, 2).map(trait => (
-                            <span key={trait} className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">
-                              {trait}
-                            </span>
-                          ))}
-                          <span className="text-[9px] text-muted-foreground">
-                            +{catalogSeed.baseYield}g yield
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <motion.button
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (canAfford) handleBuyCocaSeed(catalogSeed.name, catalogSeed.rarity);
-                          }}
-                          disabled={!canAfford}
-                          className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg font-bold text-xs transition-all
-                            ${canAfford
-                              ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-black shadow-lg shadow-amber-500/30'
-                              : 'bg-muted/50 text-muted-foreground border border-border'
-                            }
-                          `}
-                        >
-                          {canAfford ? (
-                            <>
-                              <span>KAUFEN</span>
-                              <span>{cost}$</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock size={14} />
-                              <span>{cost}$</span>
-                            </>
-                          )}
-                        </motion.button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (canAfford) openBulkSeedModal(catalogSeed.name, catalogSeed.rarity, 'coca');
-                          }}
-                          disabled={!canAfford}
-                          className={`h-[52px] min-w-[52px] rounded-lg border text-[10px] font-bold uppercase transition-colors
-                            ${canAfford
-                              ? 'border-amber-300/60 text-amber-200 hover:bg-amber-500/10'
-                              : 'border-border text-muted-foreground'
-                            }
-                          `}
-                        >
-                          MEHR
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                  </div>
+                </motion.button>
+              ))}
             </AnimatePresence>
           </div>
-        ) : activeTab === 'workers' ? (
+        )}
+
+        {/* SEEDS ---------------------------------------------------------- */}
+        {activeTab === 'seeds' && (
           <div className="grid gap-3">
-            <div className="text-sm text-muted-foreground mb-2">
-              Stelle Mitarbeiter ein, die automatisch für dich arbeiten!
+            <div className="text-sm text-muted-foreground mb-1">
+              Erweitere deine Genetik-Sammlung.
             </div>
-            
-            {/* Weed Workers */}
-            <div className="text-xs font-bold text-neon-green mb-1 flex items-center gap-2">
-              <Leaf size={14} /> Weed Dealer
+
+            <SectionHeader icon={Leaf} label={`Weed Seeds (${seeds.length} im Lager)`} color="text-neon-green" />
+            <AnimatePresence mode="popLayout">
+              {SEED_CATALOG.map((catalogSeed, index) => (
+                <SeedCard
+                  key={catalogSeed.name}
+                  name={catalogSeed.name}
+                  rarity={catalogSeed.rarity}
+                  traits={catalogSeed.traits}
+                  baseYield={catalogSeed.baseYield}
+                  index={index}
+                  emoji="🌱"
+                  budcoins={budcoins}
+                  onBuy={() => handleBuySeed(catalogSeed.name, catalogSeed.rarity)}
+                  onBulk={() => openBulkSeedModal(catalogSeed.name, catalogSeed.rarity, 'weed')}
+                />
+              ))}
+            </AnimatePresence>
+
+            {/* Coca seeds — gated */}
+            <SectionHeader
+              icon={Snowflake}
+              label={`Coca Seeds (${cocaSeeds.length} im Lager)`}
+              color="text-amber-400"
+              locked={!cocaUnlocked ? `Schaltet auf Level ${FEATURE_UNLOCKS.koks.level} frei (Koks Labor)` : null}
+            />
+            {cocaUnlocked ? (
+              <AnimatePresence mode="popLayout">
+                {COCA_SEED_CATALOG.map((catalogSeed, index) => (
+                  <SeedCard
+                    key={catalogSeed.name}
+                    name={catalogSeed.name}
+                    rarity={catalogSeed.rarity}
+                    traits={catalogSeed.traits}
+                    baseYield={catalogSeed.baseYield}
+                    index={index}
+                    emoji="🌿"
+                    budcoins={budcoins}
+                    onBuy={() => handleBuyCocaSeed(catalogSeed.name, catalogSeed.rarity)}
+                    onBulk={() => openBulkSeedModal(catalogSeed.name, catalogSeed.rarity, 'coca')}
+                    accentClass="from-amber-600 to-amber-500"
+                  />
+                ))}
+              </AnimatePresence>
+            ) : (
+              <LockedHint reason={`Erreiche Level ${FEATURE_UNLOCKS.koks.level} und schalte das Koks Labor frei.`} />
+            )}
+
+            <div className="game-card p-3 mt-2">
+              <div className="text-xs font-bold text-neon-green mb-1 flex items-center gap-2">
+                <Sprout size={14} /> Dünger & Erde
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Verwalte Dünger und Erde direkt im Grow-Raum auf jedem Slot.
+              </p>
+              <button
+                onClick={() => navigateTo('grow')}
+                className="text-xs font-semibold text-neon-green flex items-center gap-1"
+              >
+                Zum Grow-Raum <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* GROWROOM ------------------------------------------------------- */}
+        {activeTab === 'growroom' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Mehr Slots, schnelleres Wachstum, höhere Erträge.
             </div>
             <AnimatePresence mode="popLayout">
+              {growroomUpgrades.map((upgrade, index) => (
+                <UpgradeCard
+                  key={upgrade.id}
+                  upgrade={upgrade}
+                  canAfford={canAfford(Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  onBuy={() => handleBuyUpgrade(upgrade.id, Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  index={index}
+                />
+              ))}
+            </AnimatePresence>
+
+            <SectionHeader
+              icon={Leaf}
+              label="Genetik-Tools"
+              color="text-resource-seeds"
+              locked={!isFeatureUnlocked('genetics', level) ? `Schaltet auf Level ${FEATURE_UNLOCKS.genetics.level} frei` : null}
+            />
+            {isFeatureUnlocked('genetics', level) ? (
+              <AnimatePresence mode="popLayout">
+                {geneticsUpgrades.map((upgrade, index) => (
+                  <UpgradeCard
+                    key={upgrade.id}
+                    upgrade={upgrade}
+                    canAfford={canAfford(Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                    onBuy={() => handleBuyUpgrade(upgrade.id, Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                    index={index}
+                  />
+                ))}
+              </AnimatePresence>
+            ) : (
+              <LockedHint reason={`Genetik-Upgrades erscheinen ab Level ${FEATURE_UNLOCKS.genetics.level}.`} />
+            )}
+          </div>
+        )}
+
+        {/* DRYING --------------------------------------------------------- */}
+        {activeTab === 'drying' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Schnelleres Trocknen, höhere Qualität, mehr Profit pro Gramm.
+            </div>
+
+            <div className="game-card p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Wind size={16} className="text-neon-gold" />
+                <h3 className="font-display font-bold text-sm">Drying Racks</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Kaufe neue Racks oder verwalte sie direkt im Trockenraum.
+              </p>
+              <button
+                onClick={() => navigateTo('dryroom')}
+                className="text-xs font-semibold text-neon-gold flex items-center gap-1"
+              >
+                Zum Trockenraum <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <AnimatePresence mode="popLayout">
+              {dryingUpgrades.map((upgrade, index) => (
+                <UpgradeCard
+                  key={upgrade.id}
+                  upgrade={upgrade}
+                  canAfford={canAfford(Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  onBuy={() => handleBuyUpgrade(upgrade.id, Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  index={index}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* SALES ---------------------------------------------------------- */}
+        {activeTab === 'sales' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Verkaufskanäle, Auto-Sell und Kunden-Management.
+            </div>
+
+            <div className="game-card p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <ShoppingBag size={16} className="text-neon-cyan" />
+                <h3 className="font-display font-bold text-sm">Verkaufskanäle & Auto-Sell</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Verwalte Runner, Dealer-Netze und Auto-Sell-Einstellungen direkt im Verkaufs-Bildschirm.
+              </p>
+              <button
+                onClick={() => navigateTo('sales')}
+                className="text-xs font-semibold text-neon-cyan flex items-center gap-1"
+              >
+                Zum Verkauf <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {customersUnlocked ? (
+              <div className="game-card p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users size={16} className="text-neon-pink" />
+                  <h3 className="font-display font-bold text-sm">Kunden-Direktverkauf</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Stamm-Kunden zahlen Premium für hohe Qualität. Aktive Kunden: {customers.length}.
+                </p>
+                <button
+                  onClick={() => navigateTo('customers')}
+                  className="text-xs font-semibold text-neon-pink flex items-center gap-1"
+                >
+                  Zu den Kunden <ChevronRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <LockedHint reason={`Kunden-System schaltet auf Level ${FEATURE_UNLOCKS.customers.level} frei.`} />
+            )}
+
+            {salesUpgrades.length > 0 && (
+              <AnimatePresence mode="popLayout">
+                {salesUpgrades.map((upgrade, index) => (
+                  <UpgradeCard
+                    key={upgrade.id}
+                    upgrade={upgrade}
+                    canAfford={canAfford(Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                    onBuy={() => handleBuyUpgrade(upgrade.id, Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                    index={index}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+        )}
+
+        {/* CREW ----------------------------------------------------------- */}
+        {activeTab === 'crew' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Stelle Mitarbeiter ein, die automatisch für dich arbeiten.
+            </div>
+
+            <SectionHeader icon={Leaf} label="Weed Crew" color="text-neon-green" />
+            <AnimatePresence mode="popLayout">
               {workers.map((worker, index) => (
-                <WorkerCard 
+                <WorkerCard
                   key={worker.id}
                   worker={worker}
                   budcoins={budcoins}
@@ -566,86 +828,132 @@ export const ShopScreen = () => {
               ))}
             </AnimatePresence>
 
-            {/* Meth Lab Workers */}
-            <div className="text-xs font-bold text-cyan-300 mt-4 mb-1 flex items-center gap-2">
-              <FlaskConical size={14} /> Meth Labor
-            </div>
-            <AnimatePresence mode="popLayout">
-              {methWorkers.map((worker, index) => (
-                <MethWorkerCard
-                  key={worker.id}
-                  worker={worker}
-                  budcoins={budcoins}
-                  onBuy={() => handleBuyMethWorker(worker.id)}
-                  onUpgrade={() => handleUpgradeMethWorker(worker.id)}
-                  onTogglePause={() => toggleMethWorkerPause(worker.id)}
-                  index={index}
-                />
-              ))}
-            </AnimatePresence>
-
-            {/* Coca Auto Workers (Farmer & Processor) */}
-            <div className="text-xs font-bold text-green-400 mt-4 mb-1 flex items-center gap-2">
-              <Sprout size={14} /> Coca Produktion
-            </div>
-            <AnimatePresence mode="popLayout">
-              {cocaWorkers.filter(w => w.type === 'farmer' || w.type === 'processor').map((worker, index) => (
-                <CocaWorkerCard 
-                  key={worker.id}
-                  worker={worker}
-                  budcoins={budcoins}
-                  onBuy={() => handleBuyCocaWorker(worker.id)}
-                  onUpgrade={() => handleUpgradeCocaWorker(worker.id)}
-                  onTogglePause={() => toggleCocaWorkerPause(worker.id)}
-                  index={index}
-                />
-              ))}
-            </AnimatePresence>
-
-            {/* Coca Dealers */}
-            <div className="text-xs font-bold text-amber-400 mt-4 mb-1 flex items-center gap-2">
-              <Snowflake size={14} /> Coca Kartell
-            </div>
-            <AnimatePresence mode="popLayout">
-              {cocaWorkers.filter(w => w.type === 'dealer').map((worker, index) => (
-                <CocaWorkerCard 
-                  key={worker.id}
-                  worker={worker}
-                  budcoins={budcoins}
-                  onBuy={() => handleBuyCocaWorker(worker.id)}
-                  onUpgrade={() => handleUpgradeCocaWorker(worker.id)}
-                  onTogglePause={() => toggleCocaWorkerPause(worker.id)}
-                  index={index}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            <AnimatePresence mode="popLayout">
-              {filteredUpgrades.map((upgrade, index) => {
-                const canAfford = budcoins >= Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level));
-                return (
-                  <UpgradeCard 
-                    key={upgrade.id} 
-                    upgrade={upgrade} 
-                    canAfford={canAfford}
-                    onBuy={() => handleBuy(upgrade.id, canAfford)}
+            <SectionHeader
+              icon={Snowflake}
+              label="Coca Crew"
+              color="text-amber-400"
+              locked={!cocaUnlocked ? `Schaltet auf Level ${FEATURE_UNLOCKS.koks.level} frei` : null}
+            />
+            {cocaUnlocked ? (
+              <AnimatePresence mode="popLayout">
+                {cocaWorkers.map((worker, index) => (
+                  <CocaWorkerCard
+                    key={worker.id}
+                    worker={worker}
+                    budcoins={budcoins}
+                    onBuy={() => handleBuyCocaWorker(worker.id)}
+                    onUpgrade={() => handleUpgradeCocaWorker(worker.id)}
+                    onTogglePause={() => toggleCocaWorkerPause(worker.id)}
                     index={index}
                   />
-                );
-              })}
+                ))}
+              </AnimatePresence>
+            ) : (
+              <LockedHint reason={`Coca-Workers erscheinen mit dem Koks Labor (Lv. ${FEATURE_UNLOCKS.koks.level}).`} />
+            )}
+
+            <SectionHeader
+              icon={FlaskConical}
+              label="Meth Crew"
+              color="text-cyan-300"
+              locked={!methUnlocked ? `Schaltet auf Level ${FEATURE_UNLOCKS.meth.level} frei` : null}
+            />
+            {methUnlocked ? (
+              <AnimatePresence mode="popLayout">
+                {methWorkers.map((worker, index) => (
+                  <MethWorkerCard
+                    key={worker.id}
+                    worker={worker}
+                    budcoins={budcoins}
+                    onBuy={() => handleBuyMethWorker(worker.id)}
+                    onUpgrade={() => handleUpgradeMethWorker(worker.id)}
+                    onTogglePause={() => toggleMethWorkerPause(worker.id)}
+                    index={index}
+                  />
+                ))}
+              </AnimatePresence>
+            ) : (
+              <LockedHint reason={`Meth-Workers erscheinen mit dem Meth Labor (Lv. ${FEATURE_UNLOCKS.meth.level}).`} />
+            )}
+          </div>
+        )}
+
+        {/* BUSINESS ------------------------------------------------------- */}
+        {activeTab === 'business' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Frontläden, Lager und Großhandel.
+            </div>
+            {businessUnlocked ? (
+              <div className="game-card p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Building2 size={16} className="text-neon-gold" />
+                  <h3 className="font-display font-bold text-sm">Business-Hub</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Eröffne Lagerhäuser, Frontläden und Importverträge im Business-Bildschirm.
+                </p>
+                <button
+                  onClick={() => navigateTo('business')}
+                  className="text-xs font-semibold text-neon-gold flex items-center gap-1"
+                >
+                  Zum Business <ChevronRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <LockedHint reason={`Business schaltet auf Level ${FEATURE_UNLOCKS.business.level} frei.`} />
+            )}
+
+            {turfUnlocked ? (
+              <div className="game-card p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users size={16} className="text-neon-pink" />
+                  <h3 className="font-display font-bold text-sm">Turf & Territorien</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Übernimm Stadtteile für passives Einkommen. Eingenommen: {territories.filter(t => t.controlledBy === 'player').length}/{territories.length}.
+                </p>
+                <button
+                  onClick={() => navigateTo('turf')}
+                  className="text-xs font-semibold text-neon-pink flex items-center gap-1"
+                >
+                  Zum Turf <ChevronRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <LockedHint reason={`Turf schaltet auf Level ${FEATURE_UNLOCKS.turf.level} frei.`} />
+            )}
+          </div>
+        )}
+
+        {/* STYLE ---------------------------------------------------------- */}
+        {activeTab === 'style' && (
+          <div className="grid gap-3">
+            <div className="text-sm text-muted-foreground mb-1">
+              Kosmetik & visuelle Effekte für dein Lab.
+            </div>
+            <AnimatePresence mode="popLayout">
+              {cosmeticUpgrades.map((upgrade, index) => (
+                <UpgradeCard
+                  key={upgrade.id}
+                  upgrade={upgrade}
+                  canAfford={canAfford(Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  onBuy={() => handleBuyUpgrade(upgrade.id, Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level)))}
+                  index={index}
+                />
+              ))}
             </AnimatePresence>
           </div>
         )}
       </div>
 
+      {/* Bulk-seed dialog (unchanged) */}
       <Dialog open={Boolean(bulkSeed)} onOpenChange={(open) => !open && setBulkSeed(null)}>
         <DialogContent className="max-w-sm">
           <DialogTitle>Seeds im Bulk kaufen</DialogTitle>
           <DialogDescription>Wähle eine Menge und bestätige den Kauf.</DialogDescription>
           {bulkSeed && (() => {
-            const unitCost = getSeedPrice(bulkSeed.rarity as Rarity);
+            const unitCost = getSeedPrice(bulkSeed.rarity);
             const maxAffordable = unitCost > 0 ? Math.floor(budcoins / unitCost) : 0;
             const safeQuantity = Math.max(1, Math.floor(bulkQuantity));
             const clampedQuantity = maxAffordable > 0 ? Math.min(safeQuantity, maxAffordable) : safeQuantity;
@@ -662,32 +970,19 @@ export const ShopScreen = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {[1, 5, 10].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setBulkQuantity(n)}
+                      className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+                    >
+                      {n}
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    onClick={() => setBulkQuantity(1)}
-                    className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                  >
-                    1
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBulkQuantity(5)}
-                    className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                  >
-                    5
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBulkQuantity(10)}
-                    className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                  >
-                    10
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (maxAffordable > 0) setBulkQuantity(maxAffordable);
-                    }}
+                    onClick={() => { if (maxAffordable > 0) setBulkQuantity(maxAffordable); }}
                     className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
                   >
                     Max
@@ -695,9 +990,7 @@ export const ShopScreen = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="bulk-seed-amount" className="text-xs text-muted-foreground">
-                    Menge
-                  </label>
+                  <label htmlFor="bulk-seed-amount" className="text-xs text-muted-foreground">Menge</label>
                   <input
                     id="bulk-seed-amount"
                     type="number"
@@ -742,6 +1035,134 @@ export const ShopScreen = () => {
   );
 };
 
+// ============================================================================
+// Helper sub-components
+// ============================================================================
+
+const SectionHeader: React.FC<{
+  icon: React.ComponentType<{ size?: number }>;
+  label: string;
+  color: string;
+  locked?: string | null;
+}> = ({ icon: Icon, label, color, locked }) => (
+  <div className="mt-3 mb-1">
+    <div className={`text-xs font-bold ${color} flex items-center gap-2`}>
+      <Icon size={14} /> {label}
+      {locked && (
+        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground inline-flex items-center gap-1">
+          <Lock size={10} /> {locked}
+        </span>
+      )}
+    </div>
+  </div>
+);
+
+const LockedHint: React.FC<{ reason: string }> = ({ reason }) => (
+  <div className="game-card p-3 opacity-70">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Lock size={14} />
+      <span>{reason}</span>
+    </div>
+  </div>
+);
+
+interface SeedCardProps {
+  name: string;
+  rarity: Rarity | CocaRarity;
+  traits: string[];
+  baseYield: number;
+  index: number;
+  emoji: string;
+  budcoins: number;
+  onBuy: () => void;
+  onBulk: () => void;
+  accentClass?: string;
+}
+
+const SeedCard: React.FC<SeedCardProps> = ({ name, rarity, traits, baseYield, index, emoji, budcoins, onBuy, onBulk, accentClass }) => {
+  const cost = getSeedPrice(rarity);
+  const canAfford = budcoins >= cost;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className={`game-card p-3 cursor-pointer transition-all rarity-${rarity}`}
+      onClick={() => canAfford && onBuy()}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
+          style={{
+            backgroundColor: `${getRarityColor(rarity)}20`,
+            boxShadow: `0 0 12px ${getRarityColor(rarity)}40`,
+          }}
+        >
+          {emoji}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm truncate">{name}</h3>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full capitalize"
+              style={{ backgroundColor: `${getRarityColor(rarity)}20`, color: getRarityColor(rarity) }}
+            >
+              {rarity}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {traits.slice(0, 2).map(trait => (
+              <span key={trait} className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground">
+                {trait}
+              </span>
+            ))}
+            <span className="text-[9px] text-muted-foreground">+{baseYield}g yield</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(event) => { event.stopPropagation(); if (canAfford) onBuy(); }}
+            disabled={!canAfford}
+            className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-2 rounded-lg font-bold text-xs transition-all
+              ${canAfford
+                ? accentClass
+                  ? `bg-gradient-to-r ${accentClass} text-black shadow-lg`
+                  : 'btn-neon'
+                : 'bg-muted/50 text-muted-foreground border border-border'
+              }`}
+          >
+            {canAfford ? (
+              <>
+                <span>KAUFEN</span>
+                <span>{cost}$</span>
+              </>
+            ) : (
+              <>
+                <Lock size={14} />
+                <span>{cost}$</span>
+              </>
+            )}
+          </motion.button>
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); if (canAfford) onBulk(); }}
+            disabled={!canAfford}
+            className={`h-[52px] min-w-[52px] rounded-lg border text-[10px] font-bold uppercase transition-colors
+              ${canAfford ? 'border-neon-green/60 text-neon-green hover:bg-neon-green/10' : 'border-border text-muted-foreground'}`}
+          >
+            MEHR
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// ============================================================================
+// Existing card components (kept intact)
+// ============================================================================
+
 interface WorkerCardProps {
   worker: Worker;
   budcoins: number;
@@ -755,14 +1176,10 @@ interface WorkerCardProps {
 const WorkerCard = React.forwardRef<HTMLDivElement, WorkerCardProps>(({ worker, budcoins, koksGrams, onBuy, onUpgrade, onTogglePause, index }, ref) => {
   const upgradeCost = Math.floor(worker.cost * 0.5 * Math.pow(1.8, worker.level));
   const needsKoks = (worker.costKoksGrams ?? 0) > 0;
-  const canAffordBuy = needsKoks
-    ? koksGrams >= (worker.costKoksGrams ?? 0)
-    : budcoins >= worker.cost;
+  const canAffordBuy = needsKoks ? koksGrams >= (worker.costKoksGrams ?? 0) : budcoins >= worker.cost;
   const canAffordUpgrade = budcoins >= upgradeCost;
   const isMaxed = worker.level >= worker.maxLevel;
-  const hireCostLabel = needsKoks
-    ? `${worker.costKoksGrams}g Koks`
-    : worker.cost.toLocaleString();
+  const hireCostLabel = needsKoks ? `${worker.costKoksGrams}g Koks` : worker.cost.toLocaleString();
 
   return (
     <motion.div
@@ -774,21 +1191,15 @@ const WorkerCard = React.forwardRef<HTMLDivElement, WorkerCardProps>(({ worker, 
       className={`game-card p-4 ${worker.owned ? (worker.paused ? 'opacity-60' : 'rarity-rare glow-green') : ''}`}
     >
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <motion.div 
+        <motion.div
           className="text-4xl"
-          animate={worker.owned && !worker.paused ? { 
-            y: [0, -3, 0],
-            rotate: [0, 5, -5, 0]
-          } : {}}
+          animate={worker.owned && !worker.paused ? { y: [0, -3, 0], rotate: [0, 5, -5, 0] } : {}}
           transition={{ duration: 2, repeat: Infinity }}
         >
           {worker.icon}
         </motion.div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-display font-bold text-foreground">{worker.name}</h3>
             {worker.owned && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">
@@ -796,50 +1207,33 @@ const WorkerCard = React.forwardRef<HTMLDivElement, WorkerCardProps>(({ worker, 
               </span>
             )}
             {worker.owned && worker.paused && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-neon-orange/20 text-neon-orange">
-                🏖️ Urlaub
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-neon-orange/20 text-neon-orange">🏖️ Urlaub</span>
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">{worker.description}</p>
-          
-          {/* Abilities */}
           <div className="flex flex-wrap gap-1 mt-2">
             {worker.abilities.map(ability => (
-              <span 
-                key={ability} 
-                className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize"
-              >
-                {ability === 'plant' ? '🌱 Pflanzen' : 
-                 ability === 'tap' ? '⚡ Boost' : 
-                 ability === 'harvest' ? '✂️ Ernten' : 
+              <span key={ability} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+                {ability === 'plant' ? '🌱 Pflanzen' :
+                 ability === 'tap' ? '⚡ Boost' :
+                 ability === 'harvest' ? '✂️ Ernten' :
                  ability === 'sell' ? '💰 Verkaufen' :
                  '🌬️ Trocknen'}
               </span>
             ))}
           </div>
-          
           {worker.owned && (
-            <div className="text-xs text-primary mt-1">
-              Verwaltet {worker.slotsManaged + worker.level - 1} Slots
-            </div>
+            <div className="text-xs text-primary mt-1">Verwaltet {worker.slotsManaged + worker.level - 1} Slots</div>
           )}
         </div>
-
-        {/* Action buttons */}
         <div className="flex flex-col gap-2">
-          {/* Buy/Upgrade button */}
           {!worker.owned ? (
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={onBuy}
               disabled={!canAffordBuy}
               className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all
-                ${canAffordBuy 
-                  ? 'btn-neon text-sm'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
+                ${canAffordBuy ? 'btn-neon text-sm' : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               {canAffordBuy ? (
                 <>
@@ -864,18 +1258,13 @@ const WorkerCard = React.forwardRef<HTMLDivElement, WorkerCardProps>(({ worker, 
               onClick={onUpgrade}
               disabled={!canAffordUpgrade}
               className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all
-                ${canAffordUpgrade 
-                  ? 'bg-secondary text-secondary-foreground'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
+                ${canAffordUpgrade ? 'bg-secondary text-secondary-foreground' : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               <ArrowUp size={16} />
               <span className="text-[10px] mt-0.5">{upgradeCost.toLocaleString()}</span>
             </motion.button>
           )}
 
-          {/* Pause/Resume button for owned workers */}
           {worker.owned && (
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -885,31 +1274,15 @@ const WorkerCard = React.forwardRef<HTMLDivElement, WorkerCardProps>(({ worker, 
                 onTogglePause();
                 toast.success(worker.paused ? `${worker.name} ist wieder aktiv!` : `${worker.name} ist jetzt im Urlaub`);
               }}
-              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all relative z-10 cursor-pointer
-                ${worker.paused
-                  ? 'bg-neon-green/20 text-neon-green border border-neon-green/30 hover:bg-neon-green/30'
-                  : 'bg-neon-orange/20 text-neon-orange border border-neon-orange/30 hover:bg-neon-orange/30'
-                }
-              `}
-              style={{ pointerEvents: 'auto' }}
+              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all
+                ${worker.paused ? 'bg-neon-green/20 text-neon-green border border-neon-green/30' : 'bg-neon-orange/20 text-neon-orange border border-neon-orange/30'}`}
             >
-              {worker.paused ? (
-                <>
-                  <PlayCircle size={14} />
-                  <span>Aktivieren</span>
-                </>
-              ) : (
-                <>
-                  <PauseCircle size={14} />
-                  <span>Pausieren</span>
-                </>
-              )}
+              {worker.paused ? (<><PlayCircle size={14} /><span>Aktivieren</span></>) : (<><PauseCircle size={14} /><span>Pausieren</span></>)}
             </motion.button>
           )}
         </div>
       </div>
 
-      {/* Level progress */}
       {worker.owned && (
         <div className="mt-3 h-1 bg-muted/50 rounded-full overflow-hidden">
           <motion.div
@@ -943,14 +1316,10 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
 
   const abilityLabel = (ability: MethWorker['abilities'][number]) => {
     switch (ability) {
-      case 'cook':
-        return '🧪 Kochen';
-      case 'collect':
-        return '📦 Einsammeln';
-      case 'resupply':
-        return '⛽ Nachschub';
-      default:
-        return ability;
+      case 'cook': return '🧪 Kochen';
+      case 'collect': return '📦 Einsammeln';
+      case 'resupply': return '⛽ Nachschub';
+      default: return ability;
     }
   };
 
@@ -963,27 +1332,20 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
       transition={{ delay: index * 0.05 }}
       className={`game-card p-4 border-2 ${
         worker.owned
-          ? worker.paused
-            ? 'opacity-60 border-cyan-500/20'
-            : 'border-cyan-500/50 shadow-cyan-500/20'
+          ? worker.paused ? 'opacity-60 border-cyan-500/20' : 'border-cyan-500/50 shadow-cyan-500/20'
           : 'border-cyan-500/10'
       }`}
     >
       <div className="flex items-start gap-3">
         <motion.div
           className="text-4xl"
-          animate={worker.owned && !worker.paused ? {
-            y: [0, -3, 0],
-            rotate: [0, 6, -6, 0],
-            scale: [1, 1.08, 1],
-          } : {}}
+          animate={worker.owned && !worker.paused ? { y: [0, -3, 0], rotate: [0, 6, -6, 0], scale: [1, 1.08, 1] } : {}}
           transition={{ duration: 1.6, repeat: Infinity }}
         >
           {worker.icon}
         </motion.div>
-
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-display font-bold text-cyan-300">{worker.name}</h3>
             {worker.owned && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200">
@@ -991,28 +1353,19 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
               </span>
             )}
             {worker.owned && worker.paused && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-                🔒 Pause
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">🔒 Pause</span>
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5 italic">{worker.description}</p>
-
           <div className="flex flex-wrap gap-1 mt-2">
             {worker.abilities.map((ability) => (
-              <span
-                key={ability}
-                className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200"
-              >
+              <span key={ability} className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200">
                 {abilityLabel(ability)}
               </span>
             ))}
           </div>
-
           {worker.owned && (
-            <div className="text-xs mt-1 text-cyan-200">
-              ⚗️ Slots/Tick: {slotsToManage}
-            </div>
+            <div className="text-xs mt-1 text-cyan-200">⚗️ Slots/Tick: {slotsToManage}</div>
           )}
         </div>
 
@@ -1020,30 +1373,15 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
           {!worker.owned ? (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onBuy();
-              }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBuy(); }}
               disabled={!canAffordBuy}
-              className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all relative z-10 cursor-pointer
-                ${canAffordBuy
-                  ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white text-sm shadow-lg shadow-cyan-500/30'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
-              style={{ pointerEvents: canAffordBuy ? 'auto' : 'none' }}
+              className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all
+                ${canAffordBuy ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white text-sm shadow-lg shadow-cyan-500/30' : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               {canAffordBuy ? (
-                <>
-                  <span className="text-xs">ANHEUERN</span>
-                  <span className="text-xs">{worker.cost.toLocaleString()}</span>
-                </>
+                <><span className="text-xs">ANHEUERN</span><span className="text-xs">{worker.cost.toLocaleString()}</span></>
               ) : (
-                <>
-                  <Lock size={16} />
-                  <span className="text-xs mt-0.5">{worker.cost.toLocaleString()}</span>
-                </>
+                <><Lock size={16} /><span className="text-xs mt-0.5">{worker.cost.toLocaleString()}</span></>
               )}
             </motion.button>
           ) : isMaxed ? (
@@ -1054,19 +1392,10 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
           ) : (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onUpgrade();
-              }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgrade(); }}
               disabled={!canAffordUpgrade}
-              className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all relative z-10 cursor-pointer
-                ${canAffordUpgrade
-                  ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/50'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
-              style={{ pointerEvents: canAffordUpgrade ? 'auto' : 'none' }}
+              className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all
+                ${canAffordUpgrade ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/50' : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               <ArrowUp size={16} />
               <span className="text-[10px] mt-0.5">{upgradeCost.toLocaleString()}</span>
@@ -1082,25 +1411,10 @@ const MethWorkerCard = React.forwardRef<HTMLDivElement, MethWorkerCardProps>(({ 
                 onTogglePause();
                 toast.success(worker.paused ? `${worker.name} ist wieder aktiv!` : `${worker.name} wurde gestoppt`);
               }}
-              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all relative z-10 cursor-pointer
-                ${worker.paused
-                  ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
-                }
-              `}
-              style={{ pointerEvents: 'auto' }}
+              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all
+                ${worker.paused ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}
             >
-              {worker.paused ? (
-                <>
-                  <PlayCircle size={14} />
-                  <span>Start</span>
-                </>
-              ) : (
-                <>
-                  <PauseCircle size={14} />
-                  <span>Stop</span>
-                </>
-              )}
+              {worker.paused ? (<><PlayCircle size={14} /><span>Start</span></>) : (<><PauseCircle size={14} /><span>Stop</span></>)}
             </motion.button>
           )}
         </div>
@@ -1135,6 +1449,7 @@ const CocaWorkerCard = React.forwardRef<HTMLDivElement, CocaWorkerCardProps>(({ 
   const canAffordBuy = budcoins >= worker.cost;
   const canAffordUpgrade = budcoins >= upgradeCost;
   const isMaxed = worker.level >= worker.maxLevel;
+  const isFarmer = worker.type === 'farmer' || worker.type === 'processor';
 
   return (
     <motion.div
@@ -1144,104 +1459,72 @@ const CocaWorkerCard = React.forwardRef<HTMLDivElement, CocaWorkerCardProps>(({ 
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ delay: index * 0.05 }}
       className={`game-card p-4 border-2 ${
-        worker.type === 'farmer' || worker.type === 'processor'
+        isFarmer
           ? worker.owned ? (worker.paused ? 'opacity-60 border-green-500/20' : 'border-green-500/50 shadow-green-500/20') : 'border-green-500/10'
           : worker.owned ? (worker.paused ? 'opacity-60 border-amber-500/20' : 'border-amber-500/50 glow-gold shadow-amber-500/20') : 'border-amber-500/10'
       }`}
     >
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <motion.div 
+        <motion.div
           className="text-4xl"
-          animate={worker.owned && !worker.paused ? { 
-            y: [0, -3, 0],
-            rotate: [0, -8, 8, 0],
-            scale: [1, 1.1, 1]
-          } : {}}
+          animate={worker.owned && !worker.paused ? { y: [0, -3, 0], rotate: [0, -8, 8, 0], scale: [1, 1.1, 1] } : {}}
           transition={{ duration: 1.5, repeat: Infinity }}
         >
           {worker.icon}
         </motion.div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className={`font-display font-bold ${worker.type === 'farmer' || worker.type === 'processor' ? 'text-green-400' : 'text-amber-400'}`}>{worker.name}</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className={`font-display font-bold ${isFarmer ? 'text-green-400' : 'text-amber-400'}`}>{worker.name}</h3>
             {worker.owned && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
                 Lv.{worker.level}/{worker.maxLevel}
               </span>
             )}
             {worker.owned && worker.paused && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-                🔒 Gesperrt
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">🔒 Gesperrt</span>
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-0.5 italic">{worker.description}</p>
-          
-          {/* Abilities */}
           <div className="flex flex-wrap gap-1 mt-2">
             {worker.abilities.map(ability => (
-              <span 
-                key={ability} 
-                className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${
-                  worker.type === 'farmer' || worker.type === 'processor'
-                    ? 'bg-green-500/20 text-green-300'
-                    : 'bg-amber-500/20 text-amber-300'
-                }`}
+              <span
+                key={ability}
+                className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${isFarmer ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'}`}
               >
-                {ability === 'sell' ? '💀 Verkaufen' : 
-                 ability === 'process' ? '🧪 Verarbeiten' : 
-                 ability === 'grow' ? '🌿 Anbauen' : 
+                {ability === 'sell' ? '💀 Verkaufen' :
+                 ability === 'process' ? '🧪 Verarbeiten' :
+                 ability === 'grow' ? '🌿 Anbauen' :
                  ability === 'autoGrow' ? '🌱 Auto-Anbau' :
                  ability === 'autoProcess' ? '⚗️ Auto-Verarbeitung' :
                  ability}
               </span>
             ))}
           </div>
-          
-          {/* Stats for owned workers */}
           {worker.owned && (
-            <div className={`text-xs mt-1 ${worker.type === 'farmer' || worker.type === 'processor' ? 'text-green-400' : 'text-amber-400'}`}>
+            <div className={`text-xs mt-1 ${isFarmer ? 'text-green-400' : 'text-amber-400'}`}>
               {worker.type === 'farmer' && `🌱 +${Math.floor(15 * (1 + (worker.level - 1) * 0.15))}% Ertrag`}
               {worker.type === 'processor' && `⚗️ +${Math.floor(10 * worker.level)}% Effizienz`}
               {worker.type === 'dealer' && worker.salesPerTick > 0 && `⚡ ${worker.salesPerTick + Math.floor(worker.level * 0.5)} Verkäufe/Tick`}
             </div>
           )}
         </div>
-
-        {/* Action buttons */}
         <div className="flex flex-col gap-2">
           {!worker.owned ? (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onBuy();
-              }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBuy(); }}
               disabled={!canAffordBuy}
-              className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all relative z-10 cursor-pointer
+              className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all
                 ${canAffordBuy
-                  ? worker.type === 'farmer' || worker.type === 'processor'
+                  ? isFarmer
                     ? 'bg-gradient-to-r from-green-600 to-green-500 text-white text-sm shadow-lg shadow-green-500/30'
                     : 'bg-gradient-to-r from-amber-600 to-amber-500 text-black text-sm shadow-lg shadow-amber-500/30'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
-              style={{ pointerEvents: canAffordBuy ? 'auto' : 'none' }}
+                  : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               {canAffordBuy ? (
-                <>
-                  <span className="text-xs">ANHEUERN</span>
-                  <span className="text-xs">{worker.cost.toLocaleString()}</span>
-                </>
+                <><span className="text-xs">ANHEUERN</span><span className="text-xs">{worker.cost.toLocaleString()}</span></>
               ) : (
-                <>
-                  <Lock size={16} />
-                  <span className="text-xs mt-0.5">{worker.cost.toLocaleString()}</span>
-                </>
+                <><Lock size={16} /><span className="text-xs mt-0.5">{worker.cost.toLocaleString()}</span></>
               )}
             </motion.button>
           ) : isMaxed ? (
@@ -1252,26 +1535,16 @@ const CocaWorkerCard = React.forwardRef<HTMLDivElement, CocaWorkerCardProps>(({ 
           ) : (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onUpgrade();
-              }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgrade(); }}
               disabled={!canAffordUpgrade}
-              className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all relative z-10 cursor-pointer
-                ${canAffordUpgrade
-                  ? 'bg-amber-500/30 text-amber-400 border border-amber-500/50'
-                  : 'bg-muted/50 text-muted-foreground border border-border'
-                }
-              `}
-              style={{ pointerEvents: canAffordUpgrade ? 'auto' : 'none' }}
+              className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all
+                ${canAffordUpgrade ? 'bg-amber-500/30 text-amber-400 border border-amber-500/50' : 'bg-muted/50 text-muted-foreground border border-border'}`}
             >
               <ArrowUp size={16} />
               <span className="text-[10px] mt-0.5">{upgradeCost.toLocaleString()}</span>
             </motion.button>
           )}
 
-          {/* Pause/Resume button */}
           {worker.owned && (
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -1281,31 +1554,15 @@ const CocaWorkerCard = React.forwardRef<HTMLDivElement, CocaWorkerCardProps>(({ 
                 onTogglePause();
                 toast.success(worker.paused ? `${worker.name} ist wieder aktiv!` : `${worker.name} wurde gestoppt`);
               }}
-              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all relative z-10 cursor-pointer
-                ${worker.paused
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
-                  : 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
-                }
-              `}
-              style={{ pointerEvents: 'auto' }}
+              className={`flex items-center justify-center gap-1 min-w-[72px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all
+                ${worker.paused ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}
             >
-              {worker.paused ? (
-                <>
-                  <PlayCircle size={14} />
-                  <span>Start</span>
-                </>
-              ) : (
-                <>
-                  <PauseCircle size={14} />
-                  <span>Stop</span>
-                </>
-              )}
+              {worker.paused ? (<><PlayCircle size={14} /><span>Start</span></>) : (<><PauseCircle size={14} /><span>Stop</span></>)}
             </motion.button>
           )}
         </div>
       </div>
 
-      {/* Level progress */}
       {worker.owned && (
         <div className="mt-3 h-1 bg-muted/50 rounded-full overflow-hidden">
           <motion.div
@@ -1331,7 +1588,8 @@ interface UpgradeCardProps {
 const UpgradeCard = React.forwardRef<HTMLDivElement, UpgradeCardProps>(({ upgrade, canAfford, onBuy, index }, ref) => {
   const isMaxed = upgrade.level >= upgrade.maxLevel;
   const cost = Math.floor(upgrade.baseCost * Math.pow(upgrade.costScaling, upgrade.level));
-  const Icon = categoryIcons[upgrade.category];
+  const Icon = categoryIcons[upgrade.category] ?? Zap;
+  const colorClass = categoryColors[upgrade.category] ?? 'text-neon-green';
 
   return (
     <motion.div
@@ -1340,69 +1598,50 @@ const UpgradeCard = React.forwardRef<HTMLDivElement, UpgradeCardProps>(({ upgrad
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ delay: index * 0.05 }}
-      className={`upgrade-card ${isMaxed ? 'opacity-60' : ''} ${upgrade.category === 'equipment' ? 'rarity-uncommon' : upgrade.category === 'automation' ? 'rarity-rare' : upgrade.category === 'genetics' ? 'rarity-epic' : 'rarity-legendary'}`}
+      className={`upgrade-card ${isMaxed ? 'opacity-60' : ''} ${
+        upgrade.category === 'equipment' ? 'rarity-uncommon'
+          : upgrade.category === 'automation' ? 'rarity-rare'
+          : upgrade.category === 'genetics' ? 'rarity-epic'
+          : 'rarity-legendary'
+      }`}
       onClick={() => !isMaxed && canAfford && onBuy()}
     >
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div className={`p-2 rounded-lg bg-muted/50 ${categoryColors[upgrade.category]}`}>
+        <div className={`p-2 rounded-lg bg-muted/50 ${colorClass}`}>
           <Icon size={24} />
         </div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-display font-bold text-foreground truncate">{upgrade.name}</h3>
             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
               Lv.{upgrade.level}/{upgrade.maxLevel}
             </span>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">{upgrade.description}</p>
-          
-          {/* Effect preview */}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className="text-xs text-primary font-medium">
               +{(upgrade.effectValue * 100).toFixed(0)}% per level
             </span>
             <span className="text-xs text-muted-foreground">
-              (Current: +{(upgrade.effectValue * upgrade.level * 100).toFixed(0)}%)
+              (Aktuell: +{(upgrade.effectValue * upgrade.level * 100).toFixed(0)}%)
             </span>
           </div>
         </div>
-
-        {/* Buy button */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           disabled={isMaxed || !canAfford}
           className={`flex flex-col items-center justify-center min-w-[72px] px-3 py-2 rounded-lg font-bold transition-all
-            ${isMaxed 
-              ? 'bg-muted text-muted-foreground' 
-              : canAfford 
-                ? 'btn-neon text-sm'
-                : 'bg-muted/50 text-muted-foreground border border-border'
-            }
-          `}
+            ${isMaxed ? 'bg-muted text-muted-foreground' : canAfford ? 'btn-neon text-sm' : 'bg-muted/50 text-muted-foreground border border-border'}`}
         >
           {isMaxed ? (
-            <>
-              <Check size={18} />
-              <span className="text-xs mt-0.5">MAX</span>
-            </>
+            <><Check size={18} /><span className="text-xs mt-0.5">MAX</span></>
           ) : !canAfford ? (
-            <>
-              <Lock size={16} />
-              <span className="text-xs mt-0.5">{cost.toLocaleString()}</span>
-            </>
+            <><Lock size={16} /><span className="text-xs mt-0.5">{cost.toLocaleString()}</span></>
           ) : (
-            <>
-              <span className="text-xs">BUY</span>
-              <span className="text-xs">{cost.toLocaleString()}</span>
-            </>
+            <><span className="text-xs">BUY</span><span className="text-xs">{cost.toLocaleString()}</span></>
           )}
         </motion.button>
       </div>
-
-      {/* Level progress */}
       <div className="mt-3 h-1 bg-muted/50 rounded-full overflow-hidden">
         <motion.div
           className="h-full bg-primary"
