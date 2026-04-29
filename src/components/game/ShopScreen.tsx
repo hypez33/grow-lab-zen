@@ -8,6 +8,7 @@ import { useCustomerStore } from '@/store/customerStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { isFeatureUnlocked, FEATURE_UNLOCKS, type FeatureId } from '@/lib/progression';
+import { getCurrentRank, getNextRank, getRankProgress, getRankStats, formatRequirements } from '@/data/ranks';
 import { PlayCircle, PauseCircle } from 'lucide-react';
 import { ResourceBadge } from './ResourceIcon';
 import {
@@ -555,6 +556,47 @@ export const ShopScreen = () => {
         {/* RECOMMENDED ----------------------------------------------------- */}
         {activeTab === 'recommended' && (
           <div className="grid gap-3">
+            {/* Career Rank guidance */}
+            {(() => {
+              const stats = getRankStats();
+              const current = getCurrentRank(stats);
+              const next = getNextRank(stats);
+              const prog = getRankProgress(stats);
+              return (
+                <div className="game-card p-3 border border-neon-purple/30 bg-gradient-to-br from-neon-purple/10 to-transparent">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`text-xl ${current.color}`}>{current.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Aktueller Rang</div>
+                      <div className={`text-sm font-bold ${current.color}`}>{current.name}</div>
+                    </div>
+                    {next && (
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Nächster</div>
+                        <div className={`text-xs font-bold ${next.color}`}>{next.icon} {next.name}</div>
+                      </div>
+                    )}
+                  </div>
+                  {next && (
+                    <>
+                      <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden mb-1.5">
+                        <div
+                          className="h-full bg-gradient-to-r from-secondary via-neon-purple to-neon-gold transition-all"
+                          style={{ width: `${Math.round(prog.overall * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Benötigt: {formatRequirements(next.requirements)}
+                      </p>
+                      {next.reward && (
+                        <p className="text-[11px] text-neon-gold mt-0.5">🎁 Belohnung: {next.reward.label}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="text-sm text-muted-foreground mb-2">
               Personalisierte Vorschläge basierend auf deinem aktuellen Spielstand.
             </div>
