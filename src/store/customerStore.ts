@@ -4,6 +4,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
 import { useTerritoryStore } from '@/store/territoryStore';
+import { isFeatureUnlocked } from '@/lib/progression';
 
 export type DrugType = 'weed' | 'koks' | 'meth';
 export type PersonalityType = 'casual' | 'adventurous' | 'paranoid' | 'hardcore';
