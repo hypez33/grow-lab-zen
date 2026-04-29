@@ -247,6 +247,12 @@ export const SalesScreen = () => {
                         Min {channel.minQuality}% Q
                       </span>
                     )}
+                    {channel.unlocked && weedTerritoryBonusPct > 0 && (
+                      <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <MapPin size={10} />
+                        +{Math.round(weedTerritoryBonusPct)}% Territory
+                      </span>
+                    )}
                   </div>
                 </div>
                 
