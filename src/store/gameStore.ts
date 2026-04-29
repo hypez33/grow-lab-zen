@@ -1804,7 +1804,18 @@ export const useGameStore = create<GameState>()(
             lastWeedSalesMinute: saleTimestamp,
           };
         });
-        
+
+        // Reputation: high quality + grams scale up
+        const repGain = Math.max(1, Math.floor(grams * 0.1 * (bud.quality / 100) *
+          (bud.rarity === 'legendary' ? 3 : bud.rarity === 'epic' ? 2 : bud.rarity === 'rare' ? 1.5 : 1)));
+        get().addReputation(repGain, `Verkauf ${channel.name}`);
+
+        // Heat: bigger sales + risky channels (= higher pricePerGram or lower minQuality 0)
+        const channelRisk = (channel.pricePerGram >= 30 ? 1.5 : channel.pricePerGram >= 20 ? 1.2 : 1) *
+          (channel.minQuality === 0 ? 1.3 : 1);
+        const heatGain = (grams / 25) * channelRisk;
+        if (heatGain > 0) get().addHeat(heatGain, `Sales-Channel ${channel.name}`);
+
         return { success: true, revenue, message: `${grams}g für ${revenue} BudCoins verkauft!` };
       },
 
