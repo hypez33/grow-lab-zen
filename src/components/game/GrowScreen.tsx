@@ -807,13 +807,32 @@ export const GrowScreen = () => {
               <h2 className="text-2xl font-display font-bold text-neon-gold mb-2">Welcome Back!</h2>
               <p className="text-muted-foreground mb-4">While you were away...</p>
               
-              <div className="space-y-2 mb-6">
-                <div className="flex items-center justify-center gap-2">
-                  <ResourceBadge type="cash" value={offlineEarnings.coins} size="lg" />
+              <div className="space-y-2 mb-6 text-left">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">🌱 Plants advanced</span>
+                  <span className="font-bold text-foreground">{offlineEarnings.plantsAdvanced}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {offlineEarnings.harvests} plants auto-harvested
-                </p>
+                {offlineEarnings.plantsReady > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">✅ Ready to harvest</span>
+                    <span className="font-bold text-neon-green">{offlineEarnings.plantsReady}</span>
+                  </div>
+                )}
+                {offlineEarnings.autoHarvested > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">🤖 Auto-harvested</span>
+                      <span className="font-bold text-foreground">{offlineEarnings.autoHarvested}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">💧 Wet grams in inventory</span>
+                      <span className="font-bold text-neon-blue">{offlineEarnings.wetGrams}g</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/80 pt-1 text-center">
+                      Dry them in the Dry Room, then sell for cash.
+                    </p>
+                  </>
+                )}
               </div>
 
               <motion.button
