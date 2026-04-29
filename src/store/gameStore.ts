@@ -1028,12 +1028,14 @@ export const useGameStore = create<GameState>()(
         const newInventory = [...state.inventory, newBud];
 
         return {
-          budcoins: state.budcoins + coinGain,
+          // Harvest no longer pays direct cash — product must be dried & sold for revenue.
+          // A tiny "trim/scrap" reward keeps early loops moving but is intentionally trivial.
+          budcoins: state.budcoins + Math.max(1, Math.floor(coinGain * 0.05)),
           resin: state.resin + resinGain,
           essence: state.essence + essenceGain,
           gems: state.gems + gemGain,
           totalHarvests: state.totalHarvests + harvestMult,
-          totalCoinsEarned: state.totalCoinsEarned + coinGain,
+          // totalCoinsEarned intentionally NOT bumped — that stat now reflects real sales.
           totalGramsHarvested: state.totalGramsHarvested + gramsHarvested,
           growSlots,
           seeds: newSeeds,
