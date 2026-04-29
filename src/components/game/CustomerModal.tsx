@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
+import { Customer, DrugType, MessageAction, useCustomerStore, findBestMatchForCustomer } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
 import type { CocaProduct } from '@/store/cocaStore';
 import type { MethProduct } from '@/store/methStore';
