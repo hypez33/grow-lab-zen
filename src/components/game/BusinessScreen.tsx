@@ -492,7 +492,104 @@ export const BusinessScreen = () => {
           </div>
         </motion.div>
 
-        {/* Business Portfolio */}
+        {/* Profit Breakdown — per-business, with reasons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.03 }}
+          className="game-card p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <TrendingUp size={16} className="text-emerald-300" />
+              Profit Breakdown
+            </div>
+            <div className="text-[10px] text-muted-foreground">pro Geschäft / Stunde</div>
+          </div>
+
+          {ownedBusinesses.length === 0 ? (
+            <div className="text-xs text-muted-foreground italic px-1 py-2">
+              Noch keine Geschäfte gekauft. Die Aufschlüsselung erscheint nach dem ersten Kauf.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {ownedBusinesses.map((business) => {
+                const base = business.profitPerGameHour;
+                const levelMult = 1 + (Math.max(1, business.level) - 1) * 0.15;
+                const current = getBusinessProfit(base, business.level);
+                const isPaused = business.pausedUntilMinutes > safeGameMinutes;
+                const pauseRemaining = isPaused
+                  ? Math.max(0, Math.ceil(business.pausedUntilMinutes - safeGameMinutes))
+                  : 0;
+                const sharePct = combinedPerHour > 0 && !isPaused
+                  ? Math.round((current / combinedPerHour) * 100)
+                  : 0;
+
+                return (
+                  <div
+                    key={business.id}
+                    className={`rounded-lg border p-3 space-y-2 transition-opacity ${
+                      isPaused
+                        ? 'border-rose-500/30 bg-rose-500/5 opacity-80'
+                        : 'border-border/40 bg-muted/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{business.name}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Lvl {business.level}
+                        </span>
+                      </div>
+                      <div className={`text-sm font-bold ${isPaused ? 'text-rose-300' : 'text-emerald-300'}`}>
+                        {isPaused ? 'Pausiert' : `${current.toLocaleString()} $/h`}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div>
+                        <div className="text-muted-foreground">Basis</div>
+                        <div className="font-semibold">{base.toLocaleString()} $/h</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Level-Mult</div>
+                        <div className="font-semibold text-amber-300">×{levelMult.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Anteil</div>
+                        <div className="font-semibold text-cyan-300">
+                          {isPaused ? '0%' : `${sharePct}%`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isPaused ? (
+                      <div className="text-[10px] text-rose-300/90">
+                        ⚠ Pausiert (Event/Razzia) — noch ~{pauseRemaining} Min. kein Cashflow.
+                      </div>
+                    ) : business.level === 1 ? (
+                      <div className="text-[10px] text-muted-foreground">
+                        Tipp: Upgrades geben +15% pro Level auf den Basis-Profit.
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-muted-foreground">
+                        Level-Bonus: +{Math.round((levelMult - 1) * 100)}% gegenüber Basis.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-muted-foreground">Summe Cashflow</span>
+                <span className="font-bold text-amber-300">
+                  +{combinedPerHour.toLocaleString()} $/h
+                </span>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
