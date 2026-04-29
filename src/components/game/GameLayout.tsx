@@ -30,6 +30,7 @@ import { useMethStore } from '@/store/methStore';
 import { useCustomerStore } from '@/store/customerStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { toast } from 'sonner';
+import { getCurrentRank, getRankStats } from '@/data/ranks';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -191,7 +192,6 @@ export const GameLayout = () => {
 
       // Career rank check — derive from stats, grant rewards once per rank.
       try {
-        const { getCurrentRank, getRankStats } = require('@/data/ranks');
         const stats = getRankStats();
         const rank = getCurrentRank(stats);
         const claimed: string[] = useGameStore.getState().claimedRanks ?? [];
