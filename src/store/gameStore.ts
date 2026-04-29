@@ -962,10 +962,7 @@ export const useGameStore = create<GameState>()(
             const newProgress = q.progress + (doubleHarvest ? 2 : 1);
             return { ...q, progress: newProgress, completed: newProgress >= q.target };
           }
-          if (q.id === 'daily-3' && !q.completed) {
-            const newProgress = q.progress + coinGain;
-            return { ...q, progress: newProgress, completed: newProgress >= q.target };
-          }
+          // Note: daily-3 ("Earn BudCoins") now progresses via sales, not harvests.
           return q;
         });
 
