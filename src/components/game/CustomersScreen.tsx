@@ -360,6 +360,18 @@ export const CustomersScreen = () => {
         </div>
       </div>
 
+      {/* Order Board */}
+      {stats.pendingRequests > 0 && (
+        <div className="px-4 pb-2 flex-shrink-0">
+          <OrderBoardPanel
+            variant="compact"
+            maxItems={5}
+            onOpenCustomer={handleOpenCustomer}
+            title="📋 Bestellungen"
+          />
+        </div>
+      )}
+
       {/* Customer List */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
