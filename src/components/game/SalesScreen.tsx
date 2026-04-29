@@ -4,6 +4,7 @@ import { useGameStore, BudItem, SalesChannel } from '@/store/gameStore';
 import { Package, Lock, Clock, TrendingUp, X, Minus, Plus, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { OrderBoardPanel } from './OrderBoardPanel';
 
 export const SalesScreen = () => {
   const {
