@@ -733,6 +733,9 @@ export const useCustomerStore = create<CustomerState>()(
           customers: nextCustomers,
         });
 
+        if (converted) {
+          try { useGameStore.getState().addReputation?.(8, 'Prospect konvertiert'); } catch { /* noop */ }
+        }
         return { success: true, message: converted ? 'Prospect wurde Kunde!' : 'Prospect ist noch unsicher.' };
       },
 
@@ -882,6 +885,16 @@ export const useCustomerStore = create<CustomerState>()(
           customers: nextCustomers,
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
+
+        // Reputation: weed sales — quality + status reward
+        try {
+          const repBase = Math.max(1, Math.floor(gramsToSell * 0.15 * (bud.quality / 100)));
+          const statusBonus = nextStatus === 'vip' ? 4 : nextStatus === 'loyal' ? 2 : 0;
+          useGameStore.getState().addReputation?.(repBase + statusBonus, 'Verkauf an Kunde');
+          // Heat: small from any direct sale, slightly higher for big bags
+          const heat = Math.max(0.2, gramsToSell / 40);
+          useGameStore.getState().addHeat?.(heat, 'Direktverkauf');
+        } catch { /* noop */ }
 
         return { success: true, message: 'Deal abgeschlossen.', revenue };
       },
@@ -1034,10 +1047,15 @@ export const useCustomerStore = create<CustomerState>()(
           }),
         }));
 
-        // XP reward (defaults for old requests without xpReward)
+        // XP + Reputation + Heat reward (defaults for old requests)
         const xpReward = pending.xpReward ?? Math.max(2, Math.floor(pending.gramsRequested * (pending.drug === 'weed' ? 1 : 2)));
+        const repReward = pending.reputationReward ?? (pending.source === 'vip' ? 5 : 2);
+        const heatReward = pending.heatGain ?? (pending.drug === 'weed' ? Math.max(0.2, pending.gramsRequested / 30) : Math.max(1, pending.gramsRequested / 8));
         try {
-          useGameStore.getState().addXp?.(xpReward);
+          const gs = useGameStore.getState();
+          gs.addXp?.(xpReward);
+          gs.addReputation?.(repReward, 'Bestellung erfüllt');
+          if (heatReward > 0) gs.addHeat?.(heatReward, `Bestellung ${pending.drug}`);
         } catch { /* noop */ }
 
         if (customer) {
@@ -1440,6 +1458,13 @@ export const useCustomerStore = create<CustomerState>()(
           customers: nextCustomers,
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
+
+        // Hard drug sale: more rep, much more heat
+        try {
+          const gs = useGameStore.getState();
+          gs.addReputation?.(Math.max(2, Math.floor(targetGrams * 0.4)), `Hard drug ${drug}`);
+          gs.addHeat?.(Math.max(1, targetGrams * 0.6), `Hard drug ${drug}`);
+        } catch { /* noop */ }
 
         return { success: true, revenue, message: 'Deal abgeschlossen.' };
       },

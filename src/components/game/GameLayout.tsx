@@ -83,6 +83,7 @@ export const GameLayout = () => {
       );
       const businessResult = tickBusiness(deltaMinutes, gameState.gameTimeMinutes, luckFactor);
       runCustomerTick(gameState.gameTimeMinutes);
+      gameState.runRepHeatTick?.(deltaMinutes);
       const cocaState = useCocaStore.getState();
       const turfDealers = [
         ...gameState.workers
