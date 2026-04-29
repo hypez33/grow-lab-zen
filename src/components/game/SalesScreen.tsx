@@ -25,6 +25,16 @@ export const SalesScreen = () => {
 
   const driedBuds = inventory.filter(b => b.state === 'dried');
 
+  // Territory effects on weed sales
+  const activeBonuses = useTerritoryStore(s => s.getActiveBonuses());
+  const demandProfile = useTerritoryStore(s => s.getControlledDemandProfile());
+  const weedTerritoryBonusPct = useMemo(() => (
+    activeBonuses
+      .filter(b => b.type === 'sales-multiplier' && (b.drug === 'weed' || b.drug === 'all'))
+      .reduce((sum, b) => sum + b.value, 0)
+  ), [activeBonuses]);
+  const territoryMultiplier = 1 + weedTerritoryBonusPct / 100;
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'legendary': return 'hsl(45 100% 55%)';
