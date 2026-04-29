@@ -325,7 +325,7 @@ export interface GameState {
   unlockSkill: (skillId: string) => void;
   claimQuest: (questId: string) => void;
   updateProgress: (delta: number) => void;
-  calculateOfflineProgress: () => { coins: number; harvests: number };
+  calculateOfflineProgress: () => { plantsAdvanced: number; plantsReady: number; autoHarvested: number; wetGrams: number; coins: number; harvests: number };
   advanceGameTime: (realSeconds: number) => number;
   addXp: (amount: number) => void;
   checkLevelUp: () => number;
@@ -962,10 +962,7 @@ export const useGameStore = create<GameState>()(
             const newProgress = q.progress + (doubleHarvest ? 2 : 1);
             return { ...q, progress: newProgress, completed: newProgress >= q.target };
           }
-          if (q.id === 'daily-3' && !q.completed) {
-            const newProgress = q.progress + coinGain;
-            return { ...q, progress: newProgress, completed: newProgress >= q.target };
-          }
+          // Note: daily-3 ("Earn BudCoins") now progresses via sales, not harvests.
           return q;
         });
 
@@ -1031,12 +1028,14 @@ export const useGameStore = create<GameState>()(
         const newInventory = [...state.inventory, newBud];
 
         return {
-          budcoins: state.budcoins + coinGain,
+          // Harvest no longer pays direct cash — product must be dried & sold for revenue.
+          // A tiny "trim/scrap" reward keeps early loops moving but is intentionally trivial.
+          budcoins: state.budcoins + Math.max(1, Math.floor(coinGain * 0.05)),
           resin: state.resin + resinGain,
           essence: state.essence + essenceGain,
           gems: state.gems + gemGain,
           totalHarvests: state.totalHarvests + harvestMult,
-          totalCoinsEarned: state.totalCoinsEarned + coinGain,
+          // totalCoinsEarned intentionally NOT bumped — that stat now reflects real sales.
           totalGramsHarvested: state.totalGramsHarvested + gramsHarvested,
           growSlots,
           seeds: newSeeds,
@@ -1199,54 +1198,72 @@ export const useGameStore = create<GameState>()(
         if (autoHarvestLevel > 0) {
           // Auto-harvest up to `autoHarvestLevel` plants per tick
           let harvestsRemaining = autoHarvestLevel;
-          let totalCoins = 0;
           let totalResin = 0;
           let totalEssence = 0;
           let totalGems = 0;
           let totalHarvests = 0;
+          let totalGrams = 0;
+          let totalXp = 0;
+          const newBuds: BudItem[] = [];
           let newSeeds = [...state.seeds];
           let newDiscoveredSeeds = [...state.discoveredSeeds];
-          
+
           growSlots = growSlots.map(slot => {
             if (harvestsRemaining > 0 && slot.seed && slot.isUnlocked && slot.stage === 'harvest') {
               harvestsRemaining--;
               totalHarvests++;
-              
-              // Simple auto-harvest rewards (without full trait calculations to keep performance)
+
               const baseYield = slot.seed.baseYield;
               const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-              totalCoins += Math.floor(baseYield * (1 + harvestBonus * 0.1));
               totalResin += Math.floor(baseYield * 0.1);
               if (slot.seed.rarity !== 'common') {
                 totalEssence += Math.floor(baseYield * 0.05);
               }
-              
+
+              // Create a wet BudItem (mirrors manual harvest, simplified)
+              const variance = 0.8 + Math.random() * 0.4;
+              const grams = Math.max(1, Math.floor(baseYield * variance * (1 + harvestBonus * 0.05)));
+              const quality = Math.min(100, 50 + Math.floor(Math.random() * 30));
+              newBuds.push({
+                id: `bud-auto-${Date.now()}-${slot.id}-${Math.random().toString(36).slice(2, 6)}`,
+                strainName: slot.seed.name,
+                rarity: slot.seed.rarity,
+                grams,
+                quality,
+                state: 'wet',
+                dryingProgress: 0,
+                traits: slot.seed.traits,
+              });
+              totalGrams += grams;
+              totalXp += 5 + (slot.seed.rarity === 'legendary' ? 20 : slot.seed.rarity === 'epic' ? 12 : slot.seed.rarity === 'rare' ? 8 : slot.seed.rarity === 'uncommon' ? 4 : 0);
+
               // Seed drop chance
               if (Math.random() < 0.3) {
                 newSeeds.push({ ...slot.seed, id: `seed-${Date.now()}-${slot.id}` });
               }
-              
+
               // Discover seed
               if (!newDiscoveredSeeds.includes(slot.seed.name)) {
                 newDiscoveredSeeds.push(slot.seed.name);
               }
-              
+
               // Reset slot
-              return { ...slot, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0 };
+              return { ...slot, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0, budGrowth: 0 };
             }
             return slot;
           });
-          
+
           if (totalHarvests > 0) {
             autoHarvestUpdates = {
-              budcoins: state.budcoins + totalCoins,
               resin: state.resin + totalResin,
               essence: state.essence + totalEssence,
               gems: state.gems + totalGems,
               totalHarvests: state.totalHarvests + totalHarvests,
-              totalCoinsEarned: state.totalCoinsEarned + totalCoins,
+              totalGramsHarvested: state.totalGramsHarvested + totalGrams,
+              xp: state.xp + totalXp,
               seeds: newSeeds,
               discoveredSeeds: newDiscoveredSeeds,
+              inventory: [...state.inventory, ...newBuds],
             };
           }
         }
@@ -1258,65 +1275,86 @@ export const useGameStore = create<GameState>()(
         const state = get();
         const now = Date.now();
         const offlineSeconds = Math.min((now - state.lastActive) / 1000, 8 * 60 * 60); // Max 8 hours
-        
-        // Only calculate if offline for at least 60 seconds
-        if (offlineSeconds < 60) return { coins: 0, harvests: 0 };
+        const empty = { plantsAdvanced: 0, plantsReady: 0, autoHarvested: 0, wetGrams: 0, coins: 0, harvests: 0 };
 
-        // Calculate based on actual plant states
+        // Only calculate if offline for at least 60 seconds
+        if (offlineSeconds < 60) return empty;
+
         const basePassiveGrowth = 0.35; // Same as updateProgress
         const ledLevel = state.upgrades.find(u => u.id === 'led-panel')?.level ?? 0;
         const growthMult = 1 + ledLevel * 0.1;
         const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-        
-        let totalCoins = 0;
-        let totalHarvests = 0;
-        
-        // Simulate growth for each slot
-        state.growSlots.forEach(slot => {
-          if (slot.seed && slot.isUnlocked) {
-            // Calculate how much progress would be gained
-            const traits = slot.seed.traits;
-            const turboMult = traits.includes('Turbo') ? 1.3 : 1;
-            const speedBoostMult = traits.includes('SpeedBoost') ? 1.5 : 1;
-            const seedGrowthMult = slot.seed.growthSpeed ?? 1;
-            
-            const progressPerSecond = basePassiveGrowth * growthMult * seedGrowthMult * turboMult * speedBoostMult;
-            const totalProgress = slot.progress + (progressPerSecond * offlineSeconds);
-            
-            // Calculate how many full harvests could occur
-            const fullCycles = Math.floor(totalProgress / 100);
-            
-            if (fullCycles > 0) {
-              totalHarvests += fullCycles;
+        const autoHarvestLevel = state.upgrades.find(u => u.id === 'auto-harvest')?.level ?? 0;
+
+        let plantsAdvanced = 0;
+        let plantsReady = 0;
+        let autoHarvested = 0;
+        let wetGrams = 0;
+        const newBuds: BudItem[] = [];
+
+        const updatedSlots = state.growSlots.map(slot => {
+          if (!slot.seed || !slot.isUnlocked) return slot;
+
+          const traits = slot.seed.traits;
+          const turboMult = traits.includes('Turbo') ? 1.3 : 1;
+          const speedBoostMult = traits.includes('SpeedBoost') ? 1.5 : 1;
+          const seedGrowthMult = slot.seed.growthSpeed ?? 1;
+
+          const progressPerSecond = basePassiveGrowth * growthMult * seedGrowthMult * turboMult * speedBoostMult;
+          let totalProgress = slot.progress + (progressPerSecond * offlineSeconds);
+          plantsAdvanced++;
+
+          // If auto-harvest unlocked: harvest full cycles into wet buds (no cash).
+          // Otherwise: cap progress at 100 so plant is "ready" for the player.
+          if (autoHarvestLevel > 0) {
+            let cycles = Math.floor(totalProgress / 100);
+            // Limit per-slot to avoid runaway from very long offline periods
+            const maxCyclesPerSlot = 10;
+            if (cycles > maxCyclesPerSlot) cycles = maxCyclesPerSlot;
+
+            for (let i = 0; i < cycles; i++) {
+              autoHarvested++;
               const baseYield = slot.seed.baseYield;
-              // Apply trait bonuses
-              const goldRushMult = traits.includes('GoldRush') ? 1.5 : 1;
-              const bountifulMult = traits.includes('Bountiful') ? 1.3 : 1;
-              const coinPerHarvest = Math.floor(baseYield * (1 + harvestBonus * 0.1) * goldRushMult * bountifulMult);
-              totalCoins += fullCycles * coinPerHarvest;
+              const variance = 0.8 + Math.random() * 0.4;
+              const grams = Math.max(1, Math.floor(baseYield * variance * (1 + harvestBonus * 0.05)));
+              wetGrams += grams;
+              newBuds.push({
+                id: `bud-offline-${Date.now()}-${slot.id}-${i}`,
+                strainName: slot.seed.name,
+                rarity: slot.seed.rarity,
+                grams,
+                quality: Math.min(100, 50 + Math.floor(Math.random() * 30)),
+                state: 'wet',
+                dryingProgress: 0,
+                traits: slot.seed.traits,
+              });
             }
+
+            const remaining = totalProgress - cycles * 100;
+            return { ...slot, progress: Math.min(remaining, 99.9) };
+          } else {
+            // No auto-harvest: cap at 100 so plant just sits ready.
+            if (totalProgress >= 100) {
+              plantsReady++;
+              totalProgress = 100;
+            }
+            return { ...slot, progress: totalProgress, stage: totalProgress >= 100 ? ('harvest' as PlantStage) : slot.stage };
           }
         });
 
         const offlineGameMinutes = Math.floor(offlineSeconds * 5);
+        const totalHarvests = autoHarvested;
 
-        // Apply offline earnings to state
-        if (totalCoins > 0) {
-          set((state) => ({
-            budcoins: state.budcoins + totalCoins,
-            totalCoinsEarned: state.totalCoinsEarned + totalCoins,
-            totalHarvests: state.totalHarvests + totalHarvests,
-            gameTimeMinutes: state.gameTimeMinutes + offlineGameMinutes,
-            lastActive: now,
-          }));
-        } else if (offlineGameMinutes > 0) {
-          set((state) => ({
-            gameTimeMinutes: state.gameTimeMinutes + offlineGameMinutes,
-            lastActive: now,
-          }));
-        }
+        set((s) => ({
+          growSlots: updatedSlots,
+          inventory: newBuds.length > 0 ? [...s.inventory, ...newBuds] : s.inventory,
+          totalHarvests: s.totalHarvests + totalHarvests,
+          totalGramsHarvested: s.totalGramsHarvested + wetGrams,
+          gameTimeMinutes: s.gameTimeMinutes + offlineGameMinutes,
+          lastActive: now,
+        }));
 
-        return { coins: totalCoins, harvests: totalHarvests };
+        return { plantsAdvanced, plantsReady, autoHarvested, wetGrams, coins: 0, harvests: totalHarvests };
       },
 
       advanceGameTime: (realSeconds: number) => {
@@ -1418,7 +1456,7 @@ export const useGameStore = create<GameState>()(
         localStorage.removeItem('grow-lab-save');
         
         set({
-          budcoins: 999999,
+          budcoins: 500,
           resin: 0,
           essence: 0,
           gems: 10,
@@ -1923,10 +1961,9 @@ export const useGameStore = create<GameState>()(
                 const seed = slot.seed;
                 const baseYield = seed.baseYield;
                 const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-                const coinReward = Math.floor(baseYield * (1 + harvestBonus * 0.1));
-                
-                budcoins += coinReward;
-                totalCoinsEarned += coinReward;
+
+                // Workers no longer pay direct cash for harvesting — they create wet buds.
+                // Selling those buds (via dealer/auto-sell/customer flow) is the cash source.
                 resin += Math.floor(baseYield * 0.1);
                 if (seed.rarity !== 'common') {
                   essence += Math.floor(baseYield * 0.05);
@@ -1938,7 +1975,7 @@ export const useGameStore = create<GameState>()(
                   id: `bud-${Date.now()}-${slot.id}-${Math.random()}`,
                   strainName: seed.name,
                   rarity: seed.rarity,
-                  grams: Math.floor(baseYield * 0.5) + Math.floor(Math.random() * baseYield * 0.3),
+                  grams: Math.max(1, Math.floor(baseYield * 0.5) + Math.floor(Math.random() * baseYield * 0.3) + Math.floor(baseYield * harvestBonus * 0.05)),
                   quality: 50 + Math.floor(Math.random() * 40),
                   state: 'wet',
                   dryingProgress: 0,
