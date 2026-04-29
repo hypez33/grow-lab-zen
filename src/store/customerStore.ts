@@ -658,10 +658,32 @@ const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null 
 const createProspect = (existingNames: string[]): Customer => {
   const personalityType = getPersonalityType();
   const drugPreferences = getInitialPreferences(personalityType);
+
+  // ----- Territory & feature-gating influence -----
+  const territoryProfile = getTerritoryProfile();
+  let playerLevel = 1;
+  try { playerLevel = useGameStore.getState().level || 1; } catch { /* noop */ }
+  const koksUnlocked = isFeatureUnlocked('koks', playerLevel);
+  const methUnlocked = isFeatureUnlocked('meth', playerLevel);
+
+  // Never set a hard-drug preference before that drug system is unlocked.
+  if (!koksUnlocked) drugPreferences.koks = false;
+  if (!methUnlocked) drugPreferences.meth = false;
+
+  // Territory: chance to upgrade prefs toward unlocked preferred drugs.
+  if (koksUnlocked && (territoryProfile.drugWeights.koks ?? 0) > 0.4 && Math.random() < 0.5) {
+    drugPreferences.koks = true;
+  }
+  if (methUnlocked && (territoryProfile.drugWeights.meth ?? 0) > 0.4 && Math.random() < 0.4) {
+    drugPreferences.meth = true;
+  }
+
   const availableNames = CUSTOMER_NAMES.filter(name => !existingNames.includes(name));
   const name = availableNames.length > 0 ? pickRandom(availableNames) : `Kunde #${Date.now()}`;
   const avatar = pickRandom(CUSTOMER_AVATARS);
-  const spendingPower = Math.floor(randomBetween(35, 85));
+  // Spending bias: average territory price modifier nudges spending power.
+  const spendingBias = Math.round((territoryProfile.priceModifier - 1) * 30);
+  const spendingPower = clamp(Math.floor(randomBetween(35, 85) + spendingBias), 20, 100);
   const baseSatisfaction = Math.floor(randomBetween(35, 70));
   const messages = [
     createMessage({
