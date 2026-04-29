@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem, SalesChannel } from '@/store/gameStore';
-import { Package, Lock, Clock, TrendingUp, X, Minus, Plus, DollarSign } from 'lucide-react';
+import { useTerritoryStore } from '@/store/territoryStore';
+import { Package, Lock, Clock, TrendingUp, X, Minus, Plus, DollarSign, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { OrderBoardPanel } from './OrderBoardPanel';
@@ -23,6 +24,16 @@ export const SalesScreen = () => {
   const [sellAmount, setSellAmount] = useState(1);
 
   const driedBuds = inventory.filter(b => b.state === 'dried');
+
+  // Territory effects on weed sales
+  const activeBonuses = useTerritoryStore(s => s.getActiveBonuses());
+  const demandProfile = useTerritoryStore(s => s.getControlledDemandProfile());
+  const weedTerritoryBonusPct = useMemo(() => (
+    activeBonuses
+      .filter(b => b.type === 'sales-multiplier' && (b.drug === 'weed' || b.drug === 'all'))
+      .reduce((sum, b) => sum + b.value, 0)
+  ), [activeBonuses]);
+  const territoryMultiplier = 1 + weedTerritoryBonusPct / 100;
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
@@ -181,6 +192,21 @@ export const SalesScreen = () => {
 
       {/* Sales Channels */}
       <h2 className="text-lg font-display font-semibold mb-3">Verkaufskanäle</h2>
+      {weedTerritoryBonusPct > 0 && (
+        <div className="game-card p-3 mb-3 border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent">
+          <div className="flex items-start gap-2">
+            <MapPin size={16} className="text-emerald-400 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <div className="font-semibold text-emerald-300">
+                +{Math.round(weedTerritoryBonusPct)}% Territory-Bonus auf Weed-Verkäufe
+              </div>
+              <div className="text-muted-foreground mt-0.5">
+                Aus: {demandProfile.contributingTerritoryNames.join(', ') || 'Kontrollierte Gebiete'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 mb-6">
         {salesChannels.map(channel => {
           const cooldown = getCooldownRemaining(channel);
@@ -219,6 +245,12 @@ export const SalesScreen = () => {
                     {channel.minQuality > 0 && (
                       <span className="bg-muted px-2 py-0.5 rounded-full">
                         Min {channel.minQuality}% Q
+                      </span>
+                    )}
+                    {channel.unlocked && weedTerritoryBonusPct > 0 && (
+                      <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <MapPin size={10} />
+                        +{Math.round(weedTerritoryBonusPct)}% Territory
                       </span>
                     )}
                   </div>

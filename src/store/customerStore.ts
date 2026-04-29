@@ -4,6 +4,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
 import { useTerritoryStore } from '@/store/territoryStore';
+import { isFeatureUnlocked } from '@/lib/progression';
 
 export type DrugType = 'weed' | 'koks' | 'meth';
 export type PersonalityType = 'casual' | 'adventurous' | 'paranoid' | 'hardcore';
@@ -289,6 +290,41 @@ const getTerritorySalesMultiplier = (drug: DrugType) => {
   }
 };
 
+/**
+ * Cheap accessor — returns the aggregated territory demand profile.
+ * Falls back to a neutral profile if territory store is unavailable / pre-migration.
+ */
+const getTerritoryProfile = () => {
+  try {
+    const territoryState = useTerritoryStore?.getState?.();
+    if (territoryState && typeof territoryState.getControlledDemandProfile === 'function') {
+      return territoryState.getControlledDemandProfile();
+    }
+  } catch { /* noop */ }
+  return {
+    drugWeights: { weed: 0, koks: 0, meth: 0 },
+    rarityWeights: {} as Record<string, number>,
+    traitWeights: {} as Record<string, number>,
+    customerTypeWeights: {} as Record<string, number>,
+    averageOrderSizeModifier: 1,
+    priceModifier: 1,
+    contributingTerritoryNames: [] as string[],
+  };
+};
+
+/** Pick a key from a weighted record. Returns null if all weights are 0. */
+const pickFromWeights = <K extends string>(weights: Partial<Record<K, number>>): K | null => {
+  const entries = (Object.entries(weights) as Array<[K, number]>).filter(([, w]) => (w ?? 0) > 0);
+  if (entries.length === 0) return null;
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [key, w] of entries) {
+    if (roll < w) return key;
+    roll -= w;
+  }
+  return entries[entries.length - 1][0];
+};
+
 const calculateMaxPrice = (
   customer: Customer,
   drug: DrugType,
@@ -384,7 +420,15 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
           ? 2 + Math.random() * 10
           : 1 + Math.random() * 5;
 
-  const gramsRequested = Math.max(0.5, baseGrams * loyaltyScale * spendScale * statusScale * levelScale * (drug === 'weed' ? 1 : 0.4));
+  // Territory profile influences order size, urgency feel, and price.
+  const territoryProfile = getTerritoryProfile();
+  const territorySizeMod = Math.max(0.4, Math.min(2.5, territoryProfile.averageOrderSizeModifier));
+  const territoryPriceMod = Math.max(0.6, Math.min(2.0, territoryProfile.priceModifier));
+
+  const gramsRequested = Math.max(
+    0.5,
+    baseGrams * loyaltyScale * spendScale * statusScale * levelScale * territorySizeMod * (drug === 'weed' ? 1 : 0.4)
+  );
 
   const expiryMinutes =
     urgency === 'desperate'
@@ -432,8 +476,25 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
     priceMultiplier = 1;
   }
 
+  // Territory: bias rarity & trait preference for weed orders (only if no spec yet).
+  if (drug === 'weed') {
+    if (!minRarity && customer.status !== 'prospect') {
+      const rarityPick = pickFromWeights(territoryProfile.rarityWeights);
+      // Probability scales with how strongly territory pushes that rarity (cap 60%).
+      if (rarityPick && Math.random() < Math.min(0.6, (territoryProfile.rarityWeights[rarityPick] ?? 0) * 0.5)) {
+        minRarity = rarityPick as RequestRarity;
+      }
+    }
+    if (!preferredTraits || preferredTraits.length === 0) {
+      const traitPick = pickFromWeights(territoryProfile.traitWeights);
+      if (traitPick && Math.random() < 0.35) {
+        preferredTraits = [traitPick];
+      }
+    }
+  }
+
   const baseMaxPrice = calculateMaxPrice(customer, drug, urgency, roundedGrams);
-  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier);
+  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier * territoryPriceMod);
 
   const xpReward = Math.max(2, Math.floor(roundedGrams * (drug === 'weed' ? 1 : 2) * (1 + reputationReward * 0.2)));
 
@@ -597,10 +658,32 @@ const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null 
 const createProspect = (existingNames: string[]): Customer => {
   const personalityType = getPersonalityType();
   const drugPreferences = getInitialPreferences(personalityType);
+
+  // ----- Territory & feature-gating influence -----
+  const territoryProfile = getTerritoryProfile();
+  let playerLevel = 1;
+  try { playerLevel = useGameStore.getState().level || 1; } catch { /* noop */ }
+  const koksUnlocked = isFeatureUnlocked('koks', playerLevel);
+  const methUnlocked = isFeatureUnlocked('meth', playerLevel);
+
+  // Never set a hard-drug preference before that drug system is unlocked.
+  if (!koksUnlocked) drugPreferences.koks = false;
+  if (!methUnlocked) drugPreferences.meth = false;
+
+  // Territory: chance to upgrade prefs toward unlocked preferred drugs.
+  if (koksUnlocked && (territoryProfile.drugWeights.koks ?? 0) > 0.4 && Math.random() < 0.5) {
+    drugPreferences.koks = true;
+  }
+  if (methUnlocked && (territoryProfile.drugWeights.meth ?? 0) > 0.4 && Math.random() < 0.4) {
+    drugPreferences.meth = true;
+  }
+
   const availableNames = CUSTOMER_NAMES.filter(name => !existingNames.includes(name));
   const name = availableNames.length > 0 ? pickRandom(availableNames) : `Kunde #${Date.now()}`;
   const avatar = pickRandom(CUSTOMER_AVATARS);
-  const spendingPower = Math.floor(randomBetween(35, 85));
+  // Spending bias: average territory price modifier nudges spending power.
+  const spendingBias = Math.round((territoryProfile.priceModifier - 1) * 30);
+  const spendingPower = clamp(Math.floor(randomBetween(35, 85) + spendingBias), 20, 100);
   const baseSatisfaction = Math.floor(randomBetween(35, 70));
   const messages = [
     createMessage({

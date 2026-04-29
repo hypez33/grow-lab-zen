@@ -26,6 +26,32 @@ export interface TerritoryBonus {
   icon: string;
 }
 
+export type CustomerArchetype = 'student' | 'professional' | 'partygoer' | 'worker' | 'wholesaler' | 'wealthy';
+export type TerritoryDemandRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export interface TerritoryIdentity {
+  /** Short tagline shown in UI */
+  demandProfile: string;
+  /** Drugs that thrive here. Order = priority. */
+  preferredDrugTypes: Array<'weed' | 'koks' | 'meth'>;
+  /** Bud rarities customers in this territory tend to ask for */
+  preferredRarities: TerritoryDemandRarity[];
+  /** Trait names that score better here */
+  preferredTraits: string[];
+  /** Multiplier on order grams (1 = baseline). Stack-multiplied across territories. */
+  averageOrderSizeModifier: number;
+  /** Multiplier on customer maxPrice (1 = baseline). Stack-multiplied. */
+  priceModifier: number;
+  /** Customer archetype weights for prospect generation (relative weights) */
+  customerTypeWeights: Partial<Record<CustomerArchetype, number>>;
+  /** Recommended player level to invest here */
+  minReputationRequired?: number;
+  /** Strategy hint shown in UI */
+  suggestedStrategy: string;
+  /** Recommended dealer slot count */
+  recommendedDealers: number;
+}
+
 export interface Territory {
   id: string;
   name: string;
@@ -41,6 +67,8 @@ export interface Territory {
   lastContestResult: 'win' | 'lose' | null;
   passiveIncome: number;
   bonuses: TerritoryBonus[];
+  /** Optional in older saves; migration always backfills. */
+  identity?: TerritoryIdentity;
 }
 
 export interface TerritoryContestEvent {
@@ -67,6 +95,22 @@ interface TerritoryState {
     dealers: TerritoryDealerPower[]
   ) => { result: 'win' | 'lose'; controlChange: number };
   getActiveBonuses: () => TerritoryBonus[];
+  /** Aggregated demand profile from all controlled (>=25%) territories. */
+  getControlledDemandProfile: () => AggregatedDemandProfile;
+}
+
+export interface AggregatedDemandProfile {
+  /** Sum of preferences weighted by control tier (0-1). */
+  drugWeights: Record<'weed' | 'koks' | 'meth', number>;
+  rarityWeights: Partial<Record<TerritoryDemandRarity, number>>;
+  traitWeights: Record<string, number>;
+  customerTypeWeights: Partial<Record<CustomerArchetype, number>>;
+  /** Multiplicative — 1 = baseline. */
+  averageOrderSizeModifier: number;
+  /** Multiplicative — 1 = baseline. */
+  priceModifier: number;
+  /** Names of the territories actually contributing. */
+  contributingTerritoryNames: string[];
 }
 
 const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'nextContestAt' | 'fortified' | 'lastContestResult'>[] = [
@@ -84,6 +128,17 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'heat-reduction', type: 'heat-reduction', value: 20, description: '-20% Heat Generation', icon: '❄️' },
       { id: 'student-boost', type: 'customer-boost', value: 15, description: '+15 Customers (Students)', icon: '🎓' },
     ],
+    identity: {
+      demandProfile: 'Viele kleine Weed-Bestellungen, niedrige Heat.',
+      preferredDrugTypes: ['weed'],
+      preferredRarities: ['common', 'uncommon'],
+      preferredTraits: ['Bountiful', 'Lucky'],
+      averageOrderSizeModifier: 0.7,
+      priceModifier: 0.95,
+      customerTypeWeights: { student: 5, partygoer: 1 },
+      suggestedStrategy: 'Massenproduktion von Standard-Weed. Schnelle Loyalitäts-Aufbau.',
+      recommendedDealers: 1,
+    },
   },
   {
     id: 'docks',
@@ -98,6 +153,18 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'import-speed', type: 'import-speed', value: 50, description: '+50% Import Speed', icon: '⚡' },
       { id: 'contract-discount', type: 'cost-reduction', value: 15, description: '-15% Contract Costs', icon: '💸' },
     ],
+    identity: {
+      demandProfile: 'Großbestellungen für Import & Lager. Hohe Heat.',
+      preferredDrugTypes: ['weed', 'koks'],
+      preferredRarities: ['common', 'uncommon'],
+      preferredTraits: [],
+      averageOrderSizeModifier: 1.8,
+      priceModifier: 1.05,
+      customerTypeWeights: { wholesaler: 5, worker: 1 },
+      minReputationRequired: 30,
+      suggestedStrategy: 'Synergie mit Lagerhaus & Import-Verträgen. Bulk-Verkauf.',
+      recommendedDealers: 2,
+    },
   },
   {
     id: 'downtown',
@@ -112,6 +179,18 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'price-boost', type: 'sales-multiplier', drug: 'all', value: 20, description: '+20% ALL Drug Prices', icon: '💰' },
       { id: 'spending-boost', type: 'customer-boost', value: 10, description: '+10% Customer Spending Power', icon: '🏦' },
     ],
+    identity: {
+      demandProfile: 'Reiche Kundschaft, höhere Preise, Premium-Qualität.',
+      preferredDrugTypes: ['weed', 'koks'],
+      preferredRarities: ['rare', 'epic', 'uncommon'],
+      preferredTraits: ['EssenceFlow', 'GoldRush', 'Frost'],
+      averageOrderSizeModifier: 1.1,
+      priceModifier: 1.25,
+      customerTypeWeights: { wealthy: 4, professional: 3 },
+      minReputationRequired: 40,
+      suggestedStrategy: 'High-Quality Genetik & VIP-Kunden. Trockne sauber.',
+      recommendedDealers: 2,
+    },
   },
   {
     id: 'nightlife',
@@ -126,6 +205,17 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'coca-boost', type: 'sales-multiplier', drug: 'koks', value: 40, description: '+40% Coca Sales', icon: '❄️' },
       { id: 'party-boost', type: 'customer-boost', value: 20, description: '+20 Customers (Partygoers)', icon: '🎉' },
     ],
+    identity: {
+      demandProfile: 'Schnelle Party-Demand, hohes Volumen, hohe Heat.',
+      preferredDrugTypes: ['koks', 'weed'],
+      preferredRarities: ['uncommon', 'rare'],
+      preferredTraits: ['Glitter', 'Frost'],
+      averageOrderSizeModifier: 1.2,
+      priceModifier: 1.15,
+      customerTypeWeights: { partygoer: 5, wealthy: 1 },
+      suggestedStrategy: 'Kurze Lieferzeiten, Koks-Pipeline auf Anschlag.',
+      recommendedDealers: 2,
+    },
   },
   {
     id: 'industrial',
@@ -140,6 +230,17 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'meth-boost', type: 'sales-multiplier', drug: 'meth', value: 35, description: '+35% Meth Sales', icon: '🧪' },
       { id: 'worker-discount', type: 'cost-reduction', value: 20, description: '-20% Worker Upkeep', icon: '👷' },
     ],
+    identity: {
+      demandProfile: 'Arbeiter-Kundschaft, mittlere Mengen, Meth-Boost.',
+      preferredDrugTypes: ['meth', 'weed'],
+      preferredRarities: ['common'],
+      preferredTraits: [],
+      averageOrderSizeModifier: 1.3,
+      priceModifier: 0.9,
+      customerTypeWeights: { worker: 5, wholesaler: 1 },
+      suggestedStrategy: 'Worker-Bonus nutzen. Meth-Linie auslasten (ab Lvl 35).',
+      recommendedDealers: 2,
+    },
   },
   {
     id: 'suburbs',
@@ -155,6 +256,17 @@ const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'next
       { id: 'sales-boost', type: 'sales-multiplier', drug: 'all', value: 10, description: '+10% ALL Sales', icon: '📈' },
       { id: 'vip-boost', type: 'customer-boost', value: 5, description: '+5 VIP Customers', icon: '⭐' },
     ],
+    identity: {
+      demandProfile: 'Sichere Stamm-Kunden, hohe Loyalität, mittlere Qualität.',
+      preferredDrugTypes: ['weed'],
+      preferredRarities: ['uncommon', 'rare'],
+      preferredTraits: ['Lucky', 'EssenceFlow'],
+      averageOrderSizeModifier: 0.95,
+      priceModifier: 1.05,
+      customerTypeWeights: { professional: 3, wealthy: 2, student: 1 },
+      suggestedStrategy: 'Loyalty farmen, Beschwerden minimieren. Niedrige Heat.',
+      recommendedDealers: 1,
+    },
   },
 ];
 
@@ -350,10 +462,81 @@ export const useTerritoryStore = create<TerritoryState>()(
 
         return activeBonuses;
       },
+
+      getControlledDemandProfile: () => {
+        const state = get();
+        const profile: AggregatedDemandProfile = {
+          drugWeights: { weed: 0, koks: 0, meth: 0 },
+          rarityWeights: {},
+          traitWeights: {},
+          customerTypeWeights: {},
+          averageOrderSizeModifier: 1,
+          priceModifier: 1,
+          contributingTerritoryNames: [],
+        };
+
+        for (const territory of state.territories) {
+          const tier = getControlTierPercent(territory.control) / 100; // 0, 0.25, 0.5, 0.75, 1
+          if (tier <= 0) continue;
+          const identity = territory.identity;
+          if (!identity) continue;
+
+          profile.contributingTerritoryNames.push(territory.name);
+
+          // Drug weights — preferred drugs ranked, decay by index.
+          identity.preferredDrugTypes.forEach((drug, index) => {
+            const weight = (1 / (1 + index)) * tier;
+            profile.drugWeights[drug] = (profile.drugWeights[drug] ?? 0) + weight;
+          });
+
+          identity.preferredRarities.forEach((rarity, index) => {
+            const weight = (1 / (1 + index)) * tier;
+            profile.rarityWeights[rarity] = (profile.rarityWeights[rarity] ?? 0) + weight;
+          });
+
+          identity.preferredTraits.forEach((trait) => {
+            profile.traitWeights[trait] = (profile.traitWeights[trait] ?? 0) + tier;
+          });
+
+          (Object.entries(identity.customerTypeWeights) as Array<[CustomerArchetype, number]>)
+            .forEach(([type, w]) => {
+              profile.customerTypeWeights[type] = (profile.customerTypeWeights[type] ?? 0) + w * tier;
+            });
+
+          // Multiplicative modifiers, scaled by tier (so partial control = partial effect).
+          // f(tier) = 1 + (modifier - 1) * tier
+          profile.averageOrderSizeModifier *= 1 + (identity.averageOrderSizeModifier - 1) * tier;
+          profile.priceModifier *= 1 + (identity.priceModifier - 1) * tier;
+        }
+
+        return profile;
+      },
     }),
     {
       name: 'territory-control-save',
-      version: 1,
+      version: 2,
+      migrate: (persistedState: any) => {
+        const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
+        const existingTerritories = Array.isArray(state.territories) ? state.territories : [];
+
+        // Re-merge identity & bonuses from latest catalog while preserving control/dealers/etc.
+        const territories = TERRITORY_CATALOG.map((catalogEntry) => {
+          const existing = existingTerritories.find((t: any) => t && t.id === catalogEntry.id);
+          return {
+            ...catalogEntry,
+            control: Number.isFinite(existing?.control) ? existing.control : 0,
+            assignedDealerIds: Array.isArray(existing?.assignedDealerIds) ? existing.assignedDealerIds : [],
+            nextContestAt: Number.isFinite(existing?.nextContestAt) ? existing.nextContestAt : 0,
+            fortified: Boolean(existing?.fortified),
+            lastContestResult: existing?.lastContestResult ?? null,
+          };
+        });
+
+        return {
+          ...state,
+          territories,
+        };
+      },
     }
   )
 );
