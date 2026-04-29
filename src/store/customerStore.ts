@@ -102,7 +102,24 @@ export interface Customer {
   requestHistory: PurchaseRequest[];
   personalityType: PersonalityType;
   nextRequestAtMinutes: number;
+
+  // ---- v8: richer preferences (all optional for back-compat) ----
+  /** Traits this customer has come to love (set after great deals). */
+  preferredTraits?: string[];
+  /** 0–100 minimum quality the customer is happy with. */
+  minQualityPreference?: number;
+  /** Preferred rarity bracket (set when they got a great rare deal). */
+  preferredRarity?: RequestRarity;
+  /** 0–100; higher = more punishing on overpriced deals, lower = price-blind. */
+  priceSensitivity?: number;
+  /** 0–100; higher = more open to hard drugs / risky offers. */
+  riskTolerance?: number;
+  /** What they reach for first when offered a choice. */
+  favoriteProductType?: DrugType;
+  /** Game-minutes timestamp of last referral; used to throttle. */
+  lastReferralAtMinutes?: number;
 }
+
 
 interface CustomerState {
   customers: Customer[];
