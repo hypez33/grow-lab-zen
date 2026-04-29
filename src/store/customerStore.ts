@@ -1497,7 +1497,7 @@ export const useCustomerStore = create<CustomerState>()(
                 status: nextStatus === 'prospect' ? 'active' : nextStatus,
                 satisfaction: clamp(nextCustomer.satisfaction - penalties.satisfaction, 0, 100),
                 pendingRequest: null,
-                requestHistory: [...nextCustomer.requestHistory, expired].slice(-20),
+                requestHistory: [...nextCustomer.requestHistory, { ...expired, status: 'expired' as const }].slice(-20),
                 messages: pruneMessages([
                   ...nextCustomer.messages,
                   createMessage({
