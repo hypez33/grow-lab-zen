@@ -307,12 +307,12 @@ export const ShopScreen = () => {
     const totalSlots = growSlots.filter(s => s.isUnlocked).length;
     const wetBuds = inventory.filter(b => b.state === 'wet' || b.state === 'drying').length;
     const driedBuds = inventory.filter(b => b.state === 'dried').length;
-    const freeRacks = dryingRacks.filter(r => r.isUnlocked && !r.budId).length;
+    const freeRacks = dryingRacks.filter(r => r.isUnlocked && !r.bud).length;
     const totalRacks = dryingRacks.filter(r => r.isUnlocked).length;
-    const pendingCustomers = customers.filter(c => c.state === 'awaiting' || c.state === 'chatting').length;
+    const pendingCustomers = customers.filter(c => c.pendingRequest !== null).length;
     const weedWorkersOwned = workers.filter(w => w.owned).length;
-    const hasWarehouse = businesses.some(b => b.owned && b.category === 'warehouse');
-    const territoriesOwned = territories.filter(t => t.controlledBy === 'player').length;
+    const hasWarehouse = businesses.some(b => b.owned && b.id.startsWith('warehouse-'));
+    const territoriesOwned = territories.filter(t => t.assignedDealerIds.length > 0).length;
     const dealersAssigned = territories.reduce((sum, t) => sum + (t.assignedDealerIds?.length ?? 0), 0);
 
     return buildRecommendations({
