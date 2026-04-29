@@ -744,7 +744,6 @@ export const useBusinessStore = create<BusinessState>()(
         const importSpeedMultiplier = getImportSpeedMultiplier();
         const shipmentDelta = safeDelta * importSpeedMultiplier;
         const state = get();
-        const profit = 0;
 
         let businesses = state.businesses.map(business => (
           business.pausedUntilMinutes > 0 && business.pausedUntilMinutes <= gameMinutes
