@@ -5,6 +5,7 @@ import { useSmartCoach } from '@/hooks/useSmartCoach';
 import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { getCurrentRank, getNextRank, getRankProgress, getRankStats } from '@/data/ranks';
+import { SEVERITY_CLASS, SEVERITY_ICON_COLOR } from '@/lib/bottlenecks';
 
 export const MiniDashboard = () => {
   const {
@@ -233,13 +234,19 @@ export const MiniDashboard = () => {
             exit={{ opacity: 0, y: -4, height: 0 }}
             transition={{ duration: 0.25 }}
             onClick={() => coach.action && useNavigationStore.getState().navigateTo(coach.action, coach.focus ?? null)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-neon-purple/15 to-neon-cyan/15 border border-neon-purple/30 text-xs hover:from-neon-purple/25 hover:to-neon-cyan/25 transition-colors"
+            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r border text-xs transition-colors hover:brightness-110 ${SEVERITY_CLASS[coach.severity]}`}
+            title={coach.reason}
           >
-            <Sparkles size={12} className="text-neon-purple flex-shrink-0" />
+            <Sparkles size={12} className={`${SEVERITY_ICON_COLOR[coach.severity]} flex-shrink-0`} />
             <span className="font-semibold flex-1 text-left truncate">
               <span className="mr-1">{coach.icon}</span>
               {coach.text}
             </span>
+            {coach.ctaLabel && (
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden sm:inline">
+                {coach.ctaLabel}
+              </span>
+            )}
             {coach.action && <ChevronRight size={12} className="text-muted-foreground" />}
           </motion.button>
         )}

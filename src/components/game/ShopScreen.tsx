@@ -9,6 +9,8 @@ import { useTerritoryStore } from '@/store/territoryStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { isFeatureUnlocked, FEATURE_UNLOCKS, type FeatureId } from '@/lib/progression';
 import { getCurrentRank, getNextRank, getRankProgress, getRankStats, formatRequirements } from '@/data/ranks';
+import { detectBottlenecks, getBottleneckCtx, type BottleneckHint } from '@/lib/bottlenecks';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import { PlayCircle, PauseCircle } from 'lucide-react';
 import { ResourceBadge } from './ResourceIcon';
 import {
@@ -88,7 +90,7 @@ type ShopTabId =
   | 'style';
 
 // ============================================================================
-// Recommendation engine
+// Recommendation engine — backed by shared bottleneck detector.
 // ============================================================================
 
 interface Recommendation {
@@ -104,157 +106,21 @@ interface Recommendation {
   goToScreen?: FeatureId;
   cost?: number;
   locked?: string | null;
+  severity?: 'info' | 'warning' | 'urgent' | 'opportunity';
 }
 
-interface RecoCtx {
-  level: number;
-  budcoins: number;
-  emptySlots: number;
-  totalSlots: number;
-  seedsCount: number;
-  wetBuds: number;
-  driedBuds: number;
-  freeRacks: number;
-  totalRacks: number;
-  pendingCustomers: number;
-  customersUnlocked: boolean;
-  weedWorkersOwned: number;
-  weedWorkersAvailable: number;
-  autoSellEnabled: boolean;
-  hasWarehouse: boolean;
-  hasBusinessUnlock: boolean;
-  hasTurfUnlock: boolean;
-  territoriesOwned: number;
-  dealersAssigned: number;
-}
+const SEVERITY_BADGE: Record<NonNullable<Recommendation['severity']>, string> = {
+  urgent: 'Sofort',
+  warning: 'Engpass',
+  opportunity: 'Optimieren',
+  info: 'Tipp',
+};
 
-const buildRecommendations = (ctx: RecoCtx): Recommendation[] => {
-  const recos: Recommendation[] = [];
-
-  // Empty grow slots
-  if (ctx.emptySlots > 0 && ctx.seedsCount > 0) {
-    recos.push({
-      id: 'plant',
-      problem: `${ctx.emptySlots} leere Slot${ctx.emptySlots === 1 ? '' : 's'} im Grow-Raum`,
-      action: 'Pflanze einen Seed',
-      why: 'Leere Slots produzieren nichts. Mehr Pflanzen = mehr Ware = mehr Cash.',
-      cta: 'Zum Grow-Raum',
-      goToScreen: 'grow',
-      badge: 'Sofort',
-    });
-  } else if (ctx.emptySlots > 0 && ctx.seedsCount === 0) {
-    recos.push({
-      id: 'buy-seeds',
-      problem: 'Du hast leere Slots aber keine Seeds',
-      action: 'Kaufe günstige Common Seeds',
-      why: 'Common Seeds wachsen schnell und bringen den Loop in Gang.',
-      cta: 'Seeds ansehen',
-      goToTab: 'seeds',
-      cost: 5,
-      badge: 'Sofort',
-    });
-  }
-
-  // Drying bottleneck
-  if (ctx.wetBuds >= 3 && ctx.freeRacks === 0 && ctx.totalRacks > 0) {
-    recos.push({
-      id: 'more-racks',
-      problem: `${ctx.wetBuds} feuchte Buds, aber alle Racks voll`,
-      action: 'Kaufe ein Drying Rack oder upgrade die Trocknung',
-      why: 'Ohne freie Racks stapelt sich nasse Ware. Trocknen macht sie verkaufsfähig.',
-      cta: 'Trocknung verbessern',
-      goToTab: 'drying',
-      badge: 'Engpass',
-    });
-  } else if (ctx.wetBuds >= 5 && ctx.totalRacks === 0) {
-    recos.push({
-      id: 'first-rack',
-      problem: 'Feuchte Buds aber kein Drying Rack',
-      action: 'Schalte einen Drying Rack frei',
-      why: 'Nasse Buds lassen sich nicht verkaufen — Trocknung ist Pflicht.',
-      cta: 'Zum Trockenraum',
-      goToScreen: 'dryroom',
-      badge: 'Engpass',
-    });
-  }
-
-  // Lots of dried inventory but no auto-sell
-  if (ctx.driedBuds >= 6 && !ctx.autoSellEnabled) {
-    recos.push({
-      id: 'auto-sell',
-      problem: `${ctx.driedBuds} getrocknete Buds liegen rum`,
-      action: 'Aktiviere Auto-Sell im Verkaufs-Bildschirm',
-      why: 'Auto-Sell verkauft kontinuierlich an die besten Kanäle, auch offline.',
-      cta: 'Zum Verkauf',
-      goToScreen: 'sales',
-      badge: 'Optimieren',
-    });
-  }
-
-  // Customers waiting
-  if (ctx.customersUnlocked && ctx.pendingCustomers > 0 && ctx.driedBuds === 0) {
-    recos.push({
-      id: 'no-stock',
-      problem: `${ctx.pendingCustomers} Kunde${ctx.pendingCustomers === 1 ? '' : 'n'} wartet, kein getrocknetes Lager`,
-      action: 'Trockne Buds & verbessere Qualität',
-      why: 'Kunden zahlen Premium für hohe Qualität — leere Vitrine = verlorener Umsatz.',
-      cta: 'Trocknung & Qualität',
-      goToTab: 'drying',
-      badge: 'Engpass',
-    });
-  }
-
-  // First worker
-  if (ctx.level >= 5 && ctx.weedWorkersOwned === 0 && ctx.weedWorkersAvailable > 0) {
-    recos.push({
-      id: 'first-worker',
-      problem: 'Du machst noch alles per Hand',
-      action: 'Stelle deinen ersten Worker ein',
-      why: 'Worker pflanzen, ernten und trocknen automatisch — auch offline.',
-      cta: 'Crew anschauen',
-      goToTab: 'crew',
-      badge: 'Skalieren',
-    });
-  }
-
-  // Business unlocked but no warehouse
-  if (ctx.hasBusinessUnlock && !ctx.hasWarehouse) {
-    recos.push({
-      id: 'warehouse',
-      problem: 'Business freigeschaltet, aber kein Warehouse',
-      action: 'Eröffne ein Lagerhaus',
-      why: 'Lager schalten Großhandel und Premium-Verkäufe frei.',
-      cta: 'Zum Business',
-      goToScreen: 'business',
-      badge: 'Mid-Game',
-    });
-  }
-
-  // Turf unlocked but no dealers assigned
-  if (ctx.hasTurfUnlock && ctx.territoriesOwned > 0 && ctx.dealersAssigned === 0) {
-    recos.push({
-      id: 'assign-dealer',
-      problem: 'Territorium gekauft, aber niemand verteidigt es',
-      action: 'Weise Dealer dem Territorium zu',
-      why: 'Ohne Dealer kein passives Einkommen aus Turf.',
-      cta: 'Zum Turf',
-      goToScreen: 'turf',
-      badge: 'Mid-Game',
-    });
-  }
-
-  if (recos.length === 0) {
-    recos.push({
-      id: 'all-good',
-      problem: 'Alles läuft rund 🎉',
-      action: 'Erkunde die anderen Tabs für Upgrades',
-      why: 'Stocke Equipment, Workers oder Style auf, um den nächsten Sprung zu machen.',
-      cta: 'Zu Upgrades',
-      goToTab: 'growroom',
-    });
-  }
-
-  return recos;
+const SEVERITY_DOT: Record<NonNullable<Recommendation['severity']>, string> = {
+  urgent: 'bg-red-500/20 text-red-400',
+  warning: 'bg-amber-500/20 text-amber-400',
+  opportunity: 'bg-neon-green/20 text-neon-green',
+  info: 'bg-neon-purple/20 text-neon-purple',
 };
 
 // ============================================================================
@@ -302,44 +168,36 @@ export const ShopScreen = () => {
   const turfUnlocked = isFeatureUnlocked('turf', level);
   const customersUnlocked = isFeatureUnlocked('customers', level);
 
-  // ----- recommendation context ------------------------------------------
-  const recommendations = useMemo(() => {
-    const emptySlots = growSlots.filter(s => s.isUnlocked && !s.seed).length;
-    const totalSlots = growSlots.filter(s => s.isUnlocked).length;
-    const wetBuds = inventory.filter(b => b.state === 'wet' || b.state === 'drying').length;
-    const driedBuds = inventory.filter(b => b.state === 'dried').length;
-    const freeRacks = dryingRacks.filter(r => r.isUnlocked && !r.bud).length;
-    const totalRacks = dryingRacks.filter(r => r.isUnlocked).length;
-    const pendingCustomers = customers.filter(c => c.pendingRequest !== null).length;
-    const weedWorkersOwned = workers.filter(w => w.owned).length;
-    const hasWarehouse = businesses.some(b => b.owned && b.id.startsWith('warehouse-'));
-    const territoriesOwned = territories.filter(t => t.assignedDealerIds.length > 0).length;
-    const dealersAssigned = territories.reduce((sum, t) => sum + (t.assignedDealerIds?.length ?? 0), 0);
-
-    return buildRecommendations({
-      level,
-      budcoins,
-      emptySlots,
-      totalSlots,
-      seedsCount: seeds.length,
-      wetBuds,
-      driedBuds,
-      freeRacks,
-      totalRacks,
-      pendingCustomers,
-      customersUnlocked,
-      weedWorkersOwned,
-      weedWorkersAvailable: workers.length,
-      autoSellEnabled: autoSellSettings?.enabled ?? false,
-      hasWarehouse,
-      hasBusinessUnlock: businessUnlocked,
-      hasTurfUnlock: turfUnlocked,
-      territoriesOwned,
-      dealersAssigned,
-    });
+  // ----- recommendation list (shared bottleneck detector) ----------------
+  const visited = useOnboardingStore(s => s.visitedFeatures);
+  const recommendations = useMemo<Recommendation[]>(() => {
+    const ctx = getBottleneckCtx(visited as string[]);
+    const hints = detectBottlenecks(ctx);
+    if (hints.length === 0) {
+      return [{
+        id: 'all-good',
+        problem: 'Alles läuft rund 🎉',
+        action: 'Erkunde die anderen Tabs für Upgrades',
+        why: 'Stocke Equipment, Workers oder Style auf, um den nächsten Sprung zu machen.',
+        cta: 'Zu Upgrades',
+        goToTab: 'growroom',
+        severity: 'info',
+      }];
+    }
+    return hints.slice(0, 6).map((h: BottleneckHint): Recommendation => ({
+      id: h.id,
+      problem: h.text,
+      action: h.ctaLabel ? `${h.icon} ${h.ctaLabel}` : `${h.icon} ${h.text}`,
+      why: h.reason ?? '',
+      cta: h.ctaLabel ?? 'Öffnen',
+      badge: SEVERITY_BADGE[h.severity],
+      goToTab: h.shopTab as ShopTabId | undefined,
+      goToScreen: h.action as FeatureId | undefined,
+      severity: h.severity,
+    }));
   }, [
-    level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
-    workers, autoSellSettings, businesses, territories, businessUnlocked, turfUnlocked, customersUnlocked,
+    visited, level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
+    workers, autoSellSettings, businesses, territories,
   ]);
 
   // ----- handlers --------------------------------------------------------
@@ -612,14 +470,14 @@ export const ShopScreen = () => {
                   className="game-card p-4 text-left hover:border-primary/60 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-neon-green/10 text-neon-green flex-shrink-0">
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${reco.severity ? SEVERITY_DOT[reco.severity] : 'bg-neon-green/10 text-neon-green'}`}>
                       <AlertCircle size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-display font-bold text-foreground">{reco.action}</h3>
                         {reco.badge && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-neon-green/20 text-neon-green font-bold uppercase">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${reco.severity ? SEVERITY_DOT[reco.severity] : 'bg-neon-green/20 text-neon-green'}`}>
                             {reco.badge}
                           </span>
                         )}

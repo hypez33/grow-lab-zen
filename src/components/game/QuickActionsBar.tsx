@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSmartCoach } from '@/hooks/useSmartCoach';
+import { SEVERITY_CLASS, SEVERITY_ICON_COLOR } from '@/lib/bottlenecks';
 import { Wind, Sprout, Zap, Droplets, FlaskConical, DollarSign, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { GrowSuppliesModal } from './GrowSuppliesModal';
@@ -172,16 +173,17 @@ export const QuickActionsBar = () => {
             exit={{ opacity: 0, y: -4, height: 0 }}
             transition={{ duration: 0.25 }}
             onClick={() => coach.action && useNavigationStore.getState().navigateTo(coach.action, coach.focus ?? null)}
-            className="mt-2 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-neon-purple/20 to-neon-cyan/20 border border-neon-purple/30 text-xs text-foreground hover:from-neon-purple/30 hover:to-neon-cyan/30 transition-colors"
+            className={`mt-2 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r border text-xs transition-colors hover:brightness-110 ${SEVERITY_CLASS[coach.severity]}`}
+            title={coach.reason}
           >
-            <Sparkles size={12} className="text-neon-purple flex-shrink-0" />
+            <Sparkles size={12} className={`${SEVERITY_ICON_COLOR[coach.severity]} flex-shrink-0`} />
             <span className="font-semibold flex-1 text-left truncate">
               <span className="mr-1">{coach.icon}</span>
               {coach.text}
             </span>
             {coach.action && (
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Tap →
+                {coach.ctaLabel ?? 'Tap'} →
               </span>
             )}
           </motion.button>
