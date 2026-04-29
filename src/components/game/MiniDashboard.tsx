@@ -6,16 +6,23 @@ import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight }
 import { useState, useEffect, useRef } from 'react';
 
 export const MiniDashboard = () => {
-  const { 
-    budcoins, 
-    level, 
-    xp, 
-    totalGramsHarvested, 
+  const {
+    budcoins,
+    level,
+    xp,
+    totalGramsHarvested,
     inventory,
     growSlots,
     workers,
-    dealerActivities
+    dealerActivities,
+    reputation,
+    heat,
+    maxHeat,
+    getReputationTier,
+    getHeatLevel,
   } = useGameStore();
+  const tier = getReputationTier();
+  const heatLevel = getHeatLevel();
   const setActiveScreen = useNavigationStore(s => s.setActiveScreen);
   const coach = useSmartCoach();
 
