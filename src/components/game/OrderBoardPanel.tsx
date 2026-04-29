@@ -25,7 +25,7 @@ const URGENCY_STYLES: Record<PurchaseRequest['urgency'], { ring: string; chip: s
 const SOURCE_BADGE: Record<NonNullable<PurchaseRequest['source']>, { icon: React.ElementType; label: string; tint: string }> = {
   customer: { icon: Star, label: 'Kunde', tint: 'text-blue-300' },
   vip: { icon: Crown, label: 'VIP', tint: 'text-amber-300' },
-  loyal: { icon: Star, label: 'Loyal', tint: 'text-emerald-300' },
+  
   street: { icon: Sparkles, label: 'Straße', tint: 'text-purple-300' },
   bulk: { icon: ClipboardList, label: 'Bulk', tint: 'text-cyan-300' },
   business: { icon: ClipboardList, label: 'Business', tint: 'text-indigo-300' },
