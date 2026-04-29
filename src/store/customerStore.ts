@@ -984,27 +984,87 @@ export const useCustomerStore = create<CustomerState>()(
           };
         });
 
-        const satisfactionDelta = bud.quality > 80 ? 5 : bud.quality < 60 ? -3 : 0;
-        const newLoyalty = clamp(customer.loyalty + 2, 0, 100);
+        // ---- Match scoring: quality vs minPref, strain match, trait match, price fairness ----
+        const minQualityPref = customer.minQualityPreference ?? 30;
+        const qualityDelta = bud.quality - minQualityPref; // positive = above pref
+        const strainMatch = customer.preferredStrain && bud.strainName === customer.preferredStrain;
+        const preferredTraits = customer.preferredTraits ?? [];
+        const traitOverlap = preferredTraits.length > 0
+          ? preferredTraits.filter(t => (bud.traits ?? []).includes(t)).length
+          : 0;
+        const traitMatchRatio = preferredTraits.length > 0
+          ? traitOverlap / preferredTraits.length
+          : 0;
+        const rarityOk = !customer.preferredRarity
+          || (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) >= (RARITY_RANK[customer.preferredRarity] ?? 0);
+
+        // Price fairness — only matters if a customPrice was used.
+        const fairPricePerGram = Math.max(
+          1,
+          calculateWeedSaleRevenue(customer, 1, bud.quality)
+        );
+        const actualPricePerGram = revenue / Math.max(0.01, gramsToSell);
+        // 0 = matches fair price; +1 = double price; -1 = giving it away
+        const priceRatio = (actualPricePerGram - fairPricePerGram) / fairPricePerGram;
+        const sensitivity = (customer.priceSensitivity ?? 50) / 100;
+        // Overpricing punishes by satisfaction; great deals raise loyalty.
+        const priceImpact = priceRatio > 0
+          ? -priceRatio * sensitivity * 12   // overpriced
+          : Math.min(0.5, -priceRatio) * 4;  // bargain (capped)
+
+        // Compose deltas
+        let satisfactionDelta = 0;
+        satisfactionDelta += qualityDelta >= 20 ? 5 : qualityDelta >= 0 ? 2 : -4;
+        if (strainMatch) satisfactionDelta += 4;
+        if (traitMatchRatio > 0) satisfactionDelta += Math.round(traitMatchRatio * 4);
+        if (!rarityOk) satisfactionDelta -= 3;
+        satisfactionDelta += Math.round(priceImpact);
+        satisfactionDelta = clamp(satisfactionDelta, -15, 12);
+
+        let loyaltyDelta = 2;
+        if (strainMatch) loyaltyDelta += 1;
+        if (traitMatchRatio > 0.5) loyaltyDelta += 1;
+        if (qualityDelta >= 20) loyaltyDelta += 1;
+        if (priceImpact > 0) loyaltyDelta += 1;
+        if (priceImpact < -3) loyaltyDelta = Math.max(0, loyaltyDelta - 1);
+
+        const newLoyalty = clamp(customer.loyalty + loyaltyDelta, 0, 100);
         const newSatisfaction = clamp(customer.satisfaction + satisfactionDelta, 0, 100);
         const nextStatus = getStatusForLoyalty(newLoyalty);
         const wasLoyal = customer.status === 'loyal';
         const wasVip = customer.status === 'vip';
         const statusChanged = nextStatus !== customer.status;
+        const greatDeal = satisfactionDelta >= 6;
+        const badDeal   = satisfactionDelta <= -5;
 
         const purchaseMessages = [
           `Hab gerade nochmal nachgelegt. Danke! 💯`,
           `Gerade ${gramsToSell}g geholt. Stark.`,
           `Wieder mal top Zeug. Bin dabei.`,
         ];
-        const complaintMessages = [
-          `Qualitaet war mies. Mach besser.`,
-          `Bro, das Zeug war schwach. Fix das.`,
-        ];
-        const praiseMessages = [
-          `Du bist der Plug! Das war premium.`,
-          `Quali war krank. Immer wieder.`,
-        ];
+        const complaintMessages = badDeal && priceImpact < -3
+          ? [
+              `Bro, das war zu teuer. Mach besser.`,
+              `Preis war frech. Weiß ich mir zu merken.`,
+            ]
+          : [
+              `Qualitaet war mies. Mach besser.`,
+              `Bro, das Zeug war schwach. Fix das.`,
+            ];
+        const praiseMessages = strainMatch
+          ? [
+              `Genau mein ${bud.strainName}! 🔥`,
+              `Du weißt, was ich brauch — top.`,
+            ]
+          : traitMatchRatio > 0.5
+            ? [
+                `Die Traits sind genau mein Ding.`,
+                `Top Profil. Hau gerne wieder so was raus.`,
+              ]
+            : [
+                `Du bist der Plug! Das war premium.`,
+                `Quali war krank. Immer wieder.`,
+              ];
 
         const messages: CustomerMessage[] = [
           createMessage({
@@ -1014,13 +1074,12 @@ export const useCustomerStore = create<CustomerState>()(
           }),
           createMessage({
             from: 'customer',
-            type: bud.quality < 60 ? 'complaint' : bud.quality > 80 ? 'praise' : 'purchase',
-            message:
-              bud.quality < 60
-                ? pickRandom(complaintMessages)
-                : bud.quality > 80
-                  ? pickRandom(praiseMessages)
-                  : pickRandom(purchaseMessages),
+            type: badDeal ? 'complaint' : greatDeal ? 'praise' : 'purchase',
+            message: badDeal
+              ? pickRandom(complaintMessages)
+              : greatDeal
+                ? pickRandom(praiseMessages)
+                : pickRandom(purchaseMessages),
           }),
         ];
 
@@ -1044,27 +1103,65 @@ export const useCustomerStore = create<CustomerState>()(
           );
         }
 
+        // ---- Referral: high-loyalty customers occasionally bring a friend ----
+        let referralProspect: Customer | null = null;
+        const REFERRAL_COOLDOWN_MIN = 6 * 60; // every 6 in-game hours per customer
+        const lastReferralAt = customer.lastReferralAtMinutes ?? 0;
+        const cooldownOk = saleGameMinutes - lastReferralAt >= REFERRAL_COOLDOWN_MIN;
+        const totalCustomers = state.customers.length;
+        const roomForMore = totalCustomers < AUTO_PROSPECT_LIMIT;
+        const referralChance = greatDeal
+          ? (newLoyalty >= 81 ? 0.35 : newLoyalty >= 41 ? 0.15 : 0)
+          : (newLoyalty >= 81 ? 0.10 : 0);
+        if (cooldownOk && roomForMore && Math.random() < referralChance) {
+          const existingNames = state.customers.map(c => c.name);
+          referralProspect = createProspect(existingNames);
+          messages.push(
+            createMessage({
+              from: 'customer',
+              type: 'casual',
+              message: `Hab dir nen Bekannten geschickt — ist ${referralProspect.name}, sei lieb. 🤝`,
+            })
+          );
+        }
+
         const nextCustomers = state.customers
           .map((c) => {
             if (c.id !== customerId) return c;
             const adjustedLoyalty = c.status === 'prospect' ? 0 : Math.max(1, newLoyalty);
-          return {
-            ...c,
-            loyalty: adjustedLoyalty,
-            satisfaction: newSatisfaction,
-            totalPurchases: c.totalPurchases + 1,
-            totalSpent: c.totalSpent + revenue,
-            preferredStrain: c.preferredStrain || (bud.quality >= 70 && Math.random() < 0.3 ? bud.strainName : null),
-            status: nextStatus,
-            lastPurchaseAt: saleGameMinutes,
-            nextRequestAtMinutes: scheduleNextRequestMinutes(c, saleGameMinutes),
-            messages: pruneMessages([...c.messages, ...messages]),
-          };
-        })
+            // After a great strain match, lock in preferredStrain.
+            const updatedPreferredStrain = strainMatch
+              ? c.preferredStrain
+              : (c.preferredStrain || (bud.quality >= 70 && Math.random() < 0.3 ? bud.strainName : null));
+            // Trait imprint on praise.
+            let updatedTraits = c.preferredTraits ?? [];
+            if (greatDeal && (bud.traits?.length ?? 0) > 0 && Math.random() < 0.4) {
+              const trait = bud.traits![Math.floor(Math.random() * bud.traits!.length)];
+              if (!updatedTraits.includes(trait)) {
+                updatedTraits = [...updatedTraits, trait].slice(-3);
+              }
+            }
+            return {
+              ...c,
+              loyalty: adjustedLoyalty,
+              satisfaction: newSatisfaction,
+              totalPurchases: c.totalPurchases + 1,
+              totalSpent: c.totalSpent + revenue,
+              preferredStrain: updatedPreferredStrain,
+              preferredTraits: updatedTraits,
+              status: nextStatus,
+              lastPurchaseAt: saleGameMinutes,
+              lastReferralAtMinutes: referralProspect ? saleGameMinutes : (c.lastReferralAtMinutes ?? 0),
+              nextRequestAtMinutes: scheduleNextRequestMinutes(c, saleGameMinutes),
+              messages: pruneMessages([...c.messages, ...messages]),
+            };
+          })
           .filter((c) => c.satisfaction >= 30);
 
         set((current) => ({
-          customers: nextCustomers,
+          customers: referralProspect
+            ? [...nextCustomers, referralProspect]
+            : nextCustomers,
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
 
