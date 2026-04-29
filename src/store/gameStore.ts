@@ -3166,7 +3166,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
-      version: 15, // Increment to trigger migration (Dejan -> Giulio rename)
+      version: 16, // v16: Reputation & Heat system
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Add drying upgrades if they don't exist
@@ -3442,7 +3442,18 @@ export const useGameStore = create<GameState>()(
             };
           }
         }
-        
+
+        // Version 16: Reputation & Heat system
+        if (version < 16) {
+          if (!Number.isFinite(persistedState.reputation)) persistedState.reputation = 0;
+          if (!Number.isFinite(persistedState.heat)) persistedState.heat = 0;
+          if (!Number.isFinite(persistedState.maxHeat)) persistedState.maxHeat = 100;
+          if (!Number.isFinite(persistedState.totalReputationEarned)) persistedState.totalReputationEarned = 0;
+          if (!Number.isFinite(persistedState.totalHeatGenerated)) persistedState.totalHeatGenerated = 0;
+          if (!Number.isFinite(persistedState.lastRepHeatToastAt)) persistedState.lastRepHeatToastAt = 0;
+          if (!Number.isFinite(persistedState.lastHeatDecayAt)) persistedState.lastHeatDecayAt = 0;
+        }
+
         return persistedState;
       },
     }
