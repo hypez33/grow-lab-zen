@@ -1459,6 +1459,13 @@ export const useCustomerStore = create<CustomerState>()(
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
 
+        // Hard drug sale: more rep, much more heat
+        try {
+          const gs = useGameStore.getState();
+          gs.addReputation?.(Math.max(2, Math.floor(targetGrams * 0.4)), `Hard drug ${drug}`);
+          gs.addHeat?.(Math.max(1, targetGrams * 0.6), `Hard drug ${drug}`);
+        } catch { /* noop */ }
+
         return { success: true, revenue, message: 'Deal abgeschlossen.' };
       },
 
