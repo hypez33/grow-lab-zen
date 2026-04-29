@@ -1275,65 +1275,86 @@ export const useGameStore = create<GameState>()(
         const state = get();
         const now = Date.now();
         const offlineSeconds = Math.min((now - state.lastActive) / 1000, 8 * 60 * 60); // Max 8 hours
-        
-        // Only calculate if offline for at least 60 seconds
-        if (offlineSeconds < 60) return { coins: 0, harvests: 0 };
+        const empty = { plantsAdvanced: 0, plantsReady: 0, autoHarvested: 0, wetGrams: 0, coins: 0, harvests: 0 };
 
-        // Calculate based on actual plant states
+        // Only calculate if offline for at least 60 seconds
+        if (offlineSeconds < 60) return empty;
+
         const basePassiveGrowth = 0.35; // Same as updateProgress
         const ledLevel = state.upgrades.find(u => u.id === 'led-panel')?.level ?? 0;
         const growthMult = 1 + ledLevel * 0.1;
         const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-        
-        let totalCoins = 0;
-        let totalHarvests = 0;
-        
-        // Simulate growth for each slot
-        state.growSlots.forEach(slot => {
-          if (slot.seed && slot.isUnlocked) {
-            // Calculate how much progress would be gained
-            const traits = slot.seed.traits;
-            const turboMult = traits.includes('Turbo') ? 1.3 : 1;
-            const speedBoostMult = traits.includes('SpeedBoost') ? 1.5 : 1;
-            const seedGrowthMult = slot.seed.growthSpeed ?? 1;
-            
-            const progressPerSecond = basePassiveGrowth * growthMult * seedGrowthMult * turboMult * speedBoostMult;
-            const totalProgress = slot.progress + (progressPerSecond * offlineSeconds);
-            
-            // Calculate how many full harvests could occur
-            const fullCycles = Math.floor(totalProgress / 100);
-            
-            if (fullCycles > 0) {
-              totalHarvests += fullCycles;
+        const autoHarvestLevel = state.upgrades.find(u => u.id === 'auto-harvest')?.level ?? 0;
+
+        let plantsAdvanced = 0;
+        let plantsReady = 0;
+        let autoHarvested = 0;
+        let wetGrams = 0;
+        const newBuds: BudItem[] = [];
+
+        const updatedSlots = state.growSlots.map(slot => {
+          if (!slot.seed || !slot.isUnlocked) return slot;
+
+          const traits = slot.seed.traits;
+          const turboMult = traits.includes('Turbo') ? 1.3 : 1;
+          const speedBoostMult = traits.includes('SpeedBoost') ? 1.5 : 1;
+          const seedGrowthMult = slot.seed.growthSpeed ?? 1;
+
+          const progressPerSecond = basePassiveGrowth * growthMult * seedGrowthMult * turboMult * speedBoostMult;
+          let totalProgress = slot.progress + (progressPerSecond * offlineSeconds);
+          plantsAdvanced++;
+
+          // If auto-harvest unlocked: harvest full cycles into wet buds (no cash).
+          // Otherwise: cap progress at 100 so plant is "ready" for the player.
+          if (autoHarvestLevel > 0) {
+            let cycles = Math.floor(totalProgress / 100);
+            // Limit per-slot to avoid runaway from very long offline periods
+            const maxCyclesPerSlot = 10;
+            if (cycles > maxCyclesPerSlot) cycles = maxCyclesPerSlot;
+
+            for (let i = 0; i < cycles; i++) {
+              autoHarvested++;
               const baseYield = slot.seed.baseYield;
-              // Apply trait bonuses
-              const goldRushMult = traits.includes('GoldRush') ? 1.5 : 1;
-              const bountifulMult = traits.includes('Bountiful') ? 1.3 : 1;
-              const coinPerHarvest = Math.floor(baseYield * (1 + harvestBonus * 0.1) * goldRushMult * bountifulMult);
-              totalCoins += fullCycles * coinPerHarvest;
+              const variance = 0.8 + Math.random() * 0.4;
+              const grams = Math.max(1, Math.floor(baseYield * variance * (1 + harvestBonus * 0.05)));
+              wetGrams += grams;
+              newBuds.push({
+                id: `bud-offline-${Date.now()}-${slot.id}-${i}`,
+                strainName: slot.seed.name,
+                rarity: slot.seed.rarity,
+                grams,
+                quality: Math.min(100, 50 + Math.floor(Math.random() * 30)),
+                state: 'wet',
+                dryingProgress: 0,
+                traits: slot.seed.traits,
+              });
             }
+
+            const remaining = totalProgress - cycles * 100;
+            return { ...slot, progress: Math.min(remaining, 99.9) };
+          } else {
+            // No auto-harvest: cap at 100 so plant just sits ready.
+            if (totalProgress >= 100) {
+              plantsReady++;
+              totalProgress = 100;
+            }
+            return { ...slot, progress: totalProgress, stage: totalProgress >= 100 ? ('harvest' as PlantStage) : slot.stage };
           }
         });
 
         const offlineGameMinutes = Math.floor(offlineSeconds * 5);
+        const totalHarvests = autoHarvested;
 
-        // Apply offline earnings to state
-        if (totalCoins > 0) {
-          set((state) => ({
-            budcoins: state.budcoins + totalCoins,
-            totalCoinsEarned: state.totalCoinsEarned + totalCoins,
-            totalHarvests: state.totalHarvests + totalHarvests,
-            gameTimeMinutes: state.gameTimeMinutes + offlineGameMinutes,
-            lastActive: now,
-          }));
-        } else if (offlineGameMinutes > 0) {
-          set((state) => ({
-            gameTimeMinutes: state.gameTimeMinutes + offlineGameMinutes,
-            lastActive: now,
-          }));
-        }
+        set((s) => ({
+          growSlots: updatedSlots,
+          inventory: newBuds.length > 0 ? [...s.inventory, ...newBuds] : s.inventory,
+          totalHarvests: s.totalHarvests + totalHarvests,
+          totalGramsHarvested: s.totalGramsHarvested + wetGrams,
+          gameTimeMinutes: s.gameTimeMinutes + offlineGameMinutes,
+          lastActive: now,
+        }));
 
-        return { coins: totalCoins, harvests: totalHarvests };
+        return { plantsAdvanced, plantsReady, autoHarvested, wetGrams, coins: 0, harvests: totalHarvests };
       },
 
       advanceGameTime: (realSeconds: number) => {
