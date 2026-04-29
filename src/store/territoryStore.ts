@@ -95,6 +95,22 @@ interface TerritoryState {
     dealers: TerritoryDealerPower[]
   ) => { result: 'win' | 'lose'; controlChange: number };
   getActiveBonuses: () => TerritoryBonus[];
+  /** Aggregated demand profile from all controlled (>=25%) territories. */
+  getControlledDemandProfile: () => AggregatedDemandProfile;
+}
+
+export interface AggregatedDemandProfile {
+  /** Sum of preferences weighted by control tier (0-1). */
+  drugWeights: Record<'weed' | 'koks' | 'meth', number>;
+  rarityWeights: Partial<Record<TerritoryDemandRarity, number>>;
+  traitWeights: Record<string, number>;
+  customerTypeWeights: Partial<Record<CustomerArchetype, number>>;
+  /** Multiplicative — 1 = baseline. */
+  averageOrderSizeModifier: number;
+  /** Multiplicative — 1 = baseline. */
+  priceModifier: number;
+  /** Names of the territories actually contributing. */
+  contributingTerritoryNames: string[];
 }
 
 const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'nextContestAt' | 'fortified' | 'lastContestResult'>[] = [
