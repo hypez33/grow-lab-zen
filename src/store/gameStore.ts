@@ -1456,7 +1456,7 @@ export const useGameStore = create<GameState>()(
         localStorage.removeItem('grow-lab-save');
         
         set({
-          budcoins: 999999,
+          budcoins: 500,
           resin: 0,
           essence: 0,
           gems: 10,
