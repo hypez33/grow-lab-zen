@@ -1034,6 +1034,7 @@ export const useBusinessStore = create<BusinessState>()(
           totalEventProfit: Number.isFinite(state.totalEventProfit) ? state.totalEventProfit : 0,
           totalEventLoss: Number.isFinite(state.totalEventLoss) ? state.totalEventLoss : 0,
           lastEventCheckMinutes: Number.isFinite(state.lastEventCheckMinutes) ? state.lastEventCheckMinutes : 0,
+          lastProfitLogMinutes: Number.isFinite(state.lastProfitLogMinutes) ? state.lastProfitLogMinutes : 0,
         };
       },
     }
