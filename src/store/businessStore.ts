@@ -551,6 +551,7 @@ export const useBusinessStore = create<BusinessState>()(
       totalEventProfit: 0,
       totalEventLoss: 0,
       lastEventCheckMinutes: 0,
+      lastProfitLogMinutes: 0,
 
       buyBusiness: (businessId, budcoins, playerLevel, gameMinutes) => {
         const state = get();
