@@ -1940,10 +1940,9 @@ export const useGameStore = create<GameState>()(
                 const seed = slot.seed;
                 const baseYield = seed.baseYield;
                 const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-                const coinReward = Math.floor(baseYield * (1 + harvestBonus * 0.1));
-                
-                budcoins += coinReward;
-                totalCoinsEarned += coinReward;
+
+                // Workers no longer pay direct cash for harvesting — they create wet buds.
+                // Selling those buds (via dealer/auto-sell/customer flow) is the cash source.
                 resin += Math.floor(baseYield * 0.1);
                 if (seed.rarity !== 'common') {
                   essence += Math.floor(baseYield * 0.05);
@@ -1955,7 +1954,7 @@ export const useGameStore = create<GameState>()(
                   id: `bud-${Date.now()}-${slot.id}-${Math.random()}`,
                   strainName: seed.name,
                   rarity: seed.rarity,
-                  grams: Math.floor(baseYield * 0.5) + Math.floor(Math.random() * baseYield * 0.3),
+                  grams: Math.max(1, Math.floor(baseYield * 0.5) + Math.floor(Math.random() * baseYield * 0.3) + Math.floor(baseYield * harvestBonus * 0.05)),
                   quality: 50 + Math.floor(Math.random() * 40),
                   state: 'wet',
                   dryingProgress: 0,
