@@ -162,6 +162,23 @@ export const CustomerCard = ({
                 }`}
               />
             </div>
+            {/* Satisfaction Bar */}
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1.5 mb-1">
+              <span>Zufriedenheit</span>
+              <span className="font-medium text-foreground">{customer.satisfaction}%</span>
+            </div>
+            <div className="h-1 rounded-full bg-muted/50 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${customer.satisfaction}%` }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className={`h-full rounded-full ${
+                  customer.satisfaction >= 70 ? 'bg-emerald-400' :
+                  customer.satisfaction >= 40 ? 'bg-cyan-400' :
+                  'bg-red-400'
+                }`}
+              />
+            </div>
           </div>
 
           {/* Spending Power */}
@@ -170,6 +187,40 @@ export const CustomerCard = ({
             <div className="text-[9px] text-muted-foreground">Power</div>
           </div>
         </div>
+
+        {/* Preferences Row */}
+        {(customer.preferredStrain || (customer.preferredTraits?.length ?? 0) > 0 || customer.personalityType) && (
+          <div className="flex flex-wrap items-center gap-1 text-[9px]">
+            {customer.preferredStrain && (
+              <span
+                className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                title="Lieblings-Strain"
+              >
+                🌿 {customer.preferredStrain}
+              </span>
+            )}
+            {customer.preferredTraits?.slice(0, 2).map(trait => (
+              <span
+                key={trait}
+                className="px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                title="Lieblings-Trait"
+              >
+                ✨ {trait}
+              </span>
+            ))}
+            {customer.preferredRarity && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20" title="Bevorzugte Rarität">
+                ≥ {customer.preferredRarity}
+              </span>
+            )}
+            <span
+              className="px-1.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground border border-border/40 ml-auto"
+              title={`Risikobereitschaft: ${customer.riskTolerance ?? 50}%, Preissensitiv: ${customer.priceSensitivity ?? 50}%`}
+            >
+              {customer.personalityType === 'paranoid' ? '🤫' : customer.personalityType === 'hardcore' ? '💊' : customer.personalityType === 'adventurous' ? '🎲' : '😌'} {customer.personalityType}
+            </span>
+          </div>
+        )}
 
         {/* Addiction Badges */}
         {(addictionKoks > 20 || addictionMeth > 20) && (

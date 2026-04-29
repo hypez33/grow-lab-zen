@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, MessageSquare, Package, DollarSign, Gift, Zap, Send, User, Clock, Sparkles, AlertCircle, CheckCircle2, Heart, TrendingUp, Check, Pill, Repeat, XCircle, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { Customer, DrugType, MessageAction, useCustomerStore } from '@/store/customerStore';
+import { Customer, DrugType, MessageAction, useCustomerStore, findBestMatchForCustomer } from '@/store/customerStore';
 import type { BudItem } from '@/store/gameStore';
 import type { CocaProduct } from '@/store/cocaStore';
 import type { MethProduct } from '@/store/methStore';
@@ -653,7 +653,43 @@ export const CustomerModal = ({
               })()}
 
 
-              {/* Sample Section for Prospects */}
+              {/* Best matching dried batch (no pending request) */}
+              {!pendingRequest && customer.status !== 'prospect' && (() => {
+                const match = findBestMatchForCustomer(customer, inventory, 1);
+                if (!match.bud) return null;
+                return (
+                  <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-card/40 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-emerald-400" />
+                      <span className="text-xs font-semibold">Beste passende Charge</span>
+                    </div>
+                    <div className="text-[11px] font-semibold">{match.bud.strainName} · Q {match.bud.quality}% · {match.bud.grams.toFixed(1)}g</div>
+                    {match.reasons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 text-[9px]">
+                        {match.reasons.map(r => (
+                          <span key={r} className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">{r}</span>
+                        ))}
+                      </div>
+                    )}
+                    {match.warnings.length > 0 && (
+                      <div className="flex flex-wrap gap-1 text-[9px]">
+                        {match.warnings.map(w => (
+                          <span key={w} className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">⚠ {w}</span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onSell(customer, match.bud!.id, Math.min(match.bud!.grams, 5))}
+                      className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all"
+                    >
+                      ⚡ Schnell verkaufen (bis zu 5g)
+                    </button>
+                  </div>
+                );
+              })()}
+
+
               {customer.status === 'prospect' && (
                 <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5 p-3 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-medium text-primary">

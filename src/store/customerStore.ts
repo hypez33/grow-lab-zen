@@ -102,7 +102,24 @@ export interface Customer {
   requestHistory: PurchaseRequest[];
   personalityType: PersonalityType;
   nextRequestAtMinutes: number;
+
+  // ---- v8: richer preferences (all optional for back-compat) ----
+  /** Traits this customer has come to love (set after great deals). */
+  preferredTraits?: string[];
+  /** 0–100 minimum quality the customer is happy with. */
+  minQualityPreference?: number;
+  /** Preferred rarity bracket (set when they got a great rare deal). */
+  preferredRarity?: RequestRarity;
+  /** 0–100; higher = more punishing on overpriced deals, lower = price-blind. */
+  priceSensitivity?: number;
+  /** 0–100; higher = more open to hard drugs / risky offers. */
+  riskTolerance?: number;
+  /** What they reach for first when offered a choice. */
+  favoriteProductType?: DrugType;
+  /** Game-minutes timestamp of last referral; used to throttle. */
+  lastReferralAtMinutes?: number;
 }
+
 
 interface CustomerState {
   customers: Customer[];
@@ -607,6 +624,63 @@ export const matchWeedRequest = (request: PurchaseRequest, inventory: BudItem[])
   return { matches: candidates, best, issues: [] };
 };
 
+// ---------------------------------------------------------------------------
+// Best-match helper for "Sell" UI (no pending request needed).
+// Considers preferred strain, traits, rarity, and minQualityPreference.
+// ---------------------------------------------------------------------------
+export interface CustomerMatch {
+  bud: BudItem | null;
+  reasons: string[];
+  warnings: string[];
+}
+
+export const findBestMatchForCustomer = (
+  customer: Customer,
+  inventory: BudItem[],
+  minGrams: number = 1
+): CustomerMatch => {
+  const dried = inventory.filter(b => b.state === 'dried' && b.grams >= minGrams);
+  if (dried.length === 0) {
+    return { bud: null, reasons: [], warnings: ['Keine getrockneten Buds im Lager'] };
+  }
+
+  const minQ = customer.minQualityPreference ?? 0;
+  const wantStrain = customer.preferredStrain;
+  const wantTraits = customer.preferredTraits ?? [];
+  const wantRarity = customer.preferredRarity;
+  const wantRarityRank = wantRarity ? RARITY_RANK[wantRarity] : 0;
+
+  const scored = dried.map(b => {
+    let score = 0;
+    if (wantStrain && b.strainName === wantStrain) score += 100;
+    const overlap = wantTraits.filter(t => (b.traits ?? []).includes(t)).length;
+    score += overlap * 25;
+    const budRarityRank = RARITY_RANK[b.rarity as RequestRarity] ?? 0;
+    if (budRarityRank >= wantRarityRank) score += 15;
+    score += b.quality * 0.5;
+    if (b.quality < minQ) score -= 30;
+    return { bud: b, score, overlap, budRarityRank };
+  }).sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  if (!top) return { bud: null, reasons: [], warnings: [] };
+
+  const reasons: string[] = [];
+  const warnings: string[] = [];
+  if (wantStrain && top.bud.strainName === wantStrain) reasons.push(`Lieblings-Strain ${wantStrain}`);
+  if (top.overlap > 0) reasons.push(`${top.overlap} passendes Trait`);
+  if (wantRarity && top.budRarityRank >= wantRarityRank) reasons.push(`Rarität ${top.bud.rarity} ✓`);
+  if (top.bud.quality >= minQ + 20) reasons.push(`Qualität ${top.bud.quality}% > Min`);
+  else if (top.bud.quality >= minQ) reasons.push(`Qualität ${top.bud.quality}% ok`);
+
+  if (wantStrain && top.bud.strainName !== wantStrain) warnings.push(`Möchte eigentlich ${wantStrain}`);
+  if (wantRarity && top.budRarityRank < wantRarityRank) warnings.push(`Wünscht ≥ ${wantRarity}`);
+  if (top.bud.quality < minQ) warnings.push(`Qualität unter Min (${minQ}%)`);
+
+  return { bud: top.bud, reasons, warnings };
+};
+
+
 const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null => {
   if (customer.status === 'prospect') return null;
   const maxAddiction = getMaxAddiction(customer);
@@ -698,6 +772,39 @@ const createProspect = (existingNames: string[]): Customer => {
     }),
   ];
 
+  // Personality-driven trait baselines for the new fields.
+  const priceSensitivity = clamp(
+    Math.floor(
+      personalityType === 'paranoid' ? randomBetween(60, 90) :
+      personalityType === 'casual'   ? randomBetween(40, 70) :
+      personalityType === 'adventurous' ? randomBetween(25, 55) :
+      /* hardcore */                    randomBetween(15, 40)
+    ),
+    0, 100
+  );
+  const riskTolerance = clamp(
+    Math.floor(
+      personalityType === 'paranoid' ? randomBetween(5, 25) :
+      personalityType === 'casual'   ? randomBetween(20, 50) :
+      personalityType === 'adventurous' ? randomBetween(55, 85) :
+      /* hardcore */                    randomBetween(70, 100)
+    ),
+    0, 100
+  );
+  // Initial favorite — biased to weed unless personality suggests otherwise.
+  const favoriteProductType: DrugType =
+    drugPreferences.meth ? 'meth' :
+    drugPreferences.koks && riskTolerance > 60 ? 'koks' :
+    'weed';
+  const minQualityPreference = clamp(
+    Math.floor(
+      personalityType === 'hardcore' ? randomBetween(30, 60) :
+      personalityType === 'paranoid' ? randomBetween(20, 50) :
+                                       randomBetween(10, 40)
+    ),
+    0, 100
+  );
+
   return {
     id: `cust-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,
@@ -718,6 +825,12 @@ const createProspect = (existingNames: string[]): Customer => {
     requestHistory: [],
     personalityType,
     nextRequestAtMinutes: 0,
+    preferredTraits: [],
+    minQualityPreference,
+    priceSensitivity,
+    riskTolerance,
+    favoriteProductType,
+    lastReferralAtMinutes: 0,
   };
 };
 
@@ -755,7 +868,29 @@ export const useCustomerStore = create<CustomerState>()(
           return { success: false, message: 'Nicht genug Gramm fuer Sample.' };
         }
 
-        const conversionChance = 0.3 + (bud.quality / 100) * 0.5;
+        // Conversion considers quality, rarity, trait knowledge, spending, personality.
+        const qualityScore   = bud.quality / 100;                                   // 0..1
+        const rarityScore    = (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) / 4; // 0..1
+        const spendingScore  = customer.spendingPower / 100;                        // 0..1
+        // If the prospect already had hints (preferredTraits seeded by territory or earlier interactions).
+        const knownTraits    = customer.preferredTraits ?? [];
+        const traitMatch     = knownTraits.length > 0
+          ? knownTraits.filter(t => (bud.traits ?? []).includes(t)).length / knownTraits.length
+          : 0;
+        const personalityBoost =
+          customer.personalityType === 'hardcore'    ? 0.10 :
+          customer.personalityType === 'adventurous' ? 0.05 :
+          customer.personalityType === 'paranoid'    ? -0.10 : 0;
+
+        const conversionChance = clamp(
+          0.20
+          + qualityScore   * 0.45
+          + rarityScore    * 0.15
+          + spendingScore  * 0.10
+          + traitMatch     * 0.15
+          + personalityBoost,
+          0.05, 0.95
+        );
         const converted = Math.random() < conversionChance;
 
         const positiveMessages = [
@@ -802,11 +937,31 @@ export const useCustomerStore = create<CustomerState>()(
             ? clamp(50 + bud.quality / 2, 0, 100)
             : c.satisfaction;
           const nextMessages = pruneMessages([...c.messages, ...newMessages]);
+
+          // High-quality samples imprint preferred strain & a trait the prospect now likes.
+          let nextPreferredStrain = c.preferredStrain;
+          let nextPreferredTraits = c.preferredTraits ?? [];
+          let nextPreferredRarity = c.preferredRarity;
+          if (converted && bud.quality > 75) {
+            nextPreferredStrain = bud.strainName;
+          }
+          if (converted && bud.quality >= 80 && (bud.traits?.length ?? 0) > 0 && Math.random() < 0.6) {
+            const trait = bud.traits![Math.floor(Math.random() * bud.traits!.length)];
+            if (!nextPreferredTraits.includes(trait)) {
+              nextPreferredTraits = [...nextPreferredTraits, trait].slice(-3);
+            }
+          }
+          if (converted && (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) >= 2 && !nextPreferredRarity) {
+            nextPreferredRarity = bud.rarity as RequestRarity;
+          }
+
           return {
             ...c,
             loyalty: nextLoyalty,
             satisfaction: nextSatisfaction,
-            preferredStrain: converted && bud.quality > 75 ? bud.strainName : c.preferredStrain,
+            preferredStrain: nextPreferredStrain,
+            preferredTraits: nextPreferredTraits,
+            preferredRarity: nextPreferredRarity,
             status: nextStatus,
             messages: nextMessages,
           };
@@ -821,6 +976,7 @@ export const useCustomerStore = create<CustomerState>()(
         }
         return { success: true, message: converted ? 'Prospect wurde Kunde!' : 'Prospect ist noch unsicher.' };
       },
+
 
       sellToCustomer: (customerId, budId, grams, customPrice) => {
         const state = get();
@@ -885,27 +1041,87 @@ export const useCustomerStore = create<CustomerState>()(
           };
         });
 
-        const satisfactionDelta = bud.quality > 80 ? 5 : bud.quality < 60 ? -3 : 0;
-        const newLoyalty = clamp(customer.loyalty + 2, 0, 100);
+        // ---- Match scoring: quality vs minPref, strain match, trait match, price fairness ----
+        const minQualityPref = customer.minQualityPreference ?? 30;
+        const qualityDelta = bud.quality - minQualityPref; // positive = above pref
+        const strainMatch = customer.preferredStrain && bud.strainName === customer.preferredStrain;
+        const preferredTraits = customer.preferredTraits ?? [];
+        const traitOverlap = preferredTraits.length > 0
+          ? preferredTraits.filter(t => (bud.traits ?? []).includes(t)).length
+          : 0;
+        const traitMatchRatio = preferredTraits.length > 0
+          ? traitOverlap / preferredTraits.length
+          : 0;
+        const rarityOk = !customer.preferredRarity
+          || (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) >= (RARITY_RANK[customer.preferredRarity] ?? 0);
+
+        // Price fairness — only matters if a customPrice was used.
+        const fairPricePerGram = Math.max(
+          1,
+          calculateWeedSaleRevenue(customer, 1, bud.quality)
+        );
+        const actualPricePerGram = revenue / Math.max(0.01, gramsToSell);
+        // 0 = matches fair price; +1 = double price; -1 = giving it away
+        const priceRatio = (actualPricePerGram - fairPricePerGram) / fairPricePerGram;
+        const sensitivity = (customer.priceSensitivity ?? 50) / 100;
+        // Overpricing punishes by satisfaction; great deals raise loyalty.
+        const priceImpact = priceRatio > 0
+          ? -priceRatio * sensitivity * 12   // overpriced
+          : Math.min(0.5, -priceRatio) * 4;  // bargain (capped)
+
+        // Compose deltas
+        let satisfactionDelta = 0;
+        satisfactionDelta += qualityDelta >= 20 ? 5 : qualityDelta >= 0 ? 2 : -4;
+        if (strainMatch) satisfactionDelta += 4;
+        if (traitMatchRatio > 0) satisfactionDelta += Math.round(traitMatchRatio * 4);
+        if (!rarityOk) satisfactionDelta -= 3;
+        satisfactionDelta += Math.round(priceImpact);
+        satisfactionDelta = clamp(satisfactionDelta, -15, 12);
+
+        let loyaltyDelta = 2;
+        if (strainMatch) loyaltyDelta += 1;
+        if (traitMatchRatio > 0.5) loyaltyDelta += 1;
+        if (qualityDelta >= 20) loyaltyDelta += 1;
+        if (priceImpact > 0) loyaltyDelta += 1;
+        if (priceImpact < -3) loyaltyDelta = Math.max(0, loyaltyDelta - 1);
+
+        const newLoyalty = clamp(customer.loyalty + loyaltyDelta, 0, 100);
         const newSatisfaction = clamp(customer.satisfaction + satisfactionDelta, 0, 100);
         const nextStatus = getStatusForLoyalty(newLoyalty);
         const wasLoyal = customer.status === 'loyal';
         const wasVip = customer.status === 'vip';
         const statusChanged = nextStatus !== customer.status;
+        const greatDeal = satisfactionDelta >= 6;
+        const badDeal   = satisfactionDelta <= -5;
 
         const purchaseMessages = [
           `Hab gerade nochmal nachgelegt. Danke! 💯`,
           `Gerade ${gramsToSell}g geholt. Stark.`,
           `Wieder mal top Zeug. Bin dabei.`,
         ];
-        const complaintMessages = [
-          `Qualitaet war mies. Mach besser.`,
-          `Bro, das Zeug war schwach. Fix das.`,
-        ];
-        const praiseMessages = [
-          `Du bist der Plug! Das war premium.`,
-          `Quali war krank. Immer wieder.`,
-        ];
+        const complaintMessages = badDeal && priceImpact < -3
+          ? [
+              `Bro, das war zu teuer. Mach besser.`,
+              `Preis war frech. Weiß ich mir zu merken.`,
+            ]
+          : [
+              `Qualitaet war mies. Mach besser.`,
+              `Bro, das Zeug war schwach. Fix das.`,
+            ];
+        const praiseMessages = strainMatch
+          ? [
+              `Genau mein ${bud.strainName}! 🔥`,
+              `Du weißt, was ich brauch — top.`,
+            ]
+          : traitMatchRatio > 0.5
+            ? [
+                `Die Traits sind genau mein Ding.`,
+                `Top Profil. Hau gerne wieder so was raus.`,
+              ]
+            : [
+                `Du bist der Plug! Das war premium.`,
+                `Quali war krank. Immer wieder.`,
+              ];
 
         const messages: CustomerMessage[] = [
           createMessage({
@@ -915,13 +1131,12 @@ export const useCustomerStore = create<CustomerState>()(
           }),
           createMessage({
             from: 'customer',
-            type: bud.quality < 60 ? 'complaint' : bud.quality > 80 ? 'praise' : 'purchase',
-            message:
-              bud.quality < 60
-                ? pickRandom(complaintMessages)
-                : bud.quality > 80
-                  ? pickRandom(praiseMessages)
-                  : pickRandom(purchaseMessages),
+            type: badDeal ? 'complaint' : greatDeal ? 'praise' : 'purchase',
+            message: badDeal
+              ? pickRandom(complaintMessages)
+              : greatDeal
+                ? pickRandom(praiseMessages)
+                : pickRandom(purchaseMessages),
           }),
         ];
 
@@ -945,27 +1160,65 @@ export const useCustomerStore = create<CustomerState>()(
           );
         }
 
+        // ---- Referral: high-loyalty customers occasionally bring a friend ----
+        let referralProspect: Customer | null = null;
+        const REFERRAL_COOLDOWN_MIN = 6 * 60; // every 6 in-game hours per customer
+        const lastReferralAt = customer.lastReferralAtMinutes ?? 0;
+        const cooldownOk = saleGameMinutes - lastReferralAt >= REFERRAL_COOLDOWN_MIN;
+        const totalCustomers = state.customers.length;
+        const roomForMore = totalCustomers < AUTO_PROSPECT_LIMIT;
+        const referralChance = greatDeal
+          ? (newLoyalty >= 81 ? 0.35 : newLoyalty >= 41 ? 0.15 : 0)
+          : (newLoyalty >= 81 ? 0.10 : 0);
+        if (cooldownOk && roomForMore && Math.random() < referralChance) {
+          const existingNames = state.customers.map(c => c.name);
+          referralProspect = createProspect(existingNames);
+          messages.push(
+            createMessage({
+              from: 'customer',
+              type: 'casual',
+              message: `Hab dir nen Bekannten geschickt — ist ${referralProspect.name}, sei lieb. 🤝`,
+            })
+          );
+        }
+
         const nextCustomers = state.customers
           .map((c) => {
             if (c.id !== customerId) return c;
             const adjustedLoyalty = c.status === 'prospect' ? 0 : Math.max(1, newLoyalty);
-          return {
-            ...c,
-            loyalty: adjustedLoyalty,
-            satisfaction: newSatisfaction,
-            totalPurchases: c.totalPurchases + 1,
-            totalSpent: c.totalSpent + revenue,
-            preferredStrain: c.preferredStrain || (bud.quality >= 70 && Math.random() < 0.3 ? bud.strainName : null),
-            status: nextStatus,
-            lastPurchaseAt: saleGameMinutes,
-            nextRequestAtMinutes: scheduleNextRequestMinutes(c, saleGameMinutes),
-            messages: pruneMessages([...c.messages, ...messages]),
-          };
-        })
+            // After a great strain match, lock in preferredStrain.
+            const updatedPreferredStrain = strainMatch
+              ? c.preferredStrain
+              : (c.preferredStrain || (bud.quality >= 70 && Math.random() < 0.3 ? bud.strainName : null));
+            // Trait imprint on praise.
+            let updatedTraits = c.preferredTraits ?? [];
+            if (greatDeal && (bud.traits?.length ?? 0) > 0 && Math.random() < 0.4) {
+              const trait = bud.traits![Math.floor(Math.random() * bud.traits!.length)];
+              if (!updatedTraits.includes(trait)) {
+                updatedTraits = [...updatedTraits, trait].slice(-3);
+              }
+            }
+            return {
+              ...c,
+              loyalty: adjustedLoyalty,
+              satisfaction: newSatisfaction,
+              totalPurchases: c.totalPurchases + 1,
+              totalSpent: c.totalSpent + revenue,
+              preferredStrain: updatedPreferredStrain,
+              preferredTraits: updatedTraits,
+              status: nextStatus,
+              lastPurchaseAt: saleGameMinutes,
+              lastReferralAtMinutes: referralProspect ? saleGameMinutes : (c.lastReferralAtMinutes ?? 0),
+              nextRequestAtMinutes: scheduleNextRequestMinutes(c, saleGameMinutes),
+              messages: pruneMessages([...c.messages, ...messages]),
+            };
+          })
           .filter((c) => c.satisfaction >= 30);
 
         set((current) => ({
-          customers: nextCustomers,
+          customers: referralProspect
+            ? [...nextCustomers, referralProspect]
+            : nextCustomers,
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
 
@@ -1693,7 +1946,7 @@ export const useCustomerStore = create<CustomerState>()(
     }),
     {
       name: 'customer-network-save',
-      version: 7,
+      version: 8,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState;
         const ensureRequest = (req: any): PurchaseRequest | null => {
@@ -1710,19 +1963,44 @@ export const useCustomerStore = create<CustomerState>()(
         return {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
-            ? persistedState.customers.map((customer: Customer) => ({
-                ...customer,
-                drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
-                addiction: customer.addiction ?? { koks: 0, meth: 0 },
-                pendingRequest: ensureRequest(customer.pendingRequest),
-                requestHistory: Array.isArray(customer.requestHistory)
-                  ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
-                  : [],
-                personalityType: customer.personalityType ?? 'casual',
-                nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
-                  ? customer.nextRequestAtMinutes
-                  : 0,
-              }))
+            ? persistedState.customers.map((customer: Customer) => {
+                const personality = customer.personalityType ?? 'casual';
+                const defaultRisk =
+                  personality === 'paranoid' ? 15 :
+                  personality === 'casual' ? 35 :
+                  personality === 'adventurous' ? 70 : 85;
+                const defaultPriceSens =
+                  personality === 'paranoid' ? 75 :
+                  personality === 'casual' ? 55 :
+                  personality === 'adventurous' ? 40 : 25;
+                return {
+                  ...customer,
+                  drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
+                  addiction: customer.addiction ?? { koks: 0, meth: 0 },
+                  pendingRequest: ensureRequest(customer.pendingRequest),
+                  requestHistory: Array.isArray(customer.requestHistory)
+                    ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
+                    : [],
+                  personalityType: personality,
+                  nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
+                    ? customer.nextRequestAtMinutes
+                    : 0,
+                  preferredTraits: Array.isArray(customer.preferredTraits) ? customer.preferredTraits : [],
+                  minQualityPreference: Number.isFinite(customer.minQualityPreference)
+                    ? customer.minQualityPreference
+                    : 25,
+                  priceSensitivity: Number.isFinite(customer.priceSensitivity)
+                    ? customer.priceSensitivity
+                    : defaultPriceSens,
+                  riskTolerance: Number.isFinite(customer.riskTolerance)
+                    ? customer.riskTolerance
+                    : defaultRisk,
+                  favoriteProductType: customer.favoriteProductType ?? 'weed',
+                  lastReferralAtMinutes: Number.isFinite(customer.lastReferralAtMinutes)
+                    ? customer.lastReferralAtMinutes
+                    : 0,
+                };
+              })
             : [],
           totalCustomerRevenue: Number.isFinite(persistedState.totalCustomerRevenue)
             ? persistedState.totalCustomerRevenue
