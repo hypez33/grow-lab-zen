@@ -155,6 +155,9 @@ export const MiniDashboard = () => {
         </div>
       </div>
 
+      {/* Career Rank */}
+      <RankWidget />
+
       {/* Quick Stats */}
       <div className="grid grid-cols-4 gap-2">
         <StatMini icon={<DollarSign size={14} />} value={budcoins} label="$" color="text-neon-gold" highlight={cashGains.length > 0} />
