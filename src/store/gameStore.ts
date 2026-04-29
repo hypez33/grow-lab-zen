@@ -1198,54 +1198,72 @@ export const useGameStore = create<GameState>()(
         if (autoHarvestLevel > 0) {
           // Auto-harvest up to `autoHarvestLevel` plants per tick
           let harvestsRemaining = autoHarvestLevel;
-          let totalCoins = 0;
           let totalResin = 0;
           let totalEssence = 0;
           let totalGems = 0;
           let totalHarvests = 0;
+          let totalGrams = 0;
+          let totalXp = 0;
+          const newBuds: BudItem[] = [];
           let newSeeds = [...state.seeds];
           let newDiscoveredSeeds = [...state.discoveredSeeds];
-          
+
           growSlots = growSlots.map(slot => {
             if (harvestsRemaining > 0 && slot.seed && slot.isUnlocked && slot.stage === 'harvest') {
               harvestsRemaining--;
               totalHarvests++;
-              
-              // Simple auto-harvest rewards (without full trait calculations to keep performance)
+
               const baseYield = slot.seed.baseYield;
               const harvestBonus = state.upgrades.find(u => u.id === 'trimming')?.level ?? 0;
-              totalCoins += Math.floor(baseYield * (1 + harvestBonus * 0.1));
               totalResin += Math.floor(baseYield * 0.1);
               if (slot.seed.rarity !== 'common') {
                 totalEssence += Math.floor(baseYield * 0.05);
               }
-              
+
+              // Create a wet BudItem (mirrors manual harvest, simplified)
+              const variance = 0.8 + Math.random() * 0.4;
+              const grams = Math.max(1, Math.floor(baseYield * variance * (1 + harvestBonus * 0.05)));
+              const quality = Math.min(100, 50 + Math.floor(Math.random() * 30));
+              newBuds.push({
+                id: `bud-auto-${Date.now()}-${slot.id}-${Math.random().toString(36).slice(2, 6)}`,
+                strainName: slot.seed.name,
+                rarity: slot.seed.rarity,
+                grams,
+                quality,
+                state: 'wet',
+                dryingProgress: 0,
+                traits: slot.seed.traits,
+              });
+              totalGrams += grams;
+              totalXp += 5 + (slot.seed.rarity === 'legendary' ? 20 : slot.seed.rarity === 'epic' ? 12 : slot.seed.rarity === 'rare' ? 8 : slot.seed.rarity === 'uncommon' ? 4 : 0);
+
               // Seed drop chance
               if (Math.random() < 0.3) {
                 newSeeds.push({ ...slot.seed, id: `seed-${Date.now()}-${slot.id}` });
               }
-              
+
               // Discover seed
               if (!newDiscoveredSeeds.includes(slot.seed.name)) {
                 newDiscoveredSeeds.push(slot.seed.name);
               }
-              
+
               // Reset slot
-              return { ...slot, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0 };
+              return { ...slot, seed: null, plantId: null, stage: 'seed' as PlantStage, progress: 0, budGrowth: 0 };
             }
             return slot;
           });
-          
+
           if (totalHarvests > 0) {
             autoHarvestUpdates = {
-              budcoins: state.budcoins + totalCoins,
               resin: state.resin + totalResin,
               essence: state.essence + totalEssence,
               gems: state.gems + totalGems,
               totalHarvests: state.totalHarvests + totalHarvests,
-              totalCoinsEarned: state.totalCoinsEarned + totalCoins,
+              totalGramsHarvested: state.totalGramsHarvested + totalGrams,
+              xp: state.xp + totalXp,
               seeds: newSeeds,
               discoveredSeeds: newDiscoveredSeeds,
+              inventory: [...state.inventory, ...newBuds],
             };
           }
         }
