@@ -26,6 +26,32 @@ export interface TerritoryBonus {
   icon: string;
 }
 
+export type CustomerArchetype = 'student' | 'professional' | 'partygoer' | 'worker' | 'wholesaler' | 'wealthy';
+export type TerritoryDemandRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export interface TerritoryIdentity {
+  /** Short tagline shown in UI */
+  demandProfile: string;
+  /** Drugs that thrive here. Order = priority. */
+  preferredDrugTypes: Array<'weed' | 'koks' | 'meth'>;
+  /** Bud rarities customers in this territory tend to ask for */
+  preferredRarities: TerritoryDemandRarity[];
+  /** Trait names that score better here */
+  preferredTraits: string[];
+  /** Multiplier on order grams (1 = baseline). Stack-multiplied across territories. */
+  averageOrderSizeModifier: number;
+  /** Multiplier on customer maxPrice (1 = baseline). Stack-multiplied. */
+  priceModifier: number;
+  /** Customer archetype weights for prospect generation (relative weights) */
+  customerTypeWeights: Partial<Record<CustomerArchetype, number>>;
+  /** Recommended player level to invest here */
+  minReputationRequired?: number;
+  /** Strategy hint shown in UI */
+  suggestedStrategy: string;
+  /** Recommended dealer slot count */
+  recommendedDealers: number;
+}
+
 export interface Territory {
   id: string;
   name: string;
@@ -41,6 +67,8 @@ export interface Territory {
   lastContestResult: 'win' | 'lose' | null;
   passiveIncome: number;
   bonuses: TerritoryBonus[];
+  /** Optional in older saves; migration always backfills. */
+  identity?: TerritoryIdentity;
 }
 
 export interface TerritoryContestEvent {
