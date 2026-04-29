@@ -316,6 +316,15 @@ export interface GameState {
   claimedAchievements: string[];
   totalBreedings: number;
 
+  // Reputation & Heat (global meta-progression)
+  reputation: number;
+  heat: number;
+  maxHeat: number;
+  totalReputationEarned: number;
+  totalHeatGenerated: number;
+  lastRepHeatToastAt: number;
+  lastHeatDecayAt: number;
+
   // Actions
   tap: () => void;
   tapBatch: (count: number) => void;
