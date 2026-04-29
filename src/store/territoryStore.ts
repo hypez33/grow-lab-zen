@@ -462,10 +462,81 @@ export const useTerritoryStore = create<TerritoryState>()(
 
         return activeBonuses;
       },
+
+      getControlledDemandProfile: () => {
+        const state = get();
+        const profile: AggregatedDemandProfile = {
+          drugWeights: { weed: 0, koks: 0, meth: 0 },
+          rarityWeights: {},
+          traitWeights: {},
+          customerTypeWeights: {},
+          averageOrderSizeModifier: 1,
+          priceModifier: 1,
+          contributingTerritoryNames: [],
+        };
+
+        for (const territory of state.territories) {
+          const tier = getControlTierPercent(territory.control) / 100; // 0, 0.25, 0.5, 0.75, 1
+          if (tier <= 0) continue;
+          const identity = territory.identity;
+          if (!identity) continue;
+
+          profile.contributingTerritoryNames.push(territory.name);
+
+          // Drug weights — preferred drugs ranked, decay by index.
+          identity.preferredDrugTypes.forEach((drug, index) => {
+            const weight = (1 / (1 + index)) * tier;
+            profile.drugWeights[drug] = (profile.drugWeights[drug] ?? 0) + weight;
+          });
+
+          identity.preferredRarities.forEach((rarity, index) => {
+            const weight = (1 / (1 + index)) * tier;
+            profile.rarityWeights[rarity] = (profile.rarityWeights[rarity] ?? 0) + weight;
+          });
+
+          identity.preferredTraits.forEach((trait) => {
+            profile.traitWeights[trait] = (profile.traitWeights[trait] ?? 0) + tier;
+          });
+
+          (Object.entries(identity.customerTypeWeights) as Array<[CustomerArchetype, number]>)
+            .forEach(([type, w]) => {
+              profile.customerTypeWeights[type] = (profile.customerTypeWeights[type] ?? 0) + w * tier;
+            });
+
+          // Multiplicative modifiers, scaled by tier (so partial control = partial effect).
+          // f(tier) = 1 + (modifier - 1) * tier
+          profile.averageOrderSizeModifier *= 1 + (identity.averageOrderSizeModifier - 1) * tier;
+          profile.priceModifier *= 1 + (identity.priceModifier - 1) * tier;
+        }
+
+        return profile;
+      },
     }),
     {
       name: 'territory-control-save',
-      version: 1,
+      version: 2,
+      migrate: (persistedState: any) => {
+        const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
+        const existingTerritories = Array.isArray(state.territories) ? state.territories : [];
+
+        // Re-merge identity & bonuses from latest catalog while preserving control/dealers/etc.
+        const territories = TERRITORY_CATALOG.map((catalogEntry) => {
+          const existing = existingTerritories.find((t: any) => t && t.id === catalogEntry.id);
+          return {
+            ...catalogEntry,
+            control: Number.isFinite(existing?.control) ? existing.control : 0,
+            assignedDealerIds: Array.isArray(existing?.assignedDealerIds) ? existing.assignedDealerIds : [],
+            nextContestAt: Number.isFinite(existing?.nextContestAt) ? existing.nextContestAt : 0,
+            fortified: Boolean(existing?.fortified),
+            lastContestResult: existing?.lastContestResult ?? null,
+          };
+        });
+
+        return {
+          ...state,
+          territories,
+        };
+      },
     }
   )
 );
