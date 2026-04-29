@@ -475,8 +475,25 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
     priceMultiplier = 1;
   }
 
+  // Territory: bias rarity & trait preference for weed orders (only if no spec yet).
+  if (drug === 'weed') {
+    if (!minRarity && customer.status !== 'prospect') {
+      const rarityPick = pickFromWeights(territoryProfile.rarityWeights);
+      // Probability scales with how strongly territory pushes that rarity (cap 60%).
+      if (rarityPick && Math.random() < Math.min(0.6, (territoryProfile.rarityWeights[rarityPick] ?? 0) * 0.5)) {
+        minRarity = rarityPick as RequestRarity;
+      }
+    }
+    if (!preferredTraits || preferredTraits.length === 0) {
+      const traitPick = pickFromWeights(territoryProfile.traitWeights);
+      if (traitPick && Math.random() < 0.35) {
+        preferredTraits = [traitPick];
+      }
+    }
+  }
+
   const baseMaxPrice = calculateMaxPrice(customer, drug, urgency, roundedGrams);
-  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier);
+  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier * territoryPriceMod);
 
   const xpReward = Math.max(2, Math.floor(roundedGrams * (drug === 'weed' ? 1 : 2) * (1 + reputationReward * 0.2)));
 
