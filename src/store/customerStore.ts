@@ -1010,27 +1010,44 @@ export const useCustomerStore = create<CustomerState>()(
         }
 
         const gameMinutes = useGameStore.getState().gameTimeMinutes;
+        const completedRequest: PurchaseRequest = { ...pending, status: 'completed' };
+        const loyaltyBoost =
+          (pending.urgency === 'desperate' ? 5 :
+           pending.urgency === 'high' ? 3 :
+           pending.urgency === 'medium' ? 2 : 1) +
+          (pending.source === 'vip' ? 2 : 0);
+
         set((current) => ({
           customers: current.customers.map(c => {
             if (c.id !== customerId) return c;
             const nextRequestAtMinutes = scheduleNextRequestMinutes(c, gameMinutes);
+            const nextLoyalty = clamp(c.loyalty + loyaltyBoost, 0, 100);
             return {
               ...c,
+              loyalty: c.status === 'prospect' ? c.loyalty : Math.max(1, nextLoyalty),
+              status: c.status === 'prospect' ? c.status : getStatusForLoyalty(nextLoyalty),
+              satisfaction: clamp(c.satisfaction + 3, 0, 100),
               pendingRequest: null,
-              requestHistory: [...c.requestHistory, pending].slice(-20),
+              requestHistory: [...c.requestHistory, completedRequest].slice(-20),
               nextRequestAtMinutes,
             };
           }),
         }));
 
+        // XP reward (defaults for old requests without xpReward)
+        const xpReward = pending.xpReward ?? Math.max(2, Math.floor(pending.gramsRequested * (pending.drug === 'weed' ? 1 : 2)));
+        try {
+          useGameStore.getState().addXp?.(xpReward);
+        } catch { /* noop */ }
+
         if (customer) {
           const revenueValue = result.revenue ?? 0;
           console.log(
-            `Request fulfilled: ${customer.name} bought ${pending.gramsRequested}g ${pending.drug} for $${revenueValue}`
+            `Request fulfilled: ${customer.name} bought ${pending.gramsRequested}g ${pending.drug} for $${revenueValue} (+${xpReward} XP)`
           );
         }
 
-        return result;
+        return { ...result, message: result.message ?? `Bestellung erfüllt (+${xpReward} XP)` };
       },
 
       offerDrug: (customerId, drug, grams) => {
