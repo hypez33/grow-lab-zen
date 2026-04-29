@@ -162,6 +162,46 @@ export const MiniDashboard = () => {
         <StatMini icon={<Star size={14} />} value={totalGramsHarvested} label="g geerntet" color="text-secondary" />
       </div>
 
+      {/* Reputation & Heat */}
+      <div className="grid grid-cols-2 gap-2">
+        <div
+          className="rounded-lg bg-muted/20 px-2 py-1.5 border border-border/30"
+          title={`Reputation: ${reputation} (${tier.name}). Bessere Bestellungen, bessere Kunden.`}
+        >
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>Reputation</span>
+            <span className={tier.color}>{tier.icon} {tier.name}</span>
+          </div>
+          <div className="mt-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400"
+              style={{
+                width: tier.next
+                  ? `${Math.min(100, ((reputation - tier.min) / (tier.next - tier.min)) * 100)}%`
+                  : '100%',
+              }}
+            />
+          </div>
+        </div>
+        <motion.div
+          animate={heatLevel.id === 'critical' ? { boxShadow: ['0 0 0 0 hsl(0 80% 55% / 0)', '0 0 12px 2px hsl(0 80% 55% / 0.5)', '0 0 0 0 hsl(0 80% 55% / 0)'] } : {}}
+          transition={{ duration: 1.2, repeat: heatLevel.id === 'critical' ? Infinity : 0 }}
+          className={`rounded-lg px-2 py-1.5 border ${heatLevel.id === 'critical' ? 'border-red-500/50 bg-red-500/10' : heatLevel.id === 'high' ? 'border-amber-500/40 bg-amber-500/5' : 'bg-muted/20 border-border/30'}`}
+          title={`Heat: ${heat.toFixed(0)}/${maxHeat}. Hoch = weniger Anfragen, kritisch = Verkaufseffizienz sinkt. Decay durch Businesses & sichere Gebiete.`}
+        >
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>Heat</span>
+            <span className={heatLevel.color}>🔥 {heatLevel.name}</span>
+          </div>
+          <div className="mt-1 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div
+              className={`h-full ${heatLevel.id === 'critical' ? 'bg-red-500' : heatLevel.id === 'high' ? 'bg-amber-500' : heatLevel.id === 'warm' ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+              style={{ width: `${heatLevel.pct}%` }}
+            />
+          </div>
+        </motion.div>
+      </div>
+
       {/* Worker indicator */}
       {activeWorkers > 0 && (
         <motion.div
