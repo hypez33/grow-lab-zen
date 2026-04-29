@@ -811,7 +811,29 @@ export const useCustomerStore = create<CustomerState>()(
           return { success: false, message: 'Nicht genug Gramm fuer Sample.' };
         }
 
-        const conversionChance = 0.3 + (bud.quality / 100) * 0.5;
+        // Conversion considers quality, rarity, trait knowledge, spending, personality.
+        const qualityScore   = bud.quality / 100;                                   // 0..1
+        const rarityScore    = (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) / 4; // 0..1
+        const spendingScore  = customer.spendingPower / 100;                        // 0..1
+        // If the prospect already had hints (preferredTraits seeded by territory or earlier interactions).
+        const knownTraits    = customer.preferredTraits ?? [];
+        const traitMatch     = knownTraits.length > 0
+          ? knownTraits.filter(t => (bud.traits ?? []).includes(t)).length / knownTraits.length
+          : 0;
+        const personalityBoost =
+          customer.personalityType === 'hardcore'    ? 0.10 :
+          customer.personalityType === 'adventurous' ? 0.05 :
+          customer.personalityType === 'paranoid'    ? -0.10 : 0;
+
+        const conversionChance = clamp(
+          0.20
+          + qualityScore   * 0.45
+          + rarityScore    * 0.15
+          + spendingScore  * 0.10
+          + traitMatch     * 0.15
+          + personalityBoost,
+          0.05, 0.95
+        );
         const converted = Math.random() < conversionChance;
 
         const positiveMessages = [
@@ -858,11 +880,31 @@ export const useCustomerStore = create<CustomerState>()(
             ? clamp(50 + bud.quality / 2, 0, 100)
             : c.satisfaction;
           const nextMessages = pruneMessages([...c.messages, ...newMessages]);
+
+          // High-quality samples imprint preferred strain & a trait the prospect now likes.
+          let nextPreferredStrain = c.preferredStrain;
+          let nextPreferredTraits = c.preferredTraits ?? [];
+          let nextPreferredRarity = c.preferredRarity;
+          if (converted && bud.quality > 75) {
+            nextPreferredStrain = bud.strainName;
+          }
+          if (converted && bud.quality >= 80 && (bud.traits?.length ?? 0) > 0 && Math.random() < 0.6) {
+            const trait = bud.traits![Math.floor(Math.random() * bud.traits!.length)];
+            if (!nextPreferredTraits.includes(trait)) {
+              nextPreferredTraits = [...nextPreferredTraits, trait].slice(-3);
+            }
+          }
+          if (converted && (RARITY_RANK[bud.rarity as RequestRarity] ?? 0) >= 2 && !nextPreferredRarity) {
+            nextPreferredRarity = bud.rarity as RequestRarity;
+          }
+
           return {
             ...c,
             loyalty: nextLoyalty,
             satisfaction: nextSatisfaction,
-            preferredStrain: converted && bud.quality > 75 ? bud.strainName : c.preferredStrain,
+            preferredStrain: nextPreferredStrain,
+            preferredTraits: nextPreferredTraits,
+            preferredRarity: nextPreferredRarity,
             status: nextStatus,
             messages: nextMessages,
           };
@@ -877,6 +919,7 @@ export const useCustomerStore = create<CustomerState>()(
         }
         return { success: true, message: converted ? 'Prospect wurde Kunde!' : 'Prospect ist noch unsicher.' };
       },
+
 
       sellToCustomer: (customerId, budId, grams, customPrice) => {
         const state = get();
