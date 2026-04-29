@@ -511,13 +511,17 @@ const initialCosmetics: Cosmetic[] = [
 ];
 
 // Initial workers
+// Worker pacing:
+//   - First worker (Grow-Assistent) is the clear early-mid milestone.
+//   - Workers automate tedium; they do NOT trivialize the loop (limited slots, no direct cash).
+//   - Selling/automation specialists cost more so the player earns them.
 const initialWorkers: Worker[] = [
   { 
     id: 'grower-apprentice', 
     name: 'Grow-Assistent', 
-    description: 'Pflanzt automatisch Seeds und klickt auf Pflanzen', 
+    description: 'Pflanzt automatisch Seeds und klickt auf Pflanzen. Erster Worker — klares Mid-Game-Ziel.', 
     icon: '👨‍🌾', 
-    cost: 5000, 
+    cost: 3500, 
     owned: false,
     paused: false,
     level: 1, 
@@ -528,9 +532,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'harvest-master', 
     name: 'Ernte-Meister', 
-    description: 'Erntet automatisch fertige Pflanzen und startet Trocknung', 
+    description: 'Erntet automatisch fertige Pflanzen und startet Trocknung.', 
     icon: '🧑‍🔬', 
-    cost: 10000, 
+    cost: 9000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -541,9 +545,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'farm-manager', 
     name: 'Farm-Manager', 
-    description: 'Vollautomatischer Betrieb: Pflanzt, boosted, erntet & trocknet', 
+    description: 'Vollautomatischer Betrieb: Pflanzt, boosted, erntet & trocknet.', 
     icon: '👔', 
-    cost: 50000, 
+    cost: 60000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -554,9 +558,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'sales-dealer', 
     name: 'Verkaufs-Dealer', 
-    description: 'Verkauft automatisch getrocknete Buds über verfügbare Kanäle', 
+    description: 'Verkauft automatisch getrocknete Buds über verfügbare Kanäle.', 
     icon: '💼', 
-    cost: 25000, 
+    cost: 20000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -583,7 +587,7 @@ const initialWorkers: Worker[] = [
     name: 'Der Psycho', 
     description: 'Aggressiver Straßendealer. Schneller, brutaler, unberechenbar. Mehr Kohle, mehr Chaos.', 
     icon: '🔪', 
-    cost: 75000, 
+    cost: 90000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -596,7 +600,7 @@ const initialWorkers: Worker[] = [
     name: 'Bewässerungs-Bot', 
     description: 'Automatisches Bewässerungssystem. Gießt alle Pflanzen unter 50% Wasser.', 
     icon: '💧', 
-    cost: 15000, 
+    cost: 12000, 
     owned: false,
     paused: false,
     level: 1, 

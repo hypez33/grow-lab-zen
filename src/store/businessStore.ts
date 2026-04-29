@@ -156,15 +156,17 @@ const createBusinessEventId = () => {
   return Date.now() * 1000 + businessEventCounter;
 };
 
+// Business catalog — passive income should SUPPORT, not REPLACE active selling.
+// Per-hour profits are intentionally modest vs. mid-game sales income.
 const BUSINESS_CATALOG: Omit<Business, 'owned' | 'level' | 'pausedUntilMinutes'>[] = [
   {
     id: 'corner-bodega',
     name: 'Bodega',
-    description: 'Kleines Frontgeschaeft. Cashflow mit wenig Risiko.',
+    description: 'Kleines Frontgeschaeft. Stetiger Cashflow, geringes Risiko.',
     icon: 'bodega',
-    cost: 5000,
-    profitPerGameHour: 120,
-    upgradeBaseCost: 3000,
+    cost: 8000,
+    profitPerGameHour: 90,
+    upgradeBaseCost: 4000,
     minLevel: 2,
   },
   {
@@ -172,9 +174,9 @@ const BUSINESS_CATALOG: Omit<Business, 'owned' | 'level' | 'pausedUntilMinutes'>
     name: 'Car Wash',
     description: 'Saubere Rechnung, dreckiges Geld.',
     icon: 'car-wash',
-    cost: 25000,
-    profitPerGameHour: 420,
-    upgradeBaseCost: 15000,
+    cost: 30000,
+    profitPerGameHour: 320,
+    upgradeBaseCost: 18000,
     minLevel: 6,
   },
   {
@@ -182,9 +184,9 @@ const BUSINESS_CATALOG: Omit<Business, 'owned' | 'level' | 'pausedUntilMinutes'>
     name: 'Night Club',
     description: 'Lauter Beat, leiser Profit.',
     icon: 'club',
-    cost: 120000,
-    profitPerGameHour: 1600,
-    upgradeBaseCost: 70000,
+    cost: 140000,
+    profitPerGameHour: 1300,
+    upgradeBaseCost: 80000,
     minLevel: 12,
   },
   {
@@ -192,9 +194,9 @@ const BUSINESS_CATALOG: Omit<Business, 'owned' | 'level' | 'pausedUntilMinutes'>
     name: 'Logistikfirma',
     description: 'Deckung fuer Transporte und sichere Routen.',
     icon: 'logistics',
-    cost: 280000,
-    profitPerGameHour: 3600,
-    upgradeBaseCost: 160000,
+    cost: 320000,
+    profitPerGameHour: 3000,
+    upgradeBaseCost: 180000,
     minLevel: 18,
   },
 ];
@@ -203,10 +205,10 @@ const WAREHOUSE_CATALOG: Omit<WarehouseUpgrade, 'owned'>[] = [
   {
     id: 'warehouse-starter',
     name: 'Mini Lager',
-    description: 'Erster kleiner Raum fuer Imports.',
+    description: 'Erster kleiner Raum fuer Imports. Ohne Lager keine Shipments.',
     icon: 'mini',
     capacity: 500,
-    cost: 15000,
+    cost: 12000,
     minLevel: 4,
   },
   {
