@@ -733,6 +733,9 @@ export const useCustomerStore = create<CustomerState>()(
           customers: nextCustomers,
         });
 
+        if (converted) {
+          try { useGameStore.getState().addReputation?.(8, 'Prospect konvertiert'); } catch { /* noop */ }
+        }
         return { success: true, message: converted ? 'Prospect wurde Kunde!' : 'Prospect ist noch unsicher.' };
       },
 
