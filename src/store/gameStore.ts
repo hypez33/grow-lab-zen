@@ -1463,17 +1463,17 @@ export const useGameStore = create<GameState>()(
 
       getReputationTier: () => {
         const rep = get().reputation;
-        const tiers = [
-          { id: 'unknown',  name: 'Unbekannt',     min: 0,    next: 50,    icon: '👤', color: 'text-muted-foreground' },
-          { id: 'rookie',   name: 'Rookie',        min: 50,   next: 200,   icon: '🌱', color: 'text-emerald-300' },
-          { id: 'hustler',  name: 'Hustler',       min: 200,  next: 500,   icon: '🔥', color: 'text-cyan-300' },
-          { id: 'plug',     name: 'The Plug',      min: 500,  next: 1500,  icon: '⭐', color: 'text-blue-300' },
-          { id: 'kingpin',  name: 'Kingpin',       min: 1500, next: 5000,  icon: '👑', color: 'text-amber-300' },
-          { id: 'legend',   name: 'Untergrund-Legende', min: 5000, icon: '💎', color: 'text-purple-300' },
-        ] as const;
+        const tiers: Array<{ id: string; name: string; min: number; next?: number; icon: string; color: string }> = [
+          { id: 'unknown',  name: 'Unbekannt',          min: 0,    next: 50,    icon: '👤', color: 'text-muted-foreground' },
+          { id: 'rookie',   name: 'Rookie',             min: 50,   next: 200,   icon: '🌱', color: 'text-emerald-300' },
+          { id: 'hustler',  name: 'Hustler',            min: 200,  next: 500,   icon: '🔥', color: 'text-cyan-300' },
+          { id: 'plug',     name: 'The Plug',           min: 500,  next: 1500,  icon: '⭐', color: 'text-blue-300' },
+          { id: 'kingpin',  name: 'Kingpin',            min: 1500, next: 5000,  icon: '👑', color: 'text-amber-300' },
+          { id: 'legend',   name: 'Untergrund-Legende', min: 5000,              icon: '💎', color: 'text-purple-300' },
+        ];
         let active = tiers[0];
         for (const t of tiers) if (rep >= t.min) active = t;
-        return active as ReturnType<GameState['getReputationTier']>;
+        return active;
       },
 
       getHeatLevel: () => {
