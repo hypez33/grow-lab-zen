@@ -470,14 +470,14 @@ export const ShopScreen = () => {
                   className="game-card p-4 text-left hover:border-primary/60 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-neon-green/10 text-neon-green flex-shrink-0">
+                    <div className={`p-2 rounded-lg flex-shrink-0 ${reco.severity ? SEVERITY_DOT[reco.severity] : 'bg-neon-green/10 text-neon-green'}`}>
                       <AlertCircle size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h3 className="font-display font-bold text-foreground">{reco.action}</h3>
                         {reco.badge && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-neon-green/20 text-neon-green font-bold uppercase">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${reco.severity ? SEVERITY_DOT[reco.severity] : 'bg-neon-green/20 text-neon-green'}`}>
                             {reco.badge}
                           </span>
                         )}
