@@ -1946,7 +1946,7 @@ export const useCustomerStore = create<CustomerState>()(
     }),
     {
       name: 'customer-network-save',
-      version: 7,
+      version: 8,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState;
         const ensureRequest = (req: any): PurchaseRequest | null => {
@@ -1963,19 +1963,44 @@ export const useCustomerStore = create<CustomerState>()(
         return {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
-            ? persistedState.customers.map((customer: Customer) => ({
-                ...customer,
-                drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
-                addiction: customer.addiction ?? { koks: 0, meth: 0 },
-                pendingRequest: ensureRequest(customer.pendingRequest),
-                requestHistory: Array.isArray(customer.requestHistory)
-                  ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
-                  : [],
-                personalityType: customer.personalityType ?? 'casual',
-                nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
-                  ? customer.nextRequestAtMinutes
-                  : 0,
-              }))
+            ? persistedState.customers.map((customer: Customer) => {
+                const personality = customer.personalityType ?? 'casual';
+                const defaultRisk =
+                  personality === 'paranoid' ? 15 :
+                  personality === 'casual' ? 35 :
+                  personality === 'adventurous' ? 70 : 85;
+                const defaultPriceSens =
+                  personality === 'paranoid' ? 75 :
+                  personality === 'casual' ? 55 :
+                  personality === 'adventurous' ? 40 : 25;
+                return {
+                  ...customer,
+                  drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
+                  addiction: customer.addiction ?? { koks: 0, meth: 0 },
+                  pendingRequest: ensureRequest(customer.pendingRequest),
+                  requestHistory: Array.isArray(customer.requestHistory)
+                    ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
+                    : [],
+                  personalityType: personality,
+                  nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
+                    ? customer.nextRequestAtMinutes
+                    : 0,
+                  preferredTraits: Array.isArray(customer.preferredTraits) ? customer.preferredTraits : [],
+                  minQualityPreference: Number.isFinite(customer.minQualityPreference)
+                    ? customer.minQualityPreference
+                    : 25,
+                  priceSensitivity: Number.isFinite(customer.priceSensitivity)
+                    ? customer.priceSensitivity
+                    : defaultPriceSens,
+                  riskTolerance: Number.isFinite(customer.riskTolerance)
+                    ? customer.riskTolerance
+                    : defaultRisk,
+                  favoriteProductType: customer.favoriteProductType ?? 'weed',
+                  lastReferralAtMinutes: Number.isFinite(customer.lastReferralAtMinutes)
+                    ? customer.lastReferralAtMinutes
+                    : 0,
+                };
+              })
             : [],
           totalCustomerRevenue: Number.isFinite(persistedState.totalCustomerRevenue)
             ? persistedState.totalCustomerRevenue
