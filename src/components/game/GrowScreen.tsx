@@ -290,7 +290,7 @@ export const GrowScreen = () => {
   // Calculate offline progress on mount
   useEffect(() => {
     const earnings = calculateOfflineProgress();
-    if (earnings.coins > 0) {
+    if (earnings.plantsAdvanced > 0 || earnings.autoHarvested > 0 || earnings.plantsReady > 0) {
       setOfflineEarnings(earnings);
       setShowOfflinePopup(true);
     }
