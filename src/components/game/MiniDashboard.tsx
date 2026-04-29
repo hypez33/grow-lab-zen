@@ -2,8 +2,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSmartCoach } from '@/hooks/useSmartCoach';
-import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight } from 'lucide-react';
+import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { getCurrentRank, getNextRank, getRankProgress, getRankStats } from '@/data/ranks';
 
 export const MiniDashboard = () => {
   const {
