@@ -325,7 +325,7 @@ export interface GameState {
   unlockSkill: (skillId: string) => void;
   claimQuest: (questId: string) => void;
   updateProgress: (delta: number) => void;
-  calculateOfflineProgress: () => { coins: number; harvests: number };
+  calculateOfflineProgress: () => { plantsAdvanced: number; plantsReady: number; autoHarvested: number; wetGrams: number; coins: number; harvests: number };
   advanceGameTime: (realSeconds: number) => number;
   addXp: (amount: number) => void;
   checkLevelUp: () => number;
