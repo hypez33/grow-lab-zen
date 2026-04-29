@@ -934,21 +934,27 @@ export const useCustomerStore = create<CustomerState>()(
         if (pending.drug === 'weed') {
           const gameState = useGameStore.getState();
           const driedBuds = gameState.inventory.filter(bud => bud.state === 'dried');
-          
-          // First try to find the specified bud if it has enough grams
-          let chosenBud = options.budId
-            ? driedBuds.find(bud => bud.id === options.budId && bud.grams >= pending.gramsRequested)
-            : null;
-          
-          // If not found or not enough, find the best quality bud with enough grams
-          if (!chosenBud) {
-            chosenBud = [...driedBuds]
-              .filter(bud => bud.grams >= pending.gramsRequested)
-              .sort((a, b) => b.quality - a.quality)[0] ?? null;
+
+          // If user picked a specific bud, validate it against the request
+          let chosenBud: BudItem | null = null;
+          if (options.budId) {
+            const candidate = driedBuds.find(bud => bud.id === options.budId);
+            if (candidate && candidate.grams >= pending.gramsRequested) {
+              const singleMatch = matchWeedRequest(pending, [candidate]);
+              if (singleMatch.best) {
+                chosenBud = singleMatch.best;
+              }
+            }
           }
 
+          // Otherwise auto-select best matching batch
           if (!chosenBud) {
-            return { success: false, message: 'Keine getrockneten Buds mit genug Gramm verfuegbar.' };
+            const match = matchWeedRequest(pending, driedBuds);
+            if (!match.best) {
+              const reason = match.issues[0]?.message ?? 'Keine passenden Buds verfügbar.';
+              return { success: false, message: reason };
+            }
+            chosenBud = match.best;
           }
 
           const customPrice = pending.maxPrice / pending.gramsRequested;
