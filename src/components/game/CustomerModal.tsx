@@ -576,21 +576,82 @@ export const CustomerModal = ({
                   </div>
                 </motion.div>
               )}
-              {/* Pending Request - now just a subtle indicator, main action is in chat */}
-              {pendingRequest && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 flex items-center justify-between"
-                >
-                  <span className="text-[10px] text-yellow-300/80 flex items-center gap-1.5">
-                    📬 Offene Anfrage: {pendingRequest.gramsRequested}g {pendingRequest.drug}
-                  </span>
-                  <span className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded-full">
-                    ⏱ {formatTimeLeft(pendingRequest.expiresAt)}
-                  </span>
-                </motion.div>
-              )}
+              {/* Pending Order — strong card with "Fulfill with best batch" */}
+              {pendingRequest && (() => {
+                const urgency = pendingRequest.urgency;
+                const ringColor =
+                  urgency === 'desperate' ? 'border-red-500/60 animate-pulse' :
+                  urgency === 'high'      ? 'border-amber-500/50' :
+                  urgency === 'medium'    ? 'border-cyan-500/40' :
+                                             'border-border/40';
+                const chipColor =
+                  urgency === 'desperate' ? 'bg-red-500/20 text-red-300' :
+                  urgency === 'high'      ? 'bg-amber-500/15 text-amber-300' :
+                  urgency === 'medium'    ? 'bg-cyan-500/15 text-cyan-300' :
+                                             'bg-muted/40 text-muted-foreground';
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-xl border ${ringColor} bg-gradient-to-br from-emerald-500/5 to-card/40 p-3 space-y-2`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Package size={14} className="text-emerald-400" />
+                        <span className="text-xs font-semibold">Offene Bestellung</span>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${chipColor}`}>
+                        ⏱ {formatTimeLeft(pendingRequest.expiresAt)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="rounded-md bg-muted/30 px-2 py-1">
+                        <div className="text-[9px] text-muted-foreground">Produkt</div>
+                        <div className="font-semibold">{pendingRequest.gramsRequested}g {pendingRequest.drug}</div>
+                      </div>
+                      <div className="rounded-md bg-muted/30 px-2 py-1">
+                        <div className="text-[9px] text-muted-foreground">Reward</div>
+                        <div className="font-semibold text-emerald-300">
+                          ${pendingRequest.maxPrice.toLocaleString()}
+                          {pendingRequest.xpReward ? <span className="text-purple-300 ml-1">+{pendingRequest.xpReward}xp</span> : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(pendingRequest.minQuality || pendingRequest.preferredStrain || pendingRequest.minRarity || pendingRequest.preferredTraits?.length) ? (
+                      <div className="flex flex-wrap gap-1 text-[9px]">
+                        {pendingRequest.minQuality ? (
+                          <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Q ≥ {pendingRequest.minQuality}%</span>
+                        ) : null}
+                        {pendingRequest.preferredStrain ? (
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Strain: {pendingRequest.preferredStrain}</span>
+                        ) : null}
+                        {pendingRequest.minRarity ? (
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">≥ {pendingRequest.minRarity}</span>
+                        ) : null}
+                        {pendingRequest.preferredTraits?.map(t => (
+                          <span key={t} className="px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">{t}</span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={handleFulfillRequest}
+                      disabled={!hasRequestStock}
+                      className={`w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        hasRequestStock
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                          : 'bg-muted/30 text-muted-foreground border border-border/30 cursor-not-allowed'
+                      }`}
+                    >
+                      {hasRequestStock ? '✨ Mit bester Charge erfüllen' : '⚠️ Vorrat fehlt'}
+                    </button>
+                  </motion.div>
+                );
+              })()}
+
 
               {/* Sample Section for Prospects */}
               {customer.status === 'prospect' && (

@@ -4,6 +4,7 @@ import { useGameStore, BudItem, SalesChannel } from '@/store/gameStore';
 import { Package, Lock, Clock, TrendingUp, X, Minus, Plus, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { OrderBoardPanel } from './OrderBoardPanel';
 
 export const SalesScreen = () => {
   const {
@@ -119,6 +120,11 @@ export const SalesScreen = () => {
           </div>
           <span className="text-lg font-bold text-primary">{totalSalesRevenue}</span>
         </div>
+      </div>
+
+      {/* Customer Orders — connect Sales to Customers */}
+      <div className="mb-4">
+        <OrderBoardPanel variant="compact" maxItems={4} title="📋 Kunden-Bestellungen" />
       </div>
 
       <div className="game-card p-4 mb-4 space-y-3">

@@ -8,6 +8,7 @@ import { useMethStore } from '@/store/methStore';
 import { useGameStore } from '@/store/gameStore';
 import { CustomerCard } from './CustomerCard';
 import { CustomerModal } from './CustomerModal';
+import { OrderBoardPanel } from './OrderBoardPanel';
 
 const statusOrder: Record<Customer['status'], number> = {
   vip: 0,
@@ -358,6 +359,18 @@ export const CustomersScreen = () => {
           <span>{filteredCustomers.length} Kunden angezeigt</span>
         </div>
       </div>
+
+      {/* Order Board */}
+      {stats.pendingRequests > 0 && (
+        <div className="px-4 pb-2 flex-shrink-0">
+          <OrderBoardPanel
+            variant="compact"
+            maxItems={5}
+            onOpenCustomer={handleOpenCustomer}
+            title="📋 Bestellungen"
+          />
+        </div>
+      )}
 
       {/* Customer List */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">

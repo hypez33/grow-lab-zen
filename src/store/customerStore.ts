@@ -8,6 +8,10 @@ import { useTerritoryStore } from '@/store/territoryStore';
 export type DrugType = 'weed' | 'koks' | 'meth';
 export type PersonalityType = 'casual' | 'adventurous' | 'paranoid' | 'hardcore';
 
+export type RequestRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type RequestSource = 'customer' | 'street' | 'vip' | 'bulk' | 'business';
+export type RequestStatus = 'pending' | 'completed' | 'expired' | 'failed';
+
 export interface PurchaseRequest {
   id: string;
   timestamp: number;
@@ -17,6 +21,17 @@ export interface PurchaseRequest {
   expiresAt: number;
   urgency: 'low' | 'medium' | 'high' | 'desperate';
   message: string;
+  // Optional, added in v7 — older saves may not have these
+  minQuality?: number;
+  preferredStrain?: string;
+  preferredTraits?: string[];
+  minRarity?: RequestRarity;
+  priceMultiplier?: number;
+  reputationReward?: number;
+  heatGain?: number;
+  xpReward?: number;
+  source?: RequestSource;
+  status?: RequestStatus;
 }
 
 export interface MessageAction {
@@ -326,8 +341,25 @@ const calculateWeedSaleRevenue = (customer: Customer, grams: number, quality: nu
   return Math.floor(grams * BASE_WEED_PRICE * loyaltyBonus * spendingMultiplier * qualityMultiplier);
 };
 
+const RARITY_RANK: Record<RequestRarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+};
+
+const inferSource = (customer: Customer): RequestSource => {
+  if (customer.status === 'vip') return 'vip';
+  if (customer.status === 'loyal') return 'customer';
+  return 'customer';
+};
+
 const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseRequest => {
   const addiction = drug === 'koks' ? customer.addiction.koks : drug === 'meth' ? customer.addiction.meth : 0;
+  let playerLevel = 1;
+  try { playerLevel = useGameStore.getState().level || 1; } catch { /* noop */ }
+
   const urgency =
     addiction > 80
       ? 'desperate'
@@ -337,7 +369,13 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
           ? 'medium'
           : 'low';
 
-  const gramsRequested =
+  // Base grams scale with loyalty, spending power, status & level
+  const loyaltyScale = 0.6 + (customer.loyalty / 100) * 1.4;
+  const spendScale = 0.7 + (customer.spendingPower / 100) * 0.8;
+  const statusScale = customer.status === 'vip' ? 1.6 : customer.status === 'loyal' ? 1.25 : 1;
+  const levelScale = 1 + Math.min(playerLevel, 50) * 0.04;
+
+  const baseGrams =
     urgency === 'desperate'
       ? 10 + Math.random() * 40
       : urgency === 'high'
@@ -345,6 +383,8 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
         : urgency === 'medium'
           ? 2 + Math.random() * 10
           : 1 + Math.random() * 5;
+
+  const gramsRequested = Math.max(0.5, baseGrams * loyaltyScale * spendScale * statusScale * levelScale * (drug === 'weed' ? 1 : 0.4));
 
   const expiryMinutes =
     urgency === 'desperate'
@@ -357,16 +397,153 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
 
   const roundedGrams = Math.round(gramsRequested * 10) / 10;
 
+  // Quality / rarity / strain / traits requirements scale with status & satisfaction
+  let minQuality = 0;
+  let minRarity: RequestRarity | undefined;
+  let preferredStrain: string | undefined;
+  let preferredTraits: string[] | undefined;
+  let priceMultiplier = 1;
+  let reputationReward = 0;
+
+  if (customer.status === 'loyal') {
+    minQuality = 50 + Math.floor(Math.random() * 15);
+    priceMultiplier = 1.1;
+    reputationReward = 1;
+    if (customer.preferredStrain && Math.random() < 0.4) {
+      preferredStrain = customer.preferredStrain;
+    }
+  } else if (customer.status === 'vip') {
+    minQuality = 70 + Math.floor(Math.random() * 20);
+    priceMultiplier = 1.35;
+    reputationReward = 3;
+    if (customer.preferredStrain && Math.random() < 0.7) {
+      preferredStrain = customer.preferredStrain;
+    }
+    if (drug === 'weed' && Math.random() < 0.4) {
+      minRarity = Math.random() < 0.5 ? 'rare' : 'uncommon';
+    }
+    if (drug === 'weed' && Math.random() < 0.25) {
+      const traitPool = ['Glitter', 'Frost', 'GoldRush', 'EssenceFlow', 'Bountiful', 'Lucky'];
+      preferredTraits = [traitPool[Math.floor(Math.random() * traitPool.length)]];
+    }
+  } else {
+    // Active / early: keep it simple
+    minQuality = customer.satisfaction > 70 ? 40 : 0;
+    priceMultiplier = 1;
+  }
+
+  const baseMaxPrice = calculateMaxPrice(customer, drug, urgency, roundedGrams);
+  const maxPrice = Math.floor(baseMaxPrice * priceMultiplier);
+
+  const xpReward = Math.max(2, Math.floor(roundedGrams * (drug === 'weed' ? 1 : 2) * (1 + reputationReward * 0.2)));
+
   return {
     id: `req-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     timestamp: Date.now(),
     drug,
     gramsRequested: roundedGrams,
-    maxPrice: calculateMaxPrice(customer, drug, urgency, roundedGrams),
+    maxPrice,
     expiresAt: Date.now() + expiryMinutes * 60000,
     urgency,
     message: generateRequestMessage(drug, urgency),
+    minQuality,
+    preferredStrain,
+    preferredTraits,
+    minRarity,
+    priceMultiplier,
+    reputationReward,
+    heatGain: drug === 'weed' ? 0 : Math.ceil(roundedGrams / 10),
+    xpReward,
+    source: inferSource(customer),
+    status: 'pending',
   };
+};
+
+import type { BudItem } from '@/store/gameStore';
+
+export interface RequestMatchIssue {
+  code: 'no-stock' | 'not-enough-grams' | 'low-quality' | 'wrong-strain' | 'low-rarity' | 'missing-trait';
+  message: string;
+}
+
+export interface RequestMatchResult {
+  matches: BudItem[];
+  best: BudItem | null;
+  issues: RequestMatchIssue[];
+}
+
+/**
+ * Find dried buds that satisfy a weed PurchaseRequest. Older requests without
+ * the optional fields are treated as "no extra requirements".
+ */
+export const matchWeedRequest = (request: PurchaseRequest, inventory: BudItem[]): RequestMatchResult => {
+  if (request.drug !== 'weed') {
+    return { matches: [], best: null, issues: [{ code: 'no-stock', message: 'Nicht-Weed Anfrage' }] };
+  }
+
+  const dried = inventory.filter(b => b.state === 'dried' && b.grams > 0);
+  if (dried.length === 0) {
+    return { matches: [], best: null, issues: [{ code: 'no-stock', message: 'Keine getrockneten Buds' }] };
+  }
+
+  const enough = dried.filter(b => b.grams >= request.gramsRequested);
+  if (enough.length === 0) {
+    return { matches: [], best: null, issues: [{ code: 'not-enough-grams', message: `Brauche ${request.gramsRequested}g am Stück` }] };
+  }
+
+  let candidates = enough;
+  const issues: RequestMatchIssue[] = [];
+
+  if (request.minQuality && request.minQuality > 0) {
+    const filtered = candidates.filter(b => b.quality >= (request.minQuality ?? 0));
+    if (filtered.length === 0) {
+      issues.push({ code: 'low-quality', message: `Min. ${request.minQuality}% Qualität` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.minRarity) {
+    const minRank = RARITY_RANK[request.minRarity];
+    const filtered = candidates.filter(b => (RARITY_RANK[(b.rarity as RequestRarity)] ?? 0) >= minRank);
+    if (filtered.length === 0) {
+      issues.push({ code: 'low-rarity', message: `Min. Seltenheit ${request.minRarity}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.preferredStrain) {
+    const filtered = candidates.filter(b => b.strainName === request.preferredStrain);
+    if (filtered.length === 0) {
+      issues.push({ code: 'wrong-strain', message: `Möchte ${request.preferredStrain}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+  if (request.preferredTraits && request.preferredTraits.length > 0) {
+    const filtered = candidates.filter(b =>
+      (request.preferredTraits ?? []).every(t => (b.traits ?? []).includes(t))
+    );
+    if (filtered.length === 0) {
+      issues.push({ code: 'missing-trait', message: `Trait benötigt: ${request.preferredTraits.join(', ')}` });
+    } else {
+      candidates = filtered;
+    }
+  }
+
+  if (issues.length > 0) {
+    return { matches: [], best: null, issues };
+  }
+
+  // Best match: prefer matching strain, then highest quality, then highest rarity
+  const best = [...candidates].sort((a, b) => {
+    const sA = request.preferredStrain && a.strainName === request.preferredStrain ? 1 : 0;
+    const sB = request.preferredStrain && b.strainName === request.preferredStrain ? 1 : 0;
+    if (sA !== sB) return sB - sA;
+    if (b.quality !== a.quality) return b.quality - a.quality;
+    return (RARITY_RANK[(b.rarity as RequestRarity)] ?? 0) - (RARITY_RANK[(a.rarity as RequestRarity)] ?? 0);
+  })[0] ?? null;
+
+  return { matches: candidates, best, issues: [] };
 };
 
 const generateSpontaneousRequest = (customer: Customer): CustomerMessage | null => {
@@ -757,21 +934,27 @@ export const useCustomerStore = create<CustomerState>()(
         if (pending.drug === 'weed') {
           const gameState = useGameStore.getState();
           const driedBuds = gameState.inventory.filter(bud => bud.state === 'dried');
-          
-          // First try to find the specified bud if it has enough grams
-          let chosenBud = options.budId
-            ? driedBuds.find(bud => bud.id === options.budId && bud.grams >= pending.gramsRequested)
-            : null;
-          
-          // If not found or not enough, find the best quality bud with enough grams
-          if (!chosenBud) {
-            chosenBud = [...driedBuds]
-              .filter(bud => bud.grams >= pending.gramsRequested)
-              .sort((a, b) => b.quality - a.quality)[0] ?? null;
+
+          // If user picked a specific bud, validate it against the request
+          let chosenBud: BudItem | null = null;
+          if (options.budId) {
+            const candidate = driedBuds.find(bud => bud.id === options.budId);
+            if (candidate && candidate.grams >= pending.gramsRequested) {
+              const singleMatch = matchWeedRequest(pending, [candidate]);
+              if (singleMatch.best) {
+                chosenBud = singleMatch.best;
+              }
+            }
           }
 
+          // Otherwise auto-select best matching batch
           if (!chosenBud) {
-            return { success: false, message: 'Keine getrockneten Buds mit genug Gramm verfuegbar.' };
+            const match = matchWeedRequest(pending, driedBuds);
+            if (!match.best) {
+              const reason = match.issues[0]?.message ?? 'Keine passenden Buds verfügbar.';
+              return { success: false, message: reason };
+            }
+            chosenBud = match.best;
           }
 
           const customPrice = pending.maxPrice / pending.gramsRequested;
@@ -827,27 +1010,44 @@ export const useCustomerStore = create<CustomerState>()(
         }
 
         const gameMinutes = useGameStore.getState().gameTimeMinutes;
+        const completedRequest: PurchaseRequest = { ...pending, status: 'completed' };
+        const loyaltyBoost =
+          (pending.urgency === 'desperate' ? 5 :
+           pending.urgency === 'high' ? 3 :
+           pending.urgency === 'medium' ? 2 : 1) +
+          (pending.source === 'vip' ? 2 : 0);
+
         set((current) => ({
           customers: current.customers.map(c => {
             if (c.id !== customerId) return c;
             const nextRequestAtMinutes = scheduleNextRequestMinutes(c, gameMinutes);
+            const nextLoyalty = clamp(c.loyalty + loyaltyBoost, 0, 100);
             return {
               ...c,
+              loyalty: c.status === 'prospect' ? c.loyalty : Math.max(1, nextLoyalty),
+              status: c.status === 'prospect' ? c.status : getStatusForLoyalty(nextLoyalty),
+              satisfaction: clamp(c.satisfaction + 3, 0, 100),
               pendingRequest: null,
-              requestHistory: [...c.requestHistory, pending].slice(-20),
+              requestHistory: [...c.requestHistory, completedRequest].slice(-20),
               nextRequestAtMinutes,
             };
           }),
         }));
 
+        // XP reward (defaults for old requests without xpReward)
+        const xpReward = pending.xpReward ?? Math.max(2, Math.floor(pending.gramsRequested * (pending.drug === 'weed' ? 1 : 2)));
+        try {
+          useGameStore.getState().addXp?.(xpReward);
+        } catch { /* noop */ }
+
         if (customer) {
           const revenueValue = result.revenue ?? 0;
           console.log(
-            `Request fulfilled: ${customer.name} bought ${pending.gramsRequested}g ${pending.drug} for $${revenueValue}`
+            `Request fulfilled: ${customer.name} bought ${pending.gramsRequested}g ${pending.drug} for $${revenueValue} (+${xpReward} XP)`
           );
         }
 
-        return result;
+        return { ...result, message: result.message ?? `Bestellung erfüllt (+${xpReward} XP)` };
       },
 
       offerDrug: (customerId, drug, grams) => {
@@ -1297,7 +1497,7 @@ export const useCustomerStore = create<CustomerState>()(
                 status: nextStatus === 'prospect' ? 'active' : nextStatus,
                 satisfaction: clamp(nextCustomer.satisfaction - penalties.satisfaction, 0, 100),
                 pendingRequest: null,
-                requestHistory: [...nextCustomer.requestHistory, expired].slice(-20),
+                requestHistory: [...nextCustomer.requestHistory, { ...expired, status: 'expired' as const }].slice(-20),
                 messages: pruneMessages([
                   ...nextCustomer.messages,
                   createMessage({
@@ -1385,9 +1585,20 @@ export const useCustomerStore = create<CustomerState>()(
     }),
     {
       name: 'customer-network-save',
-      version: 6,
+      version: 7,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState;
+        const ensureRequest = (req: any): PurchaseRequest | null => {
+          if (!req) return null;
+          return {
+            ...req,
+            status: req.status ?? 'pending',
+            source: req.source ?? 'customer',
+            minQuality: req.minQuality ?? 0,
+            priceMultiplier: req.priceMultiplier ?? 1,
+            xpReward: req.xpReward ?? Math.max(2, Math.floor((req.gramsRequested ?? 1) * 1)),
+          };
+        };
         return {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
@@ -1395,8 +1606,10 @@ export const useCustomerStore = create<CustomerState>()(
                 ...customer,
                 drugPreferences: customer.drugPreferences ?? { weed: true, koks: false, meth: false },
                 addiction: customer.addiction ?? { koks: 0, meth: 0 },
-                pendingRequest: customer.pendingRequest ?? null,
-                requestHistory: customer.requestHistory ?? [],
+                pendingRequest: ensureRequest(customer.pendingRequest),
+                requestHistory: Array.isArray(customer.requestHistory)
+                  ? customer.requestHistory.map(r => ensureRequest(r) as PurchaseRequest).filter(Boolean)
+                  : [],
                 personalityType: customer.personalityType ?? 'casual',
                 nextRequestAtMinutes: Number.isFinite(customer.nextRequestAtMinutes)
                   ? customer.nextRequestAtMinutes
