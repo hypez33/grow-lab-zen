@@ -886,6 +886,16 @@ export const useCustomerStore = create<CustomerState>()(
           totalCustomerRevenue: current.totalCustomerRevenue + revenue,
         }));
 
+        // Reputation: weed sales — quality + status reward
+        try {
+          const repBase = Math.max(1, Math.floor(gramsToSell * 0.15 * (bud.quality / 100)));
+          const statusBonus = nextStatus === 'vip' ? 4 : nextStatus === 'loyal' ? 2 : 0;
+          useGameStore.getState().addReputation?.(repBase + statusBonus, 'Verkauf an Kunde');
+          // Heat: small from any direct sale, slightly higher for big bags
+          const heat = Math.max(0.2, gramsToSell / 40);
+          useGameStore.getState().addHeat?.(heat, 'Direktverkauf');
+        } catch { /* noop */ }
+
         return { success: true, message: 'Deal abgeschlossen.', revenue };
       },
 
