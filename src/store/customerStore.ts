@@ -8,6 +8,10 @@ import { useTerritoryStore } from '@/store/territoryStore';
 export type DrugType = 'weed' | 'koks' | 'meth';
 export type PersonalityType = 'casual' | 'adventurous' | 'paranoid' | 'hardcore';
 
+export type RequestRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type RequestSource = 'customer' | 'street' | 'vip' | 'bulk' | 'business';
+export type RequestStatus = 'pending' | 'completed' | 'expired' | 'failed';
+
 export interface PurchaseRequest {
   id: string;
   timestamp: number;
@@ -17,6 +21,17 @@ export interface PurchaseRequest {
   expiresAt: number;
   urgency: 'low' | 'medium' | 'high' | 'desperate';
   message: string;
+  // Optional, added in v7 — older saves may not have these
+  minQuality?: number;
+  preferredStrain?: string;
+  preferredTraits?: string[];
+  minRarity?: RequestRarity;
+  priceMultiplier?: number;
+  reputationReward?: number;
+  heatGain?: number;
+  xpReward?: number;
+  source?: RequestSource;
+  status?: RequestStatus;
 }
 
 export interface MessageAction {
