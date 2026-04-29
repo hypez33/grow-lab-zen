@@ -419,7 +419,15 @@ const buildPurchaseRequest = (customer: Customer, drug: DrugType): PurchaseReque
           ? 2 + Math.random() * 10
           : 1 + Math.random() * 5;
 
-  const gramsRequested = Math.max(0.5, baseGrams * loyaltyScale * spendScale * statusScale * levelScale * (drug === 'weed' ? 1 : 0.4));
+  // Territory profile influences order size, urgency feel, and price.
+  const territoryProfile = getTerritoryProfile();
+  const territorySizeMod = Math.max(0.4, Math.min(2.5, territoryProfile.averageOrderSizeModifier));
+  const territoryPriceMod = Math.max(0.6, Math.min(2.0, territoryProfile.priceModifier));
+
+  const gramsRequested = Math.max(
+    0.5,
+    baseGrams * loyaltyScale * spendScale * statusScale * levelScale * territorySizeMod * (drug === 'weed' ? 1 : 0.4)
+  );
 
   const expiryMinutes =
     urgency === 'desperate'
