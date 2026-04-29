@@ -134,6 +134,14 @@ export interface BusinessState {
 const BUSINESS_LOG_LIMIT = 60;
 const BUSINESS_EVENT_LIMIT = 30;
 const GAME_MINUTES_PER_HOUR = 60;
+const BUSINESS_PROFIT_LOG_INTERVAL_MINUTES = 60; // throttle cashflow log to ~1/game-hour
+
+/**
+ * Shared formula for a single business' profit per in-game hour.
+ * Keep this in sync with BusinessScreen display.
+ */
+export const getBusinessProfitPerHour = (business: Pick<Business, 'profitPerGameHour' | 'level'>) =>
+  Math.floor(business.profitPerGameHour * (1 + (Math.max(1, business.level) - 1) * 0.15));
 let businessLogCounter = 0;
 let businessEventCounter = 0;
 
