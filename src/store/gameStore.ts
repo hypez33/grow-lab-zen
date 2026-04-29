@@ -401,217 +401,22 @@ export interface GameState {
 // - Resilient: Plant auto-replants same seed on harvest (20% chance)
 // - Bountiful: +30% to all resource yields
 
-const SALES_WINDOW_MS = 60 * 60 * 1000;
+// ---------------------------------------------------------------------------
+// Initial state
+//
+// Static data lives in /data/* and pure helpers in /lib/gameHelpers.ts.
+// The aliases below keep the (very large) store body unchanged.
+// ---------------------------------------------------------------------------
 
-// Initial seeds - expanded variety
-const initialSeeds: Seed[] = [
-  // Common seeds (5)
-  { id: 'seed-1', name: 'Green Dream', rarity: 'common', traits: ['Steady'], baseYield: 10, growthSpeed: 1, generation: 0, yieldMin: 8, yieldMax: 12 },
-  { id: 'seed-2', name: 'Basic Bud', rarity: 'common', traits: ['Steady'], baseYield: 8, growthSpeed: 1.1, generation: 0, yieldMin: 6, yieldMax: 10 },
-  { id: 'seed-3', name: 'Starter Sprout', rarity: 'common', traits: ['SpeedBoost'], baseYield: 6, growthSpeed: 1.3, generation: 0, yieldMin: 4, yieldMax: 8 },
-  
-  // Uncommon seeds (4)
-  { id: 'seed-4', name: 'Purple Haze', rarity: 'uncommon', traits: ['Lucky'], baseYield: 25, growthSpeed: 0.9, generation: 0, yieldMin: 20, yieldMax: 30 },
-  { id: 'seed-5', name: 'Mint Rush', rarity: 'uncommon', traits: ['SpeedBoost'], baseYield: 20, growthSpeed: 1.4, generation: 0, yieldMin: 15, yieldMax: 25 },
-  { id: 'seed-6', name: 'Crystal Kush', rarity: 'uncommon', traits: ['Frost'], baseYield: 22, growthSpeed: 1.0, generation: 0, yieldMin: 18, yieldMax: 26 },
-  
-  // Rare seeds (3)
-  { id: 'seed-7', name: 'Golden Leaf', rarity: 'rare', traits: ['Glitter', 'Turbo'], baseYield: 50, growthSpeed: 1.2, generation: 0, yieldMin: 40, yieldMax: 60 },
-  { id: 'seed-8', name: 'Thunder Cloud', rarity: 'rare', traits: ['DoubleHarvest', 'SpeedBoost'], baseYield: 40, growthSpeed: 1.1, generation: 0, yieldMin: 32, yieldMax: 48 },
-  { id: 'seed-9', name: 'Coin Crusher', rarity: 'rare', traits: ['GoldRush', 'Lucky'], baseYield: 45, growthSpeed: 0.85, generation: 0, yieldMin: 36, yieldMax: 54 },
-  
-  // Epic seeds (2)
-  { id: 'seed-10', name: 'Mystic Essence', rarity: 'epic', traits: ['EssenceFlow', 'Glitter', 'Turbo'], baseYield: 80, growthSpeed: 1.0, generation: 0, yieldMin: 64, yieldMax: 96 },
-  { id: 'seed-11', name: 'Phantom OG', rarity: 'epic', traits: ['CritMaster', 'DoubleHarvest'], baseYield: 75, growthSpeed: 0.9, generation: 0, yieldMin: 60, yieldMax: 90 },
-  
-  // Legendary seed (1)
-  { id: 'seed-12', name: 'Cosmic Blaze', rarity: 'legendary', traits: ['Bountiful', 'LuckyDrop', 'GoldRush'], baseYield: 150, growthSpeed: 0.8, generation: 0, yieldMin: 120, yieldMax: 180 },
-];
+const initialSeeds = INITIAL_SEEDS;
+const initialUpgrades = INITIAL_UPGRADES;
+const initialSkills = INITIAL_SKILLS;
+const initialQuests = INITIAL_QUESTS;
+const initialCosmetics = INITIAL_COSMETICS;
+const initialWorkers = INITIAL_WORKERS;
+const initialSalesChannels = INITIAL_SALES_CHANNELS;
 
-// Initial upgrades
-const initialUpgrades: Upgrade[] = [
-  // Equipment - Core growth
-  { id: 'led-panel', name: 'LED Panel', description: 'Increases growth speed', category: 'equipment', baseCost: 50, costScaling: 1.5, level: 0, maxLevel: 50, effect: 'growthSpeed', effectValue: 0.1 },
-  { id: 'ventilation', name: 'Ventilation', description: 'Critical harvest chance', category: 'equipment', baseCost: 100, costScaling: 1.6, level: 0, maxLevel: 30, effect: 'critChance', effectValue: 0.02 },
-  { id: 'nutrient', name: 'Nutrient Injector', description: 'Essence multiplier', category: 'equipment', baseCost: 200, costScaling: 1.7, level: 0, maxLevel: 25, effect: 'essenceMult', effectValue: 0.15 },
-  { id: 'trimming', name: 'Trimming Station', description: 'Harvest bonus', category: 'equipment', baseCost: 150, costScaling: 1.5, level: 0, maxLevel: 40, effect: 'harvestBonus', effectValue: 0.1 },
-  { id: 'grow-slot', name: 'New Grow Slot', description: 'Unlock another pot', category: 'equipment', baseCost: 250, costScaling: 2.5, level: 0, maxLevel: 15, effect: 'slots', effectValue: 1 },
-  
-  // Automation
-  { id: 'tap-power', name: 'Tap Power', description: 'Boost tap effectiveness', category: 'automation', baseCost: 75, costScaling: 1.4, level: 0, maxLevel: 50, effect: 'tapPower', effectValue: 0.2 },
-  { id: 'auto-harvest', name: 'Auto-Harvest', description: 'Auto-collect ready plants', category: 'automation', baseCost: 500, costScaling: 2, level: 0, maxLevel: 5, effect: 'autoHarvest', effectValue: 1 },
-  
-  // Visual effect upgrades
-  { id: 'solar-glow', name: 'Solar Intensifier', description: 'Plants emit soft glow', category: 'cosmetics', baseCost: 300, costScaling: 2, level: 0, maxLevel: 3, effect: 'plantGlow', effectValue: 1 },
-  { id: 'bioluminescence', name: 'Bio Luminescence', description: 'Pulsing light effect', category: 'cosmetics', baseCost: 500, costScaling: 2.2, level: 0, maxLevel: 3, effect: 'pulseGlow', effectValue: 1 },
-  { id: 'particle-trail', name: 'Particle Infuser', description: 'Floating particles', category: 'cosmetics', baseCost: 750, costScaling: 2.5, level: 0, maxLevel: 3, effect: 'particles', effectValue: 1 },
-  { id: 'aura-field', name: 'Aura Field', description: 'Radiant energy aura', category: 'cosmetics', baseCost: 1000, costScaling: 2.5, level: 0, maxLevel: 3, effect: 'aura', effectValue: 1 },
-  
-  // Genetics
-  { id: 'gene-splicer', name: 'Gene Splicer', description: 'Better breeding odds', category: 'genetics', baseCost: 1000, costScaling: 2, level: 0, maxLevel: 10, effect: 'breedingOdds', effectValue: 0.05 },
-  { id: 'mutation-chamber', name: 'Mutation Chamber', description: 'Rare trait chance', category: 'genetics', baseCost: 800, costScaling: 2, level: 0, maxLevel: 10, effect: 'mutationChance', effectValue: 0.03 },
-  
-  // Drying upgrades
-  { id: 'drying-speed', name: 'Turbo-Lüfter', description: '+15% Trocknungsgeschwindigkeit', category: 'drying', baseCost: 200, costScaling: 1.6, level: 0, maxLevel: 20, effect: 'dryingSpeed', effectValue: 0.15 },
-  { id: 'quality-cure', name: 'Qualitäts-Curing', description: '+5% Qualität beim Trocknen', category: 'drying', baseCost: 350, costScaling: 1.7, level: 0, maxLevel: 15, effect: 'dryingQuality', effectValue: 5 },
-  { id: 'humidity-control', name: 'Feuchtigkeitskontrolle', description: '+3% Qualität & +8% Speed', category: 'drying', baseCost: 500, costScaling: 1.8, level: 0, maxLevel: 10, effect: 'humidityControl', effectValue: 1 },
-  { id: 'uv-treatment', name: 'UV-Behandlung', description: 'Chance auf Rarität-Upgrade', category: 'drying', baseCost: 1000, costScaling: 2.0, level: 0, maxLevel: 5, effect: 'rarityUpgrade', effectValue: 0.05 },
-];
-
-// Initial skills
-const initialSkills: SkillNode[] = [
-  // Producer path
-  { id: 'prod-1', path: 'producer', name: 'Coin Boost I', description: '+10% coin yield', cost: 1, unlocked: false, requires: [], effect: 'coinMult', effectValue: 0.1 },
-  { id: 'prod-2', path: 'producer', name: 'Coin Boost II', description: '+20% coin yield', cost: 2, unlocked: false, requires: ['prod-1'], effect: 'coinMult', effectValue: 0.2 },
-  { id: 'prod-3', path: 'producer', name: 'Golden Touch', description: 'Rare golden harvests', cost: 3, unlocked: false, requires: ['prod-2'], effect: 'goldenChance', effectValue: 0.05 },
-  // Alchemist path
-  { id: 'alch-1', path: 'alchemist', name: 'Essence Flow', description: '+15% essence', cost: 1, unlocked: false, requires: [], effect: 'essenceMult', effectValue: 0.15 },
-  { id: 'alch-2', path: 'alchemist', name: 'Resin Mastery', description: '+20% resin', cost: 2, unlocked: false, requires: ['alch-1'], effect: 'resinMult', effectValue: 0.2 },
-  { id: 'alch-3', path: 'alchemist', name: 'Transmutation', description: 'Convert resources', cost: 3, unlocked: false, requires: ['alch-2'], effect: 'transmute', effectValue: 1 },
-  // Engineer path
-  { id: 'eng-1', path: 'engineer', name: 'Efficiency I', description: 'Faster auto-tap', cost: 1, unlocked: false, requires: [], effect: 'autoSpeed', effectValue: 0.1 },
-  { id: 'eng-2', path: 'engineer', name: 'Multi-Harvest', description: 'Auto-harvest ready plants', cost: 2, unlocked: false, requires: ['eng-1'], effect: 'autoHarvest', effectValue: 1 },
-  { id: 'eng-3', path: 'engineer', name: 'Overdrive', description: '2x speed for 30s', cost: 3, unlocked: false, requires: ['eng-2'], effect: 'overdrive', effectValue: 2 },
-];
-
-// Initial quests
-const initialQuests: Quest[] = [
-  { id: 'daily-1', name: 'First Harvest', description: 'Harvest 3 plants', type: 'daily', target: 3, progress: 0, completed: false, claimed: false, reward: { type: 'budcoins', amount: 100 } },
-  { id: 'daily-2', name: 'Tap Master', description: 'Tap 50 times', type: 'daily', target: 50, progress: 0, completed: false, claimed: false, reward: { type: 'xp', amount: 50 } },
-  { id: 'daily-3', name: 'Collector', description: 'Earn 500 BudCoins', type: 'daily', target: 500, progress: 0, completed: false, claimed: false, reward: { type: 'gems', amount: 5 } },
-  { id: 'achieve-1', name: 'Getting Started', description: 'Complete first harvest', type: 'achievement', target: 1, progress: 0, completed: false, claimed: false, reward: { type: 'gems', amount: 10 } },
-  { id: 'achieve-2', name: 'Green Thumb', description: 'Harvest 100 plants', type: 'achievement', target: 100, progress: 0, completed: false, claimed: false, reward: { type: 'gems', amount: 50 } },
-];
-
-// Initial cosmetics
-const initialCosmetics: Cosmetic[] = [
-  { id: 'pot-default', name: 'Classic Pot', type: 'pot', rarity: 'common', cost: 0, owned: true, equipped: true },
-  { id: 'pot-neon', name: 'Neon Glow Pot', type: 'pot', rarity: 'rare', cost: 100, owned: false, equipped: false },
-  { id: 'pot-gold', name: 'Golden Pot', type: 'pot', rarity: 'legendary', cost: 500, owned: false, equipped: false },
-  { id: 'bg-default', name: 'Lab Dark', type: 'background', rarity: 'common', cost: 0, owned: true, equipped: true },
-  { id: 'bg-purple', name: 'Purple Haze', type: 'background', rarity: 'uncommon', cost: 50, owned: false, equipped: false },
-];
-
-// Initial workers
-// Worker pacing:
-//   - First worker (Grow-Assistent) is the clear early-mid milestone.
-//   - Workers automate tedium; they do NOT trivialize the loop (limited slots, no direct cash).
-//   - Selling/automation specialists cost more so the player earns them.
-const initialWorkers: Worker[] = [
-  { 
-    id: 'grower-apprentice', 
-    name: 'Grow-Assistent', 
-    description: 'Pflanzt automatisch Seeds und klickt auf Pflanzen. Erster Worker — klares Mid-Game-Ziel.', 
-    icon: '👨‍🌾', 
-    cost: 3500, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 5,
-    slotsManaged: 2,
-    abilities: ['plant', 'tap']
-  },
-  { 
-    id: 'harvest-master', 
-    name: 'Ernte-Meister', 
-    description: 'Erntet automatisch fertige Pflanzen und startet Trocknung.', 
-    icon: '🧑‍🔬', 
-    cost: 9000, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 5,
-    slotsManaged: 3,
-    abilities: ['harvest', 'dry']
-  },
-  { 
-    id: 'farm-manager', 
-    name: 'Farm-Manager', 
-    description: 'Vollautomatischer Betrieb: Pflanzt, boosted, erntet & trocknet.', 
-    icon: '👔', 
-    cost: 60000, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 10,
-    slotsManaged: 6,
-    abilities: ['plant', 'tap', 'harvest', 'dry']
-  },
-  { 
-    id: 'sales-dealer', 
-    name: 'Verkaufs-Dealer', 
-    description: 'Verkauft automatisch getrocknete Buds über verfügbare Kanäle.', 
-    icon: '💼', 
-    cost: 20000, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 5,
-    slotsManaged: 5, // buds per tick
-    abilities: ['sell']
-  },
-  { 
-    id: 'dealer-giulio', 
-    name: 'Giulio',
-    description: 'Spielsüchtiger, drogensüchtiger Dealer. Zockt ständig, verkauft trotzdem weiter.', 
-    icon: '🎰', 
-    cost: 35000,
-    costKoksGrams: 10,
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 6,
-    slotsManaged: 6, // buds per tick
-    abilities: ['sell']
-  },
-  { 
-    id: 'street-psycho', 
-    name: 'Der Psycho', 
-    description: 'Aggressiver Straßendealer. Schneller, brutaler, unberechenbar. Mehr Kohle, mehr Chaos.', 
-    icon: '🔪', 
-    cost: 90000, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 10,
-    slotsManaged: 8, // faster sales
-    abilities: ['sell']
-  },
-  { 
-    id: 'auto-waterer', 
-    name: 'Bewässerungs-Bot', 
-    description: 'Automatisches Bewässerungssystem. Gießt alle Pflanzen unter 50% Wasser.', 
-    icon: '💧', 
-    cost: 12000, 
-    owned: false,
-    paused: false,
-    level: 1, 
-    maxLevel: 5,
-    slotsManaged: 16, // all slots
-    abilities: ['water']
-  },
-];
-
-// Initial fertilizers available in the game
-export const FERTILIZER_CATALOG: Fertilizer[] = [
-  { id: 'basic-fert', name: 'Basis-Dünger', description: 'Einfacher Dünger für leichten Wachstums-Boost', icon: '🌱', rarity: 'common', cost: 50, growthBoost: 0.1, yieldBoost: 0.05, qualityBoost: 2, duration: 3 },
-  { id: 'growth-boost', name: 'Turbo-Grow', description: 'Beschleunigt das Wachstum deutlich', icon: '⚡', rarity: 'uncommon', cost: 150, growthBoost: 0.25, yieldBoost: 0.1, qualityBoost: 5, duration: 3 },
-  { id: 'yield-master', name: 'Ernte-König', description: 'Maximiert den Ertrag jeder Ernte', icon: '🌾', rarity: 'rare', cost: 300, growthBoost: 0.1, yieldBoost: 0.35, qualityBoost: 8, duration: 2 },
-  { id: 'crystal-feed', name: 'Kristall-Nahrung', description: 'Premium Nährstoffe für Top-Qualität', icon: '💎', rarity: 'epic', cost: 600, growthBoost: 0.2, yieldBoost: 0.25, qualityBoost: 15, duration: 2 },
-  { id: 'cosmic-boost', name: 'Kosmischer Boost', description: 'Außerirdische Nährstoffe für legendäre Ernten', icon: '🌌', rarity: 'legendary', cost: 1500, growthBoost: 0.4, yieldBoost: 0.5, qualityBoost: 25, duration: 1 },
-];
-
-// Initial soil types available
-export const SOIL_CATALOG: Soil[] = [
-  { id: 'basic-soil', name: 'Standard-Erde', description: 'Normale Blumenerde ohne Extras', icon: '🟤', rarity: 'common', cost: 0, growthBoost: 0, yieldBoost: 0, qualityBoost: 0, traitBoostChance: 0, waterRetention: 1 },
-  { id: 'premium-soil', name: 'Premium-Erde', description: 'Nährstoffreiche Erde für besseres Wachstum', icon: '🌍', rarity: 'uncommon', cost: 100, growthBoost: 0.15, yieldBoost: 0.1, qualityBoost: 5, traitBoostChance: 0.05, waterRetention: 1.1 },
-  { id: 'coco-mix', name: 'Kokos-Mix', description: 'Perfekte Drainage und Belüftung', icon: '🥥', rarity: 'uncommon', cost: 150, growthBoost: 0.2, yieldBoost: 0.05, qualityBoost: 3, traitBoostChance: 0.08, waterRetention: 1.25 },
-  { id: 'living-soil', name: 'Living Soil', description: 'Lebendige Erde mit Mikroorganismen', icon: '🦠', rarity: 'rare', cost: 350, growthBoost: 0.15, yieldBoost: 0.25, qualityBoost: 10, traitBoostChance: 0.15, waterRetention: 1.3 },
-  { id: 'super-soil', name: 'Super Soil', description: 'Vollständig aufgeladene organische Erde', icon: '⭐', rarity: 'epic', cost: 700, growthBoost: 0.25, yieldBoost: 0.35, qualityBoost: 15, traitBoostChance: 0.2, waterRetention: 1.5 },
-  { id: 'alien-substrate', name: 'Alien-Substrat', description: 'Mysteriöse außerirdische Erde', icon: '👽', rarity: 'legendary', cost: 2000, growthBoost: 0.5, yieldBoost: 0.6, qualityBoost: 25, traitBoostChance: 0.35, waterRetention: 2 },
-];
-
-// Initial grow slots (16 total, first unlocked)
+// Initial grow slots (16 total, first unlocked, seeded with the starter strain).
 const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   id: i,
   plantId: null,
@@ -620,69 +425,27 @@ const initialGrowSlots: GrowSlot[] = Array.from({ length: 16 }, (_, i) => ({
   progress: 0,
   isUnlocked: i === 0,
   fertilizer: null,
-  soil: SOIL_CATALOG[0], // Default to basic soil
+  soil: SOIL_CATALOG[0], // basic soil
   fertilizerUsesLeft: 0,
-  waterLevel: 100, // Start fully watered
+  waterLevel: 100,
   lastWatered: Date.now(),
-  budGrowth: 0, // Buds start growing in flower stage
+  budGrowth: 0,
 }));
 
-// Initial drying racks (expanded to 8 total)
-const initialDryingRacks: DryingRack[] = [
-  { id: 0, bud: null, isUnlocked: true },
-  { id: 1, bud: null, isUnlocked: true },
-  { id: 2, bud: null, isUnlocked: false },
-  { id: 3, bud: null, isUnlocked: false },
-  { id: 4, bud: null, isUnlocked: false },
-  { id: 5, bud: null, isUnlocked: false },
-  { id: 6, bud: null, isUnlocked: false },
-  { id: 7, bud: null, isUnlocked: false },
-];
+// Initial drying racks (8 total, first 2 unlocked).
+const initialDryingRacks: DryingRack[] = Array.from({ length: 8 }, (_, i) => ({
+  id: i,
+  bud: null,
+  isUnlocked: i < 2,
+}));
 
-// Initial sales channels
-const initialSalesChannels: SalesChannel[] = [
-  // Sales channels — balanced progression:
-  //   runner    → tutorial channel: kleine Mengen, schneller Cash, kein Qualitätsgate
-  //   dealer    → erstes echtes Upgrade: bessere Preise & Mengen, leichtes Qualitätsgate
-  //   pharmacy  → Qualitäts-Gate: lohnt sich erst mit Curing/Drying-Upgrades
-  //   dispensary→ Premium-Gate: Top-Qualität nötig
-  //   wholesale → Late-game Bulk: massive Mengen, niedrigerer €/g
-  { id: 'runner', name: 'Straßenläufer', description: 'Tutorial-Kanal. Kleine Mengen, schnelles Geld, keine Qualitätsanforderung.', icon: '🏃', pricePerGram: 6, minQuality: 0, minLevel: 1, maxGramsPerSale: 10, cooldownMinutes: 1, lastSaleTime: 0, unlocked: true },
-  { id: 'dealer', name: 'Dealer-Netzwerk', description: 'Erstes echtes Upgrade. Bessere Preise & größere Mengen, ab Qualität 30.', icon: '🤝', pricePerGram: 10, minQuality: 30, minLevel: 4, maxGramsPerSale: 50, cooldownMinutes: 5, lastSaleTime: 0, unlocked: false },
-  { id: 'pharmacy', name: 'Apotheke', description: 'Premium-Preise. Erfordert Curing/Drying-Upgrades für Qualität ≥60.', icon: '💊', pricePerGram: 17, minQuality: 60, minLevel: 9, maxGramsPerSale: 100, cooldownMinutes: 15, lastSaleTime: 0, unlocked: false },
-  { id: 'dispensary', name: 'Dispensary', description: 'Legaler Verkauf, Top-Qualität ≥80. Beste Marge pro Gramm.', icon: '🏪', pricePerGram: 22, minQuality: 80, minLevel: 18, maxGramsPerSale: 200, cooldownMinutes: 30, lastSaleTime: 0, unlocked: false },
-  { id: 'wholesale', name: 'Großabnehmer', description: 'Bulk-Deals. Massive Mengen bei kleinerer Marge.', icon: '🏭', pricePerGram: 13, minQuality: 50, minLevel: 24, maxGramsPerSale: 1000, cooldownMinutes: 60, lastSaleTime: 0, unlocked: false },
-];
-
-const STAGE_THRESHOLDS: Record<PlantStage, number> = {
-  seed: 0,
-  sprout: 25,
-  veg: 50,
-  flower: 75,
-  harvest: 100,
-};
-
+// Territory bonus lookup — depends on territoryStore so it stays in this file.
 const getTerritorySalesMultiplier = (drug: 'weed') => {
   const bonuses = useTerritoryStore.getState().getActiveBonuses();
   const totalBonus = bonuses
     .filter(bonus => bonus.type === 'sales-multiplier' && (bonus.drug === drug || bonus.drug === 'all'))
     .reduce((sum, bonus) => sum + bonus.value, 0);
   return 1 + totalBonus / 100;
-};
-
-const getStageFromProgress = (progress: number): PlantStage => {
-  if (progress >= 100) return 'harvest';
-  if (progress >= 75) return 'flower';
-  if (progress >= 50) return 'veg';
-  if (progress >= 25) return 'sprout';
-  return 'seed';
-};
-
-const XP_PER_LEVEL = 100;
-const XP_SCALING = 1.5;
-
-const getXpForLevel = (level: number): number => {
-  return Math.floor(XP_PER_LEVEL * Math.pow(XP_SCALING, level - 1));
 };
 
 export const useGameStore = create<GameState>()(
