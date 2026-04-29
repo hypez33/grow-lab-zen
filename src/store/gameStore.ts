@@ -511,13 +511,17 @@ const initialCosmetics: Cosmetic[] = [
 ];
 
 // Initial workers
+// Worker pacing:
+//   - First worker (Grow-Assistent) is the clear early-mid milestone.
+//   - Workers automate tedium; they do NOT trivialize the loop (limited slots, no direct cash).
+//   - Selling/automation specialists cost more so the player earns them.
 const initialWorkers: Worker[] = [
   { 
     id: 'grower-apprentice', 
     name: 'Grow-Assistent', 
-    description: 'Pflanzt automatisch Seeds und klickt auf Pflanzen', 
+    description: 'Pflanzt automatisch Seeds und klickt auf Pflanzen. Erster Worker — klares Mid-Game-Ziel.', 
     icon: '👨‍🌾', 
-    cost: 5000, 
+    cost: 3500, 
     owned: false,
     paused: false,
     level: 1, 
@@ -528,9 +532,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'harvest-master', 
     name: 'Ernte-Meister', 
-    description: 'Erntet automatisch fertige Pflanzen und startet Trocknung', 
+    description: 'Erntet automatisch fertige Pflanzen und startet Trocknung.', 
     icon: '🧑‍🔬', 
-    cost: 10000, 
+    cost: 9000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -541,9 +545,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'farm-manager', 
     name: 'Farm-Manager', 
-    description: 'Vollautomatischer Betrieb: Pflanzt, boosted, erntet & trocknet', 
+    description: 'Vollautomatischer Betrieb: Pflanzt, boosted, erntet & trocknet.', 
     icon: '👔', 
-    cost: 50000, 
+    cost: 60000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -554,9 +558,9 @@ const initialWorkers: Worker[] = [
   { 
     id: 'sales-dealer', 
     name: 'Verkaufs-Dealer', 
-    description: 'Verkauft automatisch getrocknete Buds über verfügbare Kanäle', 
+    description: 'Verkauft automatisch getrocknete Buds über verfügbare Kanäle.', 
     icon: '💼', 
-    cost: 25000, 
+    cost: 20000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -583,7 +587,7 @@ const initialWorkers: Worker[] = [
     name: 'Der Psycho', 
     description: 'Aggressiver Straßendealer. Schneller, brutaler, unberechenbar. Mehr Kohle, mehr Chaos.', 
     icon: '🔪', 
-    cost: 75000, 
+    cost: 90000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -596,7 +600,7 @@ const initialWorkers: Worker[] = [
     name: 'Bewässerungs-Bot', 
     description: 'Automatisches Bewässerungssystem. Gießt alle Pflanzen unter 50% Wasser.', 
     icon: '💧', 
-    cost: 15000, 
+    cost: 12000, 
     owned: false,
     paused: false,
     level: 1, 
@@ -655,11 +659,17 @@ const initialDryingRacks: DryingRack[] = [
 
 // Initial sales channels
 const initialSalesChannels: SalesChannel[] = [
-  { id: 'runner', name: 'Straßenläufer', description: 'Kleine Mengen, schnelles Geld', icon: '🏃', pricePerGram: 5, minQuality: 0, minLevel: 1, maxGramsPerSale: 10, cooldownMinutes: 1, lastSaleTime: 0, unlocked: true },
-  { id: 'dealer', name: 'Dealer-Netzwerk', description: 'Bessere Preise, größere Mengen', icon: '🤝', pricePerGram: 8, minQuality: 30, minLevel: 5, maxGramsPerSale: 50, cooldownMinutes: 5, lastSaleTime: 0, unlocked: false },
-  { id: 'pharmacy', name: 'Apotheke', description: 'Premium-Preise, hohe Qualität', icon: '💊', pricePerGram: 15, minQuality: 60, minLevel: 10, maxGramsPerSale: 100, cooldownMinutes: 15, lastSaleTime: 0, unlocked: false },
-  { id: 'dispensary', name: 'Dispensary', description: 'Legaler Verkauf, Top-Qualität', icon: '🏪', pricePerGram: 20, minQuality: 80, minLevel: 20, maxGramsPerSale: 200, cooldownMinutes: 30, lastSaleTime: 0, unlocked: false },
-  { id: 'wholesale', name: 'Großabnehmer', description: 'Massive Mengen, Bulk-Deals', icon: '🏭', pricePerGram: 12, minQuality: 50, minLevel: 30, maxGramsPerSale: 1000, cooldownMinutes: 60, lastSaleTime: 0, unlocked: false },
+  // Sales channels — balanced progression:
+  //   runner    → tutorial channel: kleine Mengen, schneller Cash, kein Qualitätsgate
+  //   dealer    → erstes echtes Upgrade: bessere Preise & Mengen, leichtes Qualitätsgate
+  //   pharmacy  → Qualitäts-Gate: lohnt sich erst mit Curing/Drying-Upgrades
+  //   dispensary→ Premium-Gate: Top-Qualität nötig
+  //   wholesale → Late-game Bulk: massive Mengen, niedrigerer €/g
+  { id: 'runner', name: 'Straßenläufer', description: 'Tutorial-Kanal. Kleine Mengen, schnelles Geld, keine Qualitätsanforderung.', icon: '🏃', pricePerGram: 6, minQuality: 0, minLevel: 1, maxGramsPerSale: 10, cooldownMinutes: 1, lastSaleTime: 0, unlocked: true },
+  { id: 'dealer', name: 'Dealer-Netzwerk', description: 'Erstes echtes Upgrade. Bessere Preise & größere Mengen, ab Qualität 30.', icon: '🤝', pricePerGram: 10, minQuality: 30, minLevel: 4, maxGramsPerSale: 50, cooldownMinutes: 5, lastSaleTime: 0, unlocked: false },
+  { id: 'pharmacy', name: 'Apotheke', description: 'Premium-Preise. Erfordert Curing/Drying-Upgrades für Qualität ≥60.', icon: '💊', pricePerGram: 17, minQuality: 60, minLevel: 9, maxGramsPerSale: 100, cooldownMinutes: 15, lastSaleTime: 0, unlocked: false },
+  { id: 'dispensary', name: 'Dispensary', description: 'Legaler Verkauf, Top-Qualität ≥80. Beste Marge pro Gramm.', icon: '🏪', pricePerGram: 22, minQuality: 80, minLevel: 18, maxGramsPerSale: 200, cooldownMinutes: 30, lastSaleTime: 0, unlocked: false },
+  { id: 'wholesale', name: 'Großabnehmer', description: 'Bulk-Deals. Massive Mengen bei kleinerer Marge.', icon: '🏭', pricePerGram: 13, minQuality: 50, minLevel: 24, maxGramsPerSale: 1000, cooldownMinutes: 60, lastSaleTime: 0, unlocked: false },
 ];
 
 const STAGE_THRESHOLDS: Record<PlantStage, number> = {
@@ -697,7 +707,9 @@ export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
       // Initial state
-      budcoins: 500, // Starting coins
+      // Starting cash: enough to learn the shop (a couple of common seeds + 1 fertilizer/soil),
+      // but not enough to skip the first sale loop.
+      budcoins: 250,
       resin: 0,
       essence: 0,
       gems: 10,
@@ -1588,7 +1600,7 @@ export const useGameStore = create<GameState>()(
         localStorage.removeItem('grow-lab-save');
         
         set({
-          budcoins: 500,
+          budcoins: 250,
           resin: 0,
           essence: 0,
           gems: 10,

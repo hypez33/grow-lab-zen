@@ -58,14 +58,20 @@ const categoryColors = {
   sales: 'text-neon-cyan',
 } as const;
 
+// Seed prices — balanced to gate progression:
+//   common      → affordable after first sale (~2 runner sales)
+//   uncommon    → noticeable cost, a few sale cycles
+//   rare        → meaningful mid-game investment
+//   epic        → late mid-game, real economy required
+//   legendary   → late game / breeding / events / prestige
 const getSeedPrice = (rarity: Rarity | CocaRarity): number => {
   switch (rarity) {
-    case 'common': return 5;
-    case 'uncommon': return 15;
-    case 'rare': return 50;
-    case 'epic': return 150;
-    case 'legendary': return 500;
-    default: return 10;
+    case 'common': return 8;
+    case 'uncommon': return 40;
+    case 'rare': return 200;
+    case 'epic': return 800;
+    case 'legendary': return 3000;
+    default: return 15;
   }
 };
 
