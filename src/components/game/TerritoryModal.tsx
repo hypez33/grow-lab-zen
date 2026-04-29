@@ -314,6 +314,59 @@ export const TerritoryModal = ({
             </motion.div>
           )}
 
+          {/* Territory Identity (V2) */}
+          {territory.identity && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Markt-Profil
+              </div>
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2.5 text-xs">
+                <div className="text-foreground">{territory.identity.demandProfile}</div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {territory.identity.preferredDrugTypes.map((drug) => (
+                    <span key={drug} className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 capitalize">
+                      {drug === 'koks' ? '❄️ Koks' : drug === 'meth' ? '🧪 Meth' : '🌿 Weed'}
+                    </span>
+                  ))}
+                  {territory.identity.preferredRarities.slice(0, 3).map((r) => (
+                    <span key={r} className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 capitalize">
+                      ★ {r}
+                    </span>
+                  ))}
+                  {territory.identity.preferredTraits.slice(0, 3).map((t) => (
+                    <span key={t} className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
+                      🧬 {t}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="bg-muted/20 rounded-lg p-2">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Order Size</div>
+                    <div className="font-semibold">×{territory.identity.averageOrderSizeModifier.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-muted/20 rounded-lg p-2">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Price Mod</div>
+                    <div className={`font-semibold ${territory.identity.priceModifier >= 1 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                      ×{territory.identity.priceModifier.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-muted-foreground pt-1">
+                  💡 <span className="text-foreground">{territory.identity.suggestedStrategy}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Empfohlene Dealer: <span className="font-semibold text-foreground">{territory.identity.recommendedDealers}</span>
+                  {territory.identity.minReputationRequired
+                    ? ` • benötigt ~${territory.identity.minReputationRequired} Rep.`
+                    : ''}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bonuses Section */}
           <div className="space-y-2">
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
