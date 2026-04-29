@@ -120,6 +120,7 @@ export interface BusinessState {
   totalEventProfit: number;
   totalEventLoss: number;
   lastEventCheckMinutes: number;
+  lastProfitLogMinutes: number;
 
   buyBusiness: (businessId: string, budcoins: number, playerLevel: number, gameMinutes: number) => PurchaseResult;
   upgradeBusiness: (businessId: string, budcoins: number, gameMinutes: number) => PurchaseResult;
@@ -134,6 +135,14 @@ export interface BusinessState {
 const BUSINESS_LOG_LIMIT = 60;
 const BUSINESS_EVENT_LIMIT = 30;
 const GAME_MINUTES_PER_HOUR = 60;
+const BUSINESS_PROFIT_LOG_INTERVAL_MINUTES = 60; // throttle cashflow log to ~1/game-hour
+
+/**
+ * Shared formula for a single business' profit per in-game hour.
+ * Keep this in sync with BusinessScreen display.
+ */
+export const getBusinessProfitPerHour = (business: Pick<Business, 'profitPerGameHour' | 'level'>) =>
+  Math.floor(business.profitPerGameHour * (1 + (Math.max(1, business.level) - 1) * 0.15));
 let businessLogCounter = 0;
 let businessEventCounter = 0;
 
@@ -542,6 +551,7 @@ export const useBusinessStore = create<BusinessState>()(
       totalEventProfit: 0,
       totalEventLoss: 0,
       lastEventCheckMinutes: 0,
+      lastProfitLogMinutes: 0,
 
       buyBusiness: (businessId, budcoins, playerLevel, gameMinutes) => {
         const state = get();
@@ -734,7 +744,6 @@ export const useBusinessStore = create<BusinessState>()(
         const importSpeedMultiplier = getImportSpeedMultiplier();
         const shipmentDelta = safeDelta * importSpeedMultiplier;
         const state = get();
-        const profit = 0;
 
         let businesses = state.businesses.map(business => (
           business.pausedUntilMinutes > 0 && business.pausedUntilMinutes <= gameMinutes
@@ -846,6 +855,32 @@ export const useBusinessStore = create<BusinessState>()(
           }
         }
 
+        // ----- Passive business cashflow -----
+        // Sum profit/h for owned, unpaused businesses, then scale by elapsed game-minutes.
+        const profitPerHour = businesses.reduce((sum, business) => {
+          if (!business.owned) return sum;
+          if (business.pausedUntilMinutes && business.pausedUntilMinutes > gameMinutes) return sum;
+          return sum + getBusinessProfitPerHour(business);
+        }, 0);
+        const profit = Math.max(0, Math.floor(profitPerHour * (safeDelta / GAME_MINUTES_PER_HOUR)));
+
+        // Throttled cashflow log (~once per game-hour, only if cashflow active).
+        const lastProfitLog = state.lastProfitLogMinutes ?? 0;
+        if (profitPerHour > 0 && gameMinutes - lastProfitLog >= BUSINESS_PROFIT_LOG_INTERVAL_MINUTES) {
+          // Pick a representative business name for flavor.
+          const anchor = businesses.find(b => b.owned && (!b.pausedUntilMinutes || b.pausedUntilMinutes <= gameMinutes));
+          const sinceMin = Math.max(safeDelta, gameMinutes - lastProfitLog);
+          const periodProfit = Math.max(0, Math.floor(profitPerHour * (sinceMin / GAME_MINUTES_PER_HOUR)));
+          if (anchor && periodProfit > 0) {
+            businessLogs.unshift({
+              id: createBusinessLogId(),
+              timestampMinutes: gameMinutes,
+              message: `${anchor.name} & co. erwirtschafteten +${periodProfit.toLocaleString()}$ Cashflow.`,
+              type: 'business',
+            });
+          }
+        }
+
         if (businessLogs.length > BUSINESS_LOG_LIMIT) {
           businessLogs = businessLogs.slice(0, BUSINESS_LOG_LIMIT);
         }
@@ -855,8 +890,12 @@ export const useBusinessStore = create<BusinessState>()(
           importContracts,
           shipments: updatedShipments,
           warehouseLots,
-          totalBusinessRevenue: state.totalBusinessRevenue,
+          totalBusinessRevenue: state.totalBusinessRevenue + profit,
           businessLogs: businessLogs.slice(0, BUSINESS_LOG_LIMIT),
+          lastProfitLogMinutes:
+            profitPerHour > 0 && gameMinutes - lastProfitLog >= BUSINESS_PROFIT_LOG_INTERVAL_MINUTES
+              ? gameMinutes
+              : state.lastProfitLogMinutes,
         });
 
         const currentHour = Math.floor(gameMinutes / GAME_MINUTES_PER_HOUR);
@@ -922,7 +961,7 @@ export const useBusinessStore = create<BusinessState>()(
     }),
     {
       name: 'business-save',
-      version: 4,
+      version: 5,
       migrate: (persistedState: any) => {
         const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
         const existingBusinesses = Array.isArray(state.businesses) ? state.businesses : [];
@@ -995,6 +1034,7 @@ export const useBusinessStore = create<BusinessState>()(
           totalEventProfit: Number.isFinite(state.totalEventProfit) ? state.totalEventProfit : 0,
           totalEventLoss: Number.isFinite(state.totalEventLoss) ? state.totalEventLoss : 0,
           lastEventCheckMinutes: Number.isFinite(state.lastEventCheckMinutes) ? state.lastEventCheckMinutes : 0,
+          lastProfitLogMinutes: Number.isFinite(state.lastProfitLogMinutes) ? state.lastProfitLogMinutes : 0,
         };
       },
     }

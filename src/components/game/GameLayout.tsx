@@ -114,6 +114,12 @@ export const GameLayout = () => {
           }
         });
       }
+      if (businessResult.profit > 0) {
+        useGameStore.setState((state) => ({
+          budcoins: state.budcoins + businessResult.profit,
+          totalCoinsEarned: state.totalCoinsEarned + businessResult.profit,
+        }));
+      }
       if (businessResult.events.length > 0) {
         businessResult.events.forEach((event) => {
           if (event.profit > 0) {

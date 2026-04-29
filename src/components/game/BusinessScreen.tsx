@@ -281,6 +281,20 @@ export const BusinessScreen = () => {
       return next.slice(-120);
     });
 
+    // Reputation & Heat integration: bulk warehouse sales raise heat,
+    // high-quality / large lots also build reputation.
+    const gameStore = useGameStore.getState();
+    const heatGain = (result.gramsSold / 40) * (drug === 'koks' ? 1.4 : 1);
+    if (heatGain >= 0.5) {
+      gameStore.addHeat?.(heatGain, `Bulk ${drug === 'weed' ? 'Weed' : 'Koks'} verkauf`);
+    }
+    if (result.averageQuality >= 70 || result.gramsSold >= 200) {
+      const qualityBoost = Math.max(0, (result.averageQuality - 50) / 25);
+      const sizeBoost = Math.min(3, result.gramsSold / 250);
+      const repGain = Math.max(0.5, qualityBoost + sizeBoost);
+      gameStore.addReputation?.(repGain, `Premium ${drug === 'weed' ? 'Weed' : 'Koks'} Lot`);
+    }
+
     toast.success(
       <div className="flex flex-col gap-1">
         <div className="font-bold">Verkauft!</div>
@@ -627,6 +641,16 @@ export const BusinessScreen = () => {
                 {waitingShipments.length} warten
               </div>
             </div>
+            {warehouseCapacity > 0 && warehouseFillPercent >= 90 && (
+              <div className="text-[10px] font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1">
+                ⚠️ Lager fast voll! Lieferungen warten oder verkaufe Bestand.
+              </div>
+            )}
+            {warehouseCapacity === 0 && (
+              <div className="text-[10px] font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded px-2 py-1">
+                Kein Lager vorhanden – Imports brauchen Kapazität.
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
