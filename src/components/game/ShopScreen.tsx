@@ -88,7 +88,7 @@ type ShopTabId =
   | 'style';
 
 // ============================================================================
-// Recommendation engine
+// Recommendation engine — backed by shared bottleneck detector.
 // ============================================================================
 
 interface Recommendation {
@@ -104,157 +104,21 @@ interface Recommendation {
   goToScreen?: FeatureId;
   cost?: number;
   locked?: string | null;
+  severity?: 'info' | 'warning' | 'urgent' | 'opportunity';
 }
 
-interface RecoCtx {
-  level: number;
-  budcoins: number;
-  emptySlots: number;
-  totalSlots: number;
-  seedsCount: number;
-  wetBuds: number;
-  driedBuds: number;
-  freeRacks: number;
-  totalRacks: number;
-  pendingCustomers: number;
-  customersUnlocked: boolean;
-  weedWorkersOwned: number;
-  weedWorkersAvailable: number;
-  autoSellEnabled: boolean;
-  hasWarehouse: boolean;
-  hasBusinessUnlock: boolean;
-  hasTurfUnlock: boolean;
-  territoriesOwned: number;
-  dealersAssigned: number;
-}
+const SEVERITY_BADGE: Record<NonNullable<Recommendation['severity']>, string> = {
+  urgent: 'Sofort',
+  warning: 'Engpass',
+  opportunity: 'Optimieren',
+  info: 'Tipp',
+};
 
-const buildRecommendations = (ctx: RecoCtx): Recommendation[] => {
-  const recos: Recommendation[] = [];
-
-  // Empty grow slots
-  if (ctx.emptySlots > 0 && ctx.seedsCount > 0) {
-    recos.push({
-      id: 'plant',
-      problem: `${ctx.emptySlots} leere Slot${ctx.emptySlots === 1 ? '' : 's'} im Grow-Raum`,
-      action: 'Pflanze einen Seed',
-      why: 'Leere Slots produzieren nichts. Mehr Pflanzen = mehr Ware = mehr Cash.',
-      cta: 'Zum Grow-Raum',
-      goToScreen: 'grow',
-      badge: 'Sofort',
-    });
-  } else if (ctx.emptySlots > 0 && ctx.seedsCount === 0) {
-    recos.push({
-      id: 'buy-seeds',
-      problem: 'Du hast leere Slots aber keine Seeds',
-      action: 'Kaufe günstige Common Seeds',
-      why: 'Common Seeds wachsen schnell und bringen den Loop in Gang.',
-      cta: 'Seeds ansehen',
-      goToTab: 'seeds',
-      cost: 5,
-      badge: 'Sofort',
-    });
-  }
-
-  // Drying bottleneck
-  if (ctx.wetBuds >= 3 && ctx.freeRacks === 0 && ctx.totalRacks > 0) {
-    recos.push({
-      id: 'more-racks',
-      problem: `${ctx.wetBuds} feuchte Buds, aber alle Racks voll`,
-      action: 'Kaufe ein Drying Rack oder upgrade die Trocknung',
-      why: 'Ohne freie Racks stapelt sich nasse Ware. Trocknen macht sie verkaufsfähig.',
-      cta: 'Trocknung verbessern',
-      goToTab: 'drying',
-      badge: 'Engpass',
-    });
-  } else if (ctx.wetBuds >= 5 && ctx.totalRacks === 0) {
-    recos.push({
-      id: 'first-rack',
-      problem: 'Feuchte Buds aber kein Drying Rack',
-      action: 'Schalte einen Drying Rack frei',
-      why: 'Nasse Buds lassen sich nicht verkaufen — Trocknung ist Pflicht.',
-      cta: 'Zum Trockenraum',
-      goToScreen: 'dryroom',
-      badge: 'Engpass',
-    });
-  }
-
-  // Lots of dried inventory but no auto-sell
-  if (ctx.driedBuds >= 6 && !ctx.autoSellEnabled) {
-    recos.push({
-      id: 'auto-sell',
-      problem: `${ctx.driedBuds} getrocknete Buds liegen rum`,
-      action: 'Aktiviere Auto-Sell im Verkaufs-Bildschirm',
-      why: 'Auto-Sell verkauft kontinuierlich an die besten Kanäle, auch offline.',
-      cta: 'Zum Verkauf',
-      goToScreen: 'sales',
-      badge: 'Optimieren',
-    });
-  }
-
-  // Customers waiting
-  if (ctx.customersUnlocked && ctx.pendingCustomers > 0 && ctx.driedBuds === 0) {
-    recos.push({
-      id: 'no-stock',
-      problem: `${ctx.pendingCustomers} Kunde${ctx.pendingCustomers === 1 ? '' : 'n'} wartet, kein getrocknetes Lager`,
-      action: 'Trockne Buds & verbessere Qualität',
-      why: 'Kunden zahlen Premium für hohe Qualität — leere Vitrine = verlorener Umsatz.',
-      cta: 'Trocknung & Qualität',
-      goToTab: 'drying',
-      badge: 'Engpass',
-    });
-  }
-
-  // First worker
-  if (ctx.level >= 5 && ctx.weedWorkersOwned === 0 && ctx.weedWorkersAvailable > 0) {
-    recos.push({
-      id: 'first-worker',
-      problem: 'Du machst noch alles per Hand',
-      action: 'Stelle deinen ersten Worker ein',
-      why: 'Worker pflanzen, ernten und trocknen automatisch — auch offline.',
-      cta: 'Crew anschauen',
-      goToTab: 'crew',
-      badge: 'Skalieren',
-    });
-  }
-
-  // Business unlocked but no warehouse
-  if (ctx.hasBusinessUnlock && !ctx.hasWarehouse) {
-    recos.push({
-      id: 'warehouse',
-      problem: 'Business freigeschaltet, aber kein Warehouse',
-      action: 'Eröffne ein Lagerhaus',
-      why: 'Lager schalten Großhandel und Premium-Verkäufe frei.',
-      cta: 'Zum Business',
-      goToScreen: 'business',
-      badge: 'Mid-Game',
-    });
-  }
-
-  // Turf unlocked but no dealers assigned
-  if (ctx.hasTurfUnlock && ctx.territoriesOwned > 0 && ctx.dealersAssigned === 0) {
-    recos.push({
-      id: 'assign-dealer',
-      problem: 'Territorium gekauft, aber niemand verteidigt es',
-      action: 'Weise Dealer dem Territorium zu',
-      why: 'Ohne Dealer kein passives Einkommen aus Turf.',
-      cta: 'Zum Turf',
-      goToScreen: 'turf',
-      badge: 'Mid-Game',
-    });
-  }
-
-  if (recos.length === 0) {
-    recos.push({
-      id: 'all-good',
-      problem: 'Alles läuft rund 🎉',
-      action: 'Erkunde die anderen Tabs für Upgrades',
-      why: 'Stocke Equipment, Workers oder Style auf, um den nächsten Sprung zu machen.',
-      cta: 'Zu Upgrades',
-      goToTab: 'growroom',
-    });
-  }
-
-  return recos;
+const SEVERITY_DOT: Record<NonNullable<Recommendation['severity']>, string> = {
+  urgent: 'bg-red-500/20 text-red-400',
+  warning: 'bg-amber-500/20 text-amber-400',
+  opportunity: 'bg-neon-green/20 text-neon-green',
+  info: 'bg-neon-purple/20 text-neon-purple',
 };
 
 // ============================================================================
