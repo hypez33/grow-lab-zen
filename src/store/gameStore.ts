@@ -316,6 +316,9 @@ export interface GameState {
   claimedAchievements: string[];
   totalBreedings: number;
 
+  // Career rank rewards already granted (RankId[])
+  claimedRanks: string[];
+
   // Reputation & Heat (global meta-progression)
   reputation: number;
   heat: number;
