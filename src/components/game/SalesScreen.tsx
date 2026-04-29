@@ -192,6 +192,21 @@ export const SalesScreen = () => {
 
       {/* Sales Channels */}
       <h2 className="text-lg font-display font-semibold mb-3">Verkaufskanäle</h2>
+      {weedTerritoryBonusPct > 0 && (
+        <div className="game-card p-3 mb-3 border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent">
+          <div className="flex items-start gap-2">
+            <MapPin size={16} className="text-emerald-400 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <div className="font-semibold text-emerald-300">
+                +{Math.round(weedTerritoryBonusPct)}% Territory-Bonus auf Weed-Verkäufe
+              </div>
+              <div className="text-muted-foreground mt-0.5">
+                Aus: {demandProfile.contributingTerritoryNames.join(', ') || 'Kontrollierte Gebiete'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 mb-6">
         {salesChannels.map(channel => {
           const cooldown = getCooldownRemaining(channel);
