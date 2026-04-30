@@ -2939,6 +2939,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
+      storage: debouncedJSONStorage,
       version: 17, // v17: Career Rank rewards tracking
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
