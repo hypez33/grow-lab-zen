@@ -70,108 +70,133 @@ export const GameLayout = () => {
     }
   }, [activeScreen, musicEnabled, changeScreen]);
 
-  // Global game loops - run even when not on specific tabs
+  // Global game loops - run even when not on specific tabs.
+  // Optimisation strategy:
+  //   - Batch all cash/earn changes into ONE setState per tick.
+  //   - When the tab is hidden: tick less often, with bigger delta steps,
+  //     and skip UI-only work (toasts, screen shake).
+  //   - Run heavy/rare checks (rank, etc.) only every N ticks.
   useEffect(() => {
-    const interval = setInterval(() => {
-      updateDryingProgress(1);
-      runWorkerTick(); // Workers do their jobs every second
+    let tickCount = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const runTick = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
+      // When hidden: 1 tick every 5s, simulating 5 real seconds of progress.
+      const realSeconds = hidden ? 5 : 1;
+      tickCount++;
+
+      // --- Pure progress / per-system ticks ---
+      updateDryingProgress(realSeconds);
+      runWorkerTick();
       runAutoSellTick();
+
       const advanceGameTime = useGameStore.getState().advanceGameTime;
-      const deltaMinutes = typeof advanceGameTime === 'function' ? advanceGameTime(1) : 0;
+      const deltaMinutes = typeof advanceGameTime === 'function' ? advanceGameTime(realSeconds) : 0;
       const gameState = useGameStore.getState();
       const luckFactor = Math.min(
         0.25,
         Math.floor(gameState.level / 5) * 0.015 + Math.min(0.1, gameState.gems * 0.002)
       );
+
       const businessResult = tickBusiness(deltaMinutes, gameState.gameTimeMinutes, luckFactor);
       runCustomerTick(gameState.gameTimeMinutes);
       gameState.runRepHeatTick?.(deltaMinutes);
+
       const cocaState = useCocaStore.getState();
       const turfDealers = [
         ...gameState.workers
-          .filter(worker => worker.owned && !worker.paused && worker.abilities.includes('sell'))
-          .map(worker => ({ id: worker.id, level: worker.level, type: 'street' as const })),
+          .filter(w => w.owned && !w.paused && w.abilities.includes('sell'))
+          .map(w => ({ id: w.id, level: w.level, type: 'street' as const })),
         ...cocaState.cocaWorkers
-          .filter(worker => worker.owned && !worker.paused && worker.type === 'dealer' && worker.abilities.includes('sell'))
-          .map(worker => ({ id: worker.id, level: worker.level, type: 'street' as const })),
+          .filter(w => w.owned && !w.paused && w.type === 'dealer' && w.abilities.includes('sell'))
+          .map(w => ({ id: w.id, level: w.level, type: 'street' as const })),
       ];
       const turfResult = runTerritoryTick(deltaMinutes, gameState.gameTimeMinutes, turfDealers);
-      if (turfResult.passiveIncome > 0) {
-        useGameStore.setState((state) => ({
-          budcoins: state.budcoins + turfResult.passiveIncome,
-          totalCoinsEarned: state.totalCoinsEarned + turfResult.passiveIncome,
-        }));
-      }
-      if (turfResult.upkeepCost > 0) {
-        useGameStore.setState((state) => ({
-          budcoins: state.budcoins - turfResult.upkeepCost,
-        }));
-      }
-      if (turfResult.events.length > 0) {
-        turfResult.events.forEach((event) => {
-          if (event.result === 'win') {
-            toast.success(`${event.territoryName} verteidigt! +${event.controlChange}% Control`);
-          } else {
-            toast.error(`${event.territoryName} angegriffen! ${event.controlChange}% Control`);
-          }
-        });
-      }
-      if (businessResult.profit > 0) {
-        useGameStore.setState((state) => ({
-          budcoins: state.budcoins + businessResult.profit,
-          totalCoinsEarned: state.totalCoinsEarned + businessResult.profit,
-        }));
-      }
-      if (businessResult.events.length > 0) {
-        businessResult.events.forEach((event) => {
-          if (event.profit > 0) {
-            useGameStore.setState((state) => ({
-              budcoins: state.budcoins + event.profit,
-              totalCoinsEarned: state.totalCoinsEarned + event.profit,
-            }));
-          }
-          const isNegative = event.type === 'raid' || event.type === 'seizure';
-          const notify = isNegative ? toast.error : toast.success;
-          notify(event.message);
-        });
-      }
-      cocaState.updateCocaProgress(1);
-      cocaState.updateProcessingProgress(1);
+
+      cocaState.updateCocaProgress(realSeconds);
+      cocaState.updateProcessingProgress(realSeconds);
       cocaState.runCocaAutoWorkerTick();
       const cocaResult = cocaState.runCocaWorkerTick();
-      if (cocaResult.revenue > 0) {
-        useGameStore.setState((state) => ({
-          budcoins: state.budcoins + cocaResult.revenue,
-          totalCoinsEarned: state.totalCoinsEarned + cocaResult.revenue,
-        }));
-      }
 
       const methState = useMethStore.getState();
-      methState.updateMethProgress(1);
+      methState.updateMethProgress(realSeconds);
       methState.runMethAutoWorkerTick();
+
+      let methRevenue = 0;
+      let methDealerSales: Array<{ dealerId: string; dealerName: string; dealerIcon: string; message: string; grams: number; revenue: number }> = [];
       const cocaDealers = cocaState.cocaWorkers.filter(
-        worker => worker.type === 'dealer' && worker.owned && !worker.paused && worker.abilities.includes('sell')
+        w => w.type === 'dealer' && w.owned && !w.paused && w.abilities.includes('sell')
       );
       if (cocaDealers.length > 0) {
         const methResult = useMethStore.getState().runMethDealerTick(
-          cocaDealers.map(dealer => ({
-            id: dealer.id,
-            name: dealer.name,
-            icon: dealer.icon,
-            level: dealer.level,
-            salesPerTick: dealer.salesPerTick,
+          cocaDealers.map(d => ({
+            id: d.id,
+            name: d.name,
+            icon: d.icon,
+            level: d.level,
+            salesPerTick: d.salesPerTick,
           }))
         );
+        methRevenue = methResult.revenue;
+        methDealerSales = methResult.dealerSales;
+      }
 
-        if (methResult.revenue > 0) {
-          useGameStore.setState((state) => ({
-            budcoins: state.budcoins + methResult.revenue,
-            totalCoinsEarned: state.totalCoinsEarned + methResult.revenue,
-          }));
+      // --- Aggregate cash deltas into ONE setState ---
+      let cashDelta = 0;
+      let earnedDelta = 0;
+      if (turfResult.passiveIncome > 0) {
+        cashDelta += turfResult.passiveIncome;
+        earnedDelta += turfResult.passiveIncome;
+      }
+      if (turfResult.upkeepCost > 0) {
+        cashDelta -= turfResult.upkeepCost;
+      }
+      if (businessResult.profit > 0) {
+        cashDelta += businessResult.profit;
+        earnedDelta += businessResult.profit;
+      }
+      for (const event of businessResult.events) {
+        if (event.profit > 0) {
+          cashDelta += event.profit;
+          earnedDelta += event.profit;
         }
+      }
+      if (cocaResult.revenue > 0) {
+        cashDelta += cocaResult.revenue;
+        earnedDelta += cocaResult.revenue;
+      }
+      if (methRevenue > 0) {
+        cashDelta += methRevenue;
+        earnedDelta += methRevenue;
+      }
 
-        if (methResult.dealerSales.length > 0) {
-          methResult.dealerSales.forEach((sale) => {
+      if (cashDelta !== 0 || earnedDelta !== 0) {
+        useGameStore.setState((state) => ({
+          budcoins: state.budcoins + cashDelta,
+          totalCoinsEarned: state.totalCoinsEarned + earnedDelta,
+        }));
+      }
+
+      // --- UI-only side effects (skip when hidden) ---
+      if (!hidden) {
+        if (turfResult.events.length > 0) {
+          for (const event of turfResult.events) {
+            if (event.result === 'win') {
+              toast.success(`${event.territoryName} verteidigt! +${event.controlChange}% Control`);
+            } else {
+              toast.error(`${event.territoryName} angegriffen! ${event.controlChange}% Control`);
+            }
+          }
+        }
+        if (businessResult.events.length > 0) {
+          for (const event of businessResult.events) {
+            const isNegative = event.type === 'raid' || event.type === 'seizure';
+            (isNegative ? toast.error : toast.success)(event.message);
+          }
+        }
+        if (methDealerSales.length > 0) {
+          for (const sale of methDealerSales) {
             cocaState.addCocaActivityLog({
               workerId: sale.dealerId,
               workerName: sale.dealerName,
@@ -180,49 +205,84 @@ export const GameLayout = () => {
               amount: sale.grams,
               revenue: sale.revenue,
             });
+          }
+        }
+      } else if (methDealerSales.length > 0) {
+        // Still log activity in background, just no toasts.
+        for (const sale of methDealerSales) {
+          cocaState.addCocaActivityLog({
+            workerId: sale.dealerId,
+            workerName: sale.dealerName,
+            workerIcon: sale.dealerIcon,
+            action: sale.message,
+            amount: sale.grams,
+            revenue: sale.revenue,
           });
         }
       }
-      const levelsGained = checkLevelUp(); // Check for pending level ups
-      
-      if (levelsGained > 0) {
+
+      // --- Level ups (cheap, every tick) ---
+      const levelsGained = checkLevelUp();
+      if (levelsGained > 0 && !hidden) {
         const newLevel = useGameStore.getState().level;
         setLevelUpLevel(newLevel);
         setShowLevelUp(true);
       }
 
-      // Career rank check — derive from stats, grant rewards once per rank.
-      try {
-        const stats = getRankStats();
-        const rank = getCurrentRank(stats);
-        const claimed: string[] = useGameStore.getState().claimedRanks ?? [];
-        if (rank && !claimed.includes(rank.id) && rank.id !== 'homegrower') {
-          useGameStore.setState((s: any) => {
-            const reward = rank.reward;
-            return {
+      // --- Heavy / rare checks: rank, every 5s ---
+      if (tickCount % 5 === 0) {
+        try {
+          const stats = getRankStats();
+          const rank = getCurrentRank(stats);
+          const claimed: string[] = useGameStore.getState().claimedRanks ?? [];
+          if (rank && !claimed.includes(rank.id) && rank.id !== 'homegrower') {
+            useGameStore.setState((s: any) => {
+              const reward = rank.reward;
+              return {
+                claimedRanks: [...(s.claimedRanks ?? []), rank.id],
+                budcoins: s.budcoins + (reward?.budcoins ?? 0),
+                totalCoinsEarned: s.totalCoinsEarned + (reward?.budcoins ?? 0),
+                gems: s.gems + (reward?.gems ?? 0),
+                skillPoints: s.skillPoints + (reward?.skillPoints ?? 0),
+              };
+            });
+            if (!hidden) {
+              toast.success(
+                `${rank.icon} Neuer Rang: ${rank.name}!`,
+                { description: rank.reward?.label ?? rank.description, duration: 6000 }
+              );
+              shake({ intensity: 'light', duration: 0.4 });
+            }
+          } else if (rank && !claimed.includes(rank.id) && rank.id === 'homegrower') {
+            useGameStore.setState((s: any) => ({
               claimedRanks: [...(s.claimedRanks ?? []), rank.id],
-              budcoins: s.budcoins + (reward?.budcoins ?? 0),
-              totalCoinsEarned: s.totalCoinsEarned + (reward?.budcoins ?? 0),
-              gems: s.gems + (reward?.gems ?? 0),
-              skillPoints: s.skillPoints + (reward?.skillPoints ?? 0),
-            };
-          });
-          toast.success(
-            `${rank.icon} Neuer Rang: ${rank.name}!`,
-            { description: rank.reward?.label ?? rank.description, duration: 6000 }
-          );
-          shake({ intensity: 'light', duration: 0.4 });
-        } else if (rank && !claimed.includes(rank.id) && rank.id === 'homegrower') {
-          // Mark starter rank as claimed silently.
-          useGameStore.setState((s: any) => ({
-            claimedRanks: [...(s.claimedRanks ?? []), rank.id],
-          }));
+            }));
+          }
+        } catch {
+          /* ranks optional */
         }
-      } catch {
-        /* ranks module optional — never block tick */
       }
-    }, 1000);
-    return () => clearInterval(interval);
+
+      // Adaptive interval: 1s when visible, 5s when hidden.
+      timeoutId = setTimeout(runTick, hidden ? 5000 : 1000);
+    };
+
+    timeoutId = setTimeout(runTick, 1000);
+
+    const onVisibilityChange = () => {
+      // When tab becomes visible again, re-arm the loop quickly.
+      if (document.visibilityState === 'visible' && timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(runTick, 250);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Also check level changes from other sources (like cheats)
