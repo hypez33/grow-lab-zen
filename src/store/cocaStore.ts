@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { debouncedJSONStorage } from '@/lib/persistStorage';
+import { LOG_LIMITS } from '@/lib/arrayLimits';
 import { breedCocaSeeds as breedCocaSeedsLib } from '@/lib/cocaBreedingSystem';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
@@ -1543,9 +1544,12 @@ export const useCocaStore = create<CocaState>()(
           return templateWorker;
         });
         
+        const cocaActivityLogs = Array.isArray(persistedState.cocaActivityLogs)
+          ? persistedState.cocaActivityLogs.slice(0, LOG_LIMITS.cocaActivityLogs)
+          : [];
         const nextState = {
           ...persistedState,
-          cocaActivityLogs: persistedState.cocaActivityLogs || [],
+          cocaActivityLogs,
           cocaDealerLastActivityAt: persistedState.cocaDealerLastActivityAt || {},
           cocaWorkers: mergedWorkers,
         };

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { debouncedJSONStorage } from '@/lib/persistStorage';
+import { LOG_LIMITS } from '@/lib/arrayLimits';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { getFeaturesUnlockedAt } from '@/lib/progression';
@@ -2395,7 +2396,7 @@ export const useGameStore = create<GameState>()(
                 return {
                   ...state,
                   dealerDrugEffects,
-                  dealerActivities: dealerActivities.slice(0, 30),
+                  dealerActivities: dealerActivities.slice(0, LOG_LIMITS.dealerActivities),
                 };
               }
               // SCAM
@@ -2536,8 +2537,8 @@ export const useGameStore = create<GameState>()(
               }
               
               // Keep only last 30 activities (shared between dealers)
-              if (dealerActivities.length > 30) {
-                dealerActivities = dealerActivities.slice(0, 30);
+              if (dealerActivities.length > LOG_LIMITS.dealerActivities) {
+                dealerActivities = dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
               }
             } else {
               const customerName = getRandomCustomerName();
@@ -2662,8 +2663,8 @@ export const useGameStore = create<GameState>()(
                 }
               }
 
-              if (dealerActivities.length > 30) {
-                dealerActivities = dealerActivities.slice(0, 30);
+              if (dealerActivities.length > LOG_LIMITS.dealerActivities) {
+                dealerActivities = dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
               }
             }
           }
@@ -3234,6 +3235,14 @@ export const useGameStore = create<GameState>()(
 
         if (version < 17) {
           if (!Array.isArray(persistedState.claimedRanks)) persistedState.claimedRanks = [];
+        }
+
+        // Cap persisted log/history arrays so old saves don't carry unbounded data forward
+        if (Array.isArray(persistedState.dealerActivities) && persistedState.dealerActivities.length > LOG_LIMITS.dealerActivities) {
+          persistedState.dealerActivities = persistedState.dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
+        }
+        if (Array.isArray(persistedState.weedSalesWindow) && persistedState.weedSalesWindow.length > LOG_LIMITS.salesWindow) {
+          persistedState.weedSalesWindow = persistedState.weedSalesWindow.slice(-LOG_LIMITS.salesWindow);
         }
 
         return persistedState;

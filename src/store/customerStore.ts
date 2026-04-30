@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { debouncedJSONStorage } from '@/lib/persistStorage';
+import { LOG_LIMITS } from '@/lib/arrayLimits';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
@@ -151,7 +152,7 @@ interface CustomerState {
 
 const SAMPLE_GRAMS = 0.5;
 const INACTIVITY_MINUTES = 7 * 24 * 60;
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = LOG_LIMITS.customerMessages;
 const MAX_CUSTOMERS = 100;
 const AUTO_PROSPECT_LIMIT = 50;
 const BASE_WEED_PRICE = 15;
@@ -1962,7 +1963,7 @@ export const useCustomerStore = create<CustomerState>()(
             xpReward: req.xpReward ?? Math.max(2, Math.floor((req.gramsRequested ?? 1) * 1)),
           };
         };
-        return {
+        const migrated: any = {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
             ? persistedState.customers.map((customer: Customer) => {
@@ -2011,6 +2012,21 @@ export const useCustomerStore = create<CustomerState>()(
             ? persistedState.nextProspectAtMinutes
             : 0,
         };
+
+        // Cap per-customer history arrays so old saves don't carry unbounded data
+        if (Array.isArray(migrated.customers)) {
+          migrated.customers = migrated.customers.map((c: any) => ({
+            ...c,
+            messages: Array.isArray(c.messages) && c.messages.length > LOG_LIMITS.customerMessages
+              ? c.messages.slice(-LOG_LIMITS.customerMessages)
+              : (c.messages ?? []),
+            requestHistory: Array.isArray(c.requestHistory) && c.requestHistory.length > LOG_LIMITS.requestHistory
+              ? c.requestHistory.slice(-LOG_LIMITS.requestHistory)
+              : (c.requestHistory ?? []),
+          }));
+        }
+
+        return migrated;
       },
     }
   )

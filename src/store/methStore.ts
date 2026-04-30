@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { debouncedJSONStorage } from '@/lib/persistStorage';
+import { LOG_LIMITS } from '@/lib/arrayLimits';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { useGameStore } from '@/store/gameStore';
 import { FEATURE_UNLOCKS } from '@/lib/progression';
@@ -1104,7 +1105,7 @@ export const useMethStore = create<MethState>()(
           methProspects: mergedProspects,
           methSamples: storedSamples,
           methActivityLogs: Array.isArray(persistedState.methActivityLogs)
-            ? persistedState.methActivityLogs
+            ? persistedState.methActivityLogs.slice(0, LOG_LIMITS.methActivityLogs)
             : [],
           methWorkers: mergedWorkers,
         };
