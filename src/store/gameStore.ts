@@ -3236,6 +3236,14 @@ export const useGameStore = create<GameState>()(
           if (!Array.isArray(persistedState.claimedRanks)) persistedState.claimedRanks = [];
         }
 
+        // Cap persisted log/history arrays so old saves don't carry unbounded data forward
+        if (Array.isArray(persistedState.dealerActivities) && persistedState.dealerActivities.length > LOG_LIMITS.dealerActivities) {
+          persistedState.dealerActivities = persistedState.dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
+        }
+        if (Array.isArray(persistedState.weedSalesWindow) && persistedState.weedSalesWindow.length > LOG_LIMITS.salesWindow) {
+          persistedState.weedSalesWindow = persistedState.weedSalesWindow.slice(-LOG_LIMITS.salesWindow);
+        }
+
         return persistedState;
       },
     }
