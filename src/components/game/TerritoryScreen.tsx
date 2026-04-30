@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Territory, TerritoryBonus, useTerritoryStore } from '@/store/territoryStore';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
+import { useShallow } from 'zustand/react/shallow';
 import { TerritoryCard } from './TerritoryCard';
 import { TerritoryModal, TerritoryDealer } from './TerritoryModal';
 import { TerritoryMap } from './TerritoryMap';
@@ -44,7 +45,14 @@ export const TerritoryScreen = () => {
     assignDealer,
     unassignDealer,
     fortifyTerritory,
-  } = useTerritoryStore();
+  } = useTerritoryStore(useShallow((s) => ({
+    territories: s.territories,
+    totalPassiveIncome: s.totalPassiveIncome,
+    totalUpkeepCost: s.totalUpkeepCost,
+    assignDealer: s.assignDealer,
+    unassignDealer: s.unassignDealer,
+    fortifyTerritory: s.fortifyTerritory,
+  })));
   const workers = useGameStore(state => state.workers);
   const budcoins = useGameStore(state => state.budcoins);
   const cocaWorkers = useCocaStore(state => state.cocaWorkers);

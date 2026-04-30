@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Star, TrendingUp, Zap, Crown, ArrowRight } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 
 interface PrestigeBonuses {
@@ -14,14 +15,21 @@ interface PrestigeBonuses {
 
 export const PrestigeSystem = () => {
   const [showConfirm, setShowConfirm] = useState(false);
-  const { 
-    totalCoinsEarned, 
-    totalHarvests, 
+  const {
+    totalCoinsEarned,
+    totalHarvests,
     level,
     prestige = 0,
     prestigePoints = 0,
-    resetGame 
-  } = useGameStore();
+    resetGame,
+  } = useGameStore(useShallow((s) => ({
+    totalCoinsEarned: s.totalCoinsEarned,
+    totalHarvests: s.totalHarvests,
+    level: s.level,
+    prestige: s.prestige,
+    prestigePoints: s.prestigePoints,
+    resetGame: s.resetGame,
+  })));
 
   // Calculate potential prestige points based on total progress
   const calculatePrestigePoints = () => {
