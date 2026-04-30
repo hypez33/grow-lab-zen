@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationStore } from '@/store/navigationStore';
 import { Wind, Lock, Check, X, Plus, ShoppingCart, Sparkles, TrendingUp, Zap, Star, Droplets, Mic, MicOff, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,19 +13,29 @@ export const DryRoomScreen = () => {
   const {
     inventory,
     dryingRacks,
-    startDrying,
-    collectDried,
-    buyDryingRack,
-    getDryingRackCost,
     budcoins,
     upgrades,
     salesChannels,
     autoSellSettings,
-    setAutoSellSettings,
     blowStats,
-    updateBlowStats,
-    endBlowSession,
-  } = useGameStore();
+  } = useGameStore(
+    useShallow(s => ({
+      inventory: s.inventory,
+      dryingRacks: s.dryingRacks,
+      budcoins: s.budcoins,
+      upgrades: s.upgrades,
+      salesChannels: s.salesChannels,
+      autoSellSettings: s.autoSellSettings,
+      blowStats: s.blowStats,
+    }))
+  );
+  const startDrying = useGameStore(s => s.startDrying);
+  const collectDried = useGameStore(s => s.collectDried);
+  const buyDryingRack = useGameStore(s => s.buyDryingRack);
+  const getDryingRackCost = useGameStore(s => s.getDryingRackCost);
+  const setAutoSellSettings = useGameStore(s => s.setAutoSellSettings);
+  const updateBlowStats = useGameStore(s => s.updateBlowStats);
+  const endBlowSession = useGameStore(s => s.endBlowSession);
   const [selectedBud, setSelectedBud] = useState<BudItem | null>(null);
   const [showBudPicker, setShowBudPicker] = useState(false);
   const [targetRackId, setTargetRackId] = useState<number | null>(null);

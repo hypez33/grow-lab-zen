@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem, SalesChannel } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { Package, Lock, Clock, TrendingUp, X, Minus, Plus, DollarSign, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,13 +13,22 @@ export const SalesScreen = () => {
     inventory,
     salesChannels,
     level,
-    sellBuds,
-    unlockSalesChannel,
     totalGramsSold,
     totalSalesRevenue,
     autoSellSettings,
-    setAutoSellSettings,
-  } = useGameStore();
+  } = useGameStore(
+    useShallow(s => ({
+      inventory: s.inventory,
+      salesChannels: s.salesChannels,
+      level: s.level,
+      totalGramsSold: s.totalGramsSold,
+      totalSalesRevenue: s.totalSalesRevenue,
+      autoSellSettings: s.autoSellSettings,
+    }))
+  );
+  const sellBuds = useGameStore(s => s.sellBuds);
+  const unlockSalesChannel = useGameStore(s => s.unlockSalesChannel);
+  const setAutoSellSettings = useGameStore(s => s.setAutoSellSettings);
   const [selectedChannel, setSelectedChannel] = useState<SalesChannel | null>(null);
   const [selectedBud, setSelectedBud] = useState<BudItem | null>(null);
   const [sellAmount, setSellAmount] = useState(1);
