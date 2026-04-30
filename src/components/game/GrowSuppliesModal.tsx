@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Droplet, Leaf, ShoppingCart, Check, Sparkles } from 'lucide-react';
 import { useGameStore, FERTILIZER_CATALOG, SOIL_CATALOG, Fertilizer, Soil, Rarity } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 
 interface GrowSuppliesModalProps {
@@ -22,10 +23,18 @@ const getRarityColor = (rarity: Rarity) => {
 };
 
 export const GrowSuppliesModal = ({ isOpen, onClose, slotId, mode }: GrowSuppliesModalProps) => {
-  const { 
-    fertilizerInventory, soilInventory, budcoins,
-    buyFertilizer, buySoil, applyFertilizer, applySoil, growSlots
-  } = useGameStore();
+  const { fertilizerInventory, soilInventory, budcoins, growSlots } = useGameStore(
+    useShallow(s => ({
+      fertilizerInventory: s.fertilizerInventory,
+      soilInventory: s.soilInventory,
+      budcoins: s.budcoins,
+      growSlots: s.growSlots,
+    }))
+  );
+  const buyFertilizer = useGameStore(s => s.buyFertilizer);
+  const buySoil = useGameStore(s => s.buySoil);
+  const applyFertilizer = useGameStore(s => s.applyFertilizer);
+  const applySoil = useGameStore(s => s.applySoil);
   
   const [activeTab, setActiveTab] = useState<'fertilizer' | 'soil'>(mode === 'soil' ? 'soil' : 'fertilizer');
   const isShopMode = mode === 'shop';

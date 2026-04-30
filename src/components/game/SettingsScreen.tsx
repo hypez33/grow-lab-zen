@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SEED_CATALOG } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug, Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { PrestigeSystem } from './PrestigeSystem';
@@ -11,12 +12,26 @@ import { CheatPanel } from './CheatPanel';
 import { RoadmapModal } from './RoadmapModal';
 
 export const SettingsScreen = () => {
-  const { 
-    soundEnabled, musicEnabled, reducedMotion, 
-    toggleSound, toggleMusic, toggleReducedMotion,
-    exportSave, importSave, resetGame,
-    totalHarvests, totalTaps, totalCoinsEarned, gameStarted
-  } = useGameStore();
+  const {
+    soundEnabled, musicEnabled, reducedMotion,
+    totalHarvests, totalTaps, totalCoinsEarned, gameStarted,
+  } = useGameStore(
+    useShallow(s => ({
+      soundEnabled: s.soundEnabled,
+      musicEnabled: s.musicEnabled,
+      reducedMotion: s.reducedMotion,
+      totalHarvests: s.totalHarvests,
+      totalTaps: s.totalTaps,
+      totalCoinsEarned: s.totalCoinsEarned,
+      gameStarted: s.gameStarted,
+    }))
+  );
+  const toggleSound = useGameStore(s => s.toggleSound);
+  const toggleMusic = useGameStore(s => s.toggleMusic);
+  const toggleReducedMotion = useGameStore(s => s.toggleReducedMotion);
+  const exportSave = useGameStore(s => s.exportSave);
+  const importSave = useGameStore(s => s.importSave);
+  const resetGame = useGameStore(s => s.resetGame);
 
   const [showDevPanel, setShowDevPanel] = useState(false);
   const [showRoadmap, setShowRoadmap] = useState(false);
