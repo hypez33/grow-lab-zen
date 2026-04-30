@@ -1342,6 +1342,7 @@ export const useGameStore = create<GameState>()(
       toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
       toggleMusic: () => set((state) => ({ musicEnabled: !state.musicEnabled })),
       toggleReducedMotion: () => set((state) => ({ reducedMotion: !state.reducedMotion })),
+      setPerformanceMode: (value: boolean) => set({ performanceMode: !!value }),
       completeTutorial: () => set({ tutorialComplete: true }),
 
       resetGame: () => {
