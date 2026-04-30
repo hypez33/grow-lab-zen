@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 export type TerritoryDealerType = 'street' | 'business';
 
 export interface TerritoryDealerPower {
