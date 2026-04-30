@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { breedCocaSeeds as breedCocaSeedsLib } from '@/lib/cocaBreedingSystem';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
