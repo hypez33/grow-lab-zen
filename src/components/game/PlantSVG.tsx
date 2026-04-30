@@ -1,14 +1,35 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { PlantStage, Rarity, useGameStore } from '@/store/gameStore';
+import { PlantStage, Rarity } from '@/store/gameStore';
 
 interface PlantSVGProps {
   stage: PlantStage;
   rarity: Rarity;
   traits?: string[];
+  /**
+   * Whether the plant should play idle/loop animations. Set false for
+   * card thumbnails, list items, performance mode, or non-selected
+   * non-ready slots.
+   */
   isAnimated?: boolean;
   size?: number;
-  budGrowth?: number; // 0-100, used for flower stage bud animation
+  /** 0-100 — used for flower stage bud animation. */
+  budGrowth?: number;
+  /**
+   * Cosmetic upgrade levels — passed in by the parent (GrowSlot /
+   * GrowScreen) so PlantSVG never has to subscribe to the upgrades array
+   * itself. This keeps memoization effective: when only resources tick,
+   * PlantSVG does not re-render.
+   */
+  solarGlowLevel?: number;
+  bioLuminLevel?: number;
+  particleLevel?: number;
+  auraLevel?: number;
+  /**
+   * Skip all decorative loops (aura, particles, biolumin pulses, turbo
+   * ring). Used in performance / reduced-motion mode.
+   */
+  disableDecorative?: boolean;
 }
 
 const rarityColors: Record<Rarity, { primary: string; glow: string }> = {
@@ -27,18 +48,41 @@ const stageVariants = {
   harvest: { scale: [1, 1.05, 1], filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1)'], transition: { duration: 1.5, repeat: Infinity } },
 };
 
-const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 120, budGrowth = 0 }: PlantSVGProps) => {
+const PlantSVGImpl = ({
+  stage,
+  rarity,
+  traits = [],
+  isAnimated = true,
+  size = 120,
+  budGrowth = 0,
+  solarGlowLevel = 0,
+  bioLuminLevel = 0,
+  particleLevel = 0,
+  auraLevel = 0,
+  disableDecorative = false,
+}: PlantSVGProps) => {
   const colors = rarityColors[rarity];
   const hasGlitter = traits.includes('Glitter');
   const hasFrost = traits.includes('Frost');
   const hasTurbo = traits.includes('Turbo');
-  
-  // Get upgrade levels for visual effects
-  const upgrades = useGameStore((state) => state.upgrades);
-  const solarGlowLevel = upgrades.find(u => u.id === 'solar-glow')?.level ?? 0;
-  const bioLuminLevel = upgrades.find(u => u.id === 'bioluminescence')?.level ?? 0;
-  const particleLevel = upgrades.find(u => u.id === 'particle-trail')?.level ?? 0;
-  const auraLevel = upgrades.find(u => u.id === 'aura-field')?.level ?? 0;
+
+  // Memoize particle randomness so it doesn't change on every parent
+  // re-render. Counts are halved when decorative motion is disabled.
+  const particleCount = disableDecorative ? 0 : particleLevel * 2 + 2;
+  const particles = useMemo(
+    () =>
+      Array.from({ length: particleCount }, (_, i) => ({
+        key: i,
+        size: 3 + Math.random() * 3,
+        leftPct: 20 + Math.random() * 60,
+        bottomPct: 20 + Math.random() * 40,
+        yEnd: -40 - Math.random() * 30,
+        xDrift: (Math.random() - 0.5) * 20,
+        duration: 2 + Math.random(),
+        delay: i * 0.3,
+      })),
+    [particleCount]
+  );
 
   // Calculate bud sizes based on budGrowth (0-100)
   const budScale = 0.3 + (budGrowth / 100) * 0.7; // 30% to 100% size
@@ -278,9 +322,11 @@ const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 12
   const upgradeGlow = solarGlowLevel > 0 ? `drop-shadow(0 0 ${glowIntensity + 8}px ${colors.glow})` : '';
   const combinedFilter = [baseFilter, upgradeGlow].filter(Boolean).join(' ');
 
+  const decorativeOff = disableDecorative || !isAnimated;
+
   return (
     <motion.div className="relative" style={{ width: size, height: size }}>
-      {/* Aura Field Effect */}
+      {/* Aura Field Effect — animated only when decorations are enabled */}
       {auraLevel > 0 && stage !== 'seed' && (
         <motion.div
           className="absolute inset-0 rounded-full"
@@ -288,55 +334,63 @@ const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 12
             background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)`,
             opacity: 0.3 + auraLevel * 0.15,
           }}
-          animate={{
-            scale: [1, 1.15 + auraLevel * 0.05, 1],
-            opacity: [0.3 + auraLevel * 0.15, 0.15, 0.3 + auraLevel * 0.15],
-          }}
-          transition={{ duration: 2 - auraLevel * 0.3, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            decorativeOff
+              ? undefined
+              : {
+                  scale: [1, 1.15 + auraLevel * 0.05, 1],
+                  opacity: [0.3 + auraLevel * 0.15, 0.15, 0.3 + auraLevel * 0.15],
+                }
+          }
+          transition={
+            decorativeOff
+              ? undefined
+              : { duration: 2 - auraLevel * 0.3, repeat: Infinity, ease: 'easeInOut' }
+          }
         />
       )}
-      
-      {/* Floating Particles Effect */}
-      {particleLevel > 0 && stage !== 'seed' && (
+
+      {/* Floating Particles Effect — skipped entirely under reduced motion */}
+      {particleLevel > 0 && stage !== 'seed' && !decorativeOff && (
         <>
-          {[...Array(particleLevel * 2 + 2)].map((_, i) => (
+          {particles.map((p) => (
             <motion.div
-              key={i}
+              key={p.key}
               className="absolute rounded-full"
               style={{
-                width: 3 + Math.random() * 3,
-                height: 3 + Math.random() * 3,
+                width: p.size,
+                height: p.size,
                 backgroundColor: colors.primary,
-                left: `${20 + Math.random() * 60}%`,
-                bottom: `${20 + Math.random() * 40}%`,
+                left: `${p.leftPct}%`,
+                bottom: `${p.bottomPct}%`,
                 boxShadow: `0 0 6px ${colors.primary}`,
               }}
               animate={{
-                y: [-10, -40 - Math.random() * 30],
-                x: [0, (Math.random() - 0.5) * 20],
+                y: [-10, p.yEnd],
+                x: [0, p.xDrift],
                 opacity: [0.8, 0],
                 scale: [1, 0.5],
               }}
               transition={{
-                duration: 2 + Math.random(),
+                duration: p.duration,
                 repeat: Infinity,
-                delay: i * 0.3,
-                ease: "easeOut",
+                delay: p.delay,
+                ease: 'easeOut',
               }}
             />
           ))}
         </>
       )}
-      
+
       <motion.svg
         width={size}
         height={size}
         viewBox="0 0 120 120"
-        animate={isAnimated ? stageVariants[stage] : undefined}
+        animate={isAnimated && !disableDecorative ? stageVariants[stage] : undefined}
         style={{ filter: combinedFilter || undefined }}
       >
-        {/* Bioluminescence pulse rings */}
-        {bioLuminLevel > 0 && stage !== 'seed' && (
+        {/* Bioluminescence pulse rings — decorative loop */}
+        {bioLuminLevel > 0 && stage !== 'seed' && !decorativeOff && (
           <>
             {[...Array(bioLuminLevel)].map((_, i) => (
               <motion.circle
@@ -356,17 +410,17 @@ const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 12
                   duration: 2,
                   repeat: Infinity,
                   delay: i * 0.6,
-                  ease: "easeOut",
+                  ease: 'easeOut',
                 }}
               />
             ))}
           </>
         )}
-        
+
         {renderPlant()}
-        
-        {/* Turbo effect */}
-        {hasTurbo && stage !== 'seed' && (
+
+        {/* Turbo effect — decorative loop */}
+        {hasTurbo && stage !== 'seed' && !decorativeOff && (
           <motion.circle
             cx="60"
             cy="60"

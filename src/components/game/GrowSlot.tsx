@@ -30,9 +30,29 @@ interface GrowSlotProps {
   onSelect: () => void;
   onOpenSupplies?: (mode: 'fertilizer' | 'soil') => void;
   onWater?: () => void;
+  /** Cosmetic upgrade levels (passed once from GrowScreen, not subscribed per slot). */
+  solarGlowLevel?: number;
+  bioLuminLevel?: number;
+  particleLevel?: number;
+  auraLevel?: number;
+  /** True when reduced-motion / performance-mode is active. */
+  disableDecorative?: boolean;
 }
 
-const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
+const GrowSlotComponent = ({
+  slot,
+  onTap,
+  onHarvest,
+  isSelected,
+  onSelect,
+  onOpenSupplies,
+  onWater,
+  solarGlowLevel = 0,
+  bioLuminLevel = 0,
+  particleLevel = 0,
+  auraLevel = 0,
+  disableDecorative = false,
+}: GrowSlotProps) => {
   const isReady = slot.stage === 'harvest' && slot.progress >= 100;
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
@@ -224,9 +244,9 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
           </div>
         ) : (
           <>
-            {/* Plant visualization with growing animation */}
+            {/* Plant visualization — idle wiggle only when not in reduced motion */}
             <motion.div
-              animate={isGrowing ? {
+              animate={isGrowing && !disableDecorative ? {
                 scale: [1, 1.02, 1],
                 rotate: [-0.5, 0.5, -0.5]
               } : {}}
@@ -238,6 +258,12 @@ const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpe
                 traits={slot.seed!.traits}
                 size={68}
                 budGrowth={slot.budGrowth ?? 0}
+                isAnimated={isSelected || isReady || !disableDecorative}
+                solarGlowLevel={solarGlowLevel}
+                bioLuminLevel={bioLuminLevel}
+                particleLevel={particleLevel}
+                auraLevel={auraLevel}
+                disableDecorative={disableDecorative}
               />
             </motion.div>
 
@@ -405,6 +431,11 @@ export const GrowSlot = memo(GrowSlotComponent, (prev, next) => {
   if (prev.onSelect !== next.onSelect) return false;
   if (prev.onWater !== next.onWater) return false;
   if (prev.onOpenSupplies !== next.onOpenSupplies) return false;
+  if (prev.solarGlowLevel !== next.solarGlowLevel) return false;
+  if (prev.bioLuminLevel !== next.bioLuminLevel) return false;
+  if (prev.particleLevel !== next.particleLevel) return false;
+  if (prev.auraLevel !== next.auraLevel) return false;
+  if (prev.disableDecorative !== next.disableDecorative) return false;
   const a = prev.slot;
   const b = next.slot;
   return (

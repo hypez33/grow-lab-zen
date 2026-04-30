@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, SEED_CATALOG } from '@/store/gameStore';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug, Map as MapIcon } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Music, Music2, Eye, EyeOff, Download, Upload, RotateCcw, Bug, Map as MapIcon, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { PrestigeSystem } from './PrestigeSystem';
 import { AchievementBadges } from './AchievementBadges';
@@ -13,13 +13,14 @@ import { RoadmapModal } from './RoadmapModal';
 
 export const SettingsScreen = () => {
   const {
-    soundEnabled, musicEnabled, reducedMotion,
+    soundEnabled, musicEnabled, reducedMotion, performanceMode,
     totalHarvests, totalTaps, totalCoinsEarned, gameStarted,
   } = useGameStore(
     useShallow(s => ({
       soundEnabled: s.soundEnabled,
       musicEnabled: s.musicEnabled,
       reducedMotion: s.reducedMotion,
+      performanceMode: s.performanceMode,
       totalHarvests: s.totalHarvests,
       totalTaps: s.totalTaps,
       totalCoinsEarned: s.totalCoinsEarned,
@@ -29,6 +30,7 @@ export const SettingsScreen = () => {
   const toggleSound = useGameStore(s => s.toggleSound);
   const toggleMusic = useGameStore(s => s.toggleMusic);
   const toggleReducedMotion = useGameStore(s => s.toggleReducedMotion);
+  const setPerformanceMode = useGameStore(s => s.setPerformanceMode);
   const exportSave = useGameStore(s => s.exportSave);
   const importSave = useGameStore(s => s.importSave);
   const resetGame = useGameStore(s => s.resetGame);
@@ -127,16 +129,24 @@ export const SettingsScreen = () => {
           />
         </div>
 
-        {/* Accessibility */}
+        {/* Accessibility & Performance */}
         <div className="game-card p-4 space-y-3">
-          <h3 className="font-display font-semibold text-muted-foreground">Accessibility</h3>
-          
+          <h3 className="font-display font-semibold text-muted-foreground">Accessibility & Performance</h3>
+
           <ToggleRow
             icon={reducedMotion ? EyeOff : Eye}
             label="Reduced Motion"
             description="Disable animations"
             enabled={reducedMotion}
             onToggle={toggleReducedMotion}
+          />
+
+          <ToggleRow
+            icon={Zap}
+            label="Performance Mode"
+            description="Weniger Animationen für schwächere Geräte. Reduziert Partikel, Daueranimationen und visuelle Effekte."
+            enabled={performanceMode}
+            onToggle={() => setPerformanceMode(!performanceMode)}
           />
         </div>
 
