@@ -322,9 +322,11 @@ const PlantSVGImpl = ({
   const upgradeGlow = solarGlowLevel > 0 ? `drop-shadow(0 0 ${glowIntensity + 8}px ${colors.glow})` : '';
   const combinedFilter = [baseFilter, upgradeGlow].filter(Boolean).join(' ');
 
+  const decorativeOff = disableDecorative || !isAnimated;
+
   return (
     <motion.div className="relative" style={{ width: size, height: size }}>
-      {/* Aura Field Effect */}
+      {/* Aura Field Effect — animated only when decorations are enabled */}
       {auraLevel > 0 && stage !== 'seed' && (
         <motion.div
           className="absolute inset-0 rounded-full"
@@ -332,55 +334,63 @@ const PlantSVGImpl = ({
             background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)`,
             opacity: 0.3 + auraLevel * 0.15,
           }}
-          animate={{
-            scale: [1, 1.15 + auraLevel * 0.05, 1],
-            opacity: [0.3 + auraLevel * 0.15, 0.15, 0.3 + auraLevel * 0.15],
-          }}
-          transition={{ duration: 2 - auraLevel * 0.3, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            decorativeOff
+              ? undefined
+              : {
+                  scale: [1, 1.15 + auraLevel * 0.05, 1],
+                  opacity: [0.3 + auraLevel * 0.15, 0.15, 0.3 + auraLevel * 0.15],
+                }
+          }
+          transition={
+            decorativeOff
+              ? undefined
+              : { duration: 2 - auraLevel * 0.3, repeat: Infinity, ease: 'easeInOut' }
+          }
         />
       )}
-      
-      {/* Floating Particles Effect */}
-      {particleLevel > 0 && stage !== 'seed' && (
+
+      {/* Floating Particles Effect — skipped entirely under reduced motion */}
+      {particleLevel > 0 && stage !== 'seed' && !decorativeOff && (
         <>
-          {[...Array(particleLevel * 2 + 2)].map((_, i) => (
+          {particles.map((p) => (
             <motion.div
-              key={i}
+              key={p.key}
               className="absolute rounded-full"
               style={{
-                width: 3 + Math.random() * 3,
-                height: 3 + Math.random() * 3,
+                width: p.size,
+                height: p.size,
                 backgroundColor: colors.primary,
-                left: `${20 + Math.random() * 60}%`,
-                bottom: `${20 + Math.random() * 40}%`,
+                left: `${p.leftPct}%`,
+                bottom: `${p.bottomPct}%`,
                 boxShadow: `0 0 6px ${colors.primary}`,
               }}
               animate={{
-                y: [-10, -40 - Math.random() * 30],
-                x: [0, (Math.random() - 0.5) * 20],
+                y: [-10, p.yEnd],
+                x: [0, p.xDrift],
                 opacity: [0.8, 0],
                 scale: [1, 0.5],
               }}
               transition={{
-                duration: 2 + Math.random(),
+                duration: p.duration,
                 repeat: Infinity,
-                delay: i * 0.3,
-                ease: "easeOut",
+                delay: p.delay,
+                ease: 'easeOut',
               }}
             />
           ))}
         </>
       )}
-      
+
       <motion.svg
         width={size}
         height={size}
         viewBox="0 0 120 120"
-        animate={isAnimated ? stageVariants[stage] : undefined}
+        animate={isAnimated && !disableDecorative ? stageVariants[stage] : undefined}
         style={{ filter: combinedFilter || undefined }}
       >
-        {/* Bioluminescence pulse rings */}
-        {bioLuminLevel > 0 && stage !== 'seed' && (
+        {/* Bioluminescence pulse rings — decorative loop */}
+        {bioLuminLevel > 0 && stage !== 'seed' && !decorativeOff && (
           <>
             {[...Array(bioLuminLevel)].map((_, i) => (
               <motion.circle
@@ -400,17 +410,17 @@ const PlantSVGImpl = ({
                   duration: 2,
                   repeat: Infinity,
                   delay: i * 0.6,
-                  ease: "easeOut",
+                  ease: 'easeOut',
                 }}
               />
             ))}
           </>
         )}
-        
+
         {renderPlant()}
-        
-        {/* Turbo effect */}
-        {hasTurbo && stage !== 'seed' && (
+
+        {/* Turbo effect — decorative loop */}
+        {hasTurbo && stage !== 'seed' && !decorativeOff && (
           <motion.circle
             cx="60"
             cy="60"
