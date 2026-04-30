@@ -244,9 +244,9 @@ const GrowSlotComponent = ({
           </div>
         ) : (
           <>
-            {/* Plant visualization with growing animation */}
+            {/* Plant visualization — idle wiggle only when not in reduced motion */}
             <motion.div
-              animate={isGrowing ? {
+              animate={isGrowing && !disableDecorative ? {
                 scale: [1, 1.02, 1],
                 rotate: [-0.5, 0.5, -0.5]
               } : {}}
@@ -258,6 +258,12 @@ const GrowSlotComponent = ({
                 traits={slot.seed!.traits}
                 size={68}
                 budGrowth={slot.budGrowth ?? 0}
+                isAnimated={isSelected || isReady || !disableDecorative}
+                solarGlowLevel={solarGlowLevel}
+                bioLuminLevel={bioLuminLevel}
+                particleLevel={particleLevel}
+                auraLevel={auraLevel}
+                disableDecorative={disableDecorative}
               />
             </motion.div>
 
