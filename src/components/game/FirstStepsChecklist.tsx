@@ -2,13 +2,23 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useOnboardingStore, OnboardingStep } from '@/store/onboardingStore';
 
 interface StepDef {
   id: OnboardingStep;
   label: string;
-  /** Auto-detected from game state — true if completed even without manual mark */
-  isDone: (s: ReturnType<typeof useGameStore.getState>) => boolean;
+  /** Auto-detected from store slice — true if completed even without manual mark */
+  isDone: (s: ChecklistState) => boolean;
+}
+
+// Only the slice of state we actually need to detect step completion.
+interface ChecklistState {
+  growSlots: ReturnType<typeof useGameStore.getState>['growSlots'];
+  totalHarvests: number;
+  inventory: ReturnType<typeof useGameStore.getState>['inventory'];
+  dryingRacks: ReturnType<typeof useGameStore.getState>['dryingRacks'];
+  totalCoinsEarned: number;
 }
 
 const STEPS: StepDef[] = [
@@ -21,7 +31,16 @@ const STEPS: StepDef[] = [
 
 export const FirstStepsChecklist = () => {
   const level = useGameStore(s => s.level);
-  const gameState = useGameStore();
+  // Targeted slice instead of subscribing to the whole game store.
+  const sliceState = useGameStore(
+    useShallow<ChecklistState>(s => ({
+      growSlots: s.growSlots,
+      totalHarvests: s.totalHarvests,
+      inventory: s.inventory,
+      dryingRacks: s.dryingRacks,
+      totalCoinsEarned: s.totalCoinsEarned,
+    }))
+  );
   const completedSteps = useOnboardingStore(s => s.completedSteps);
   const dismissed = useOnboardingStore(s => s.checklistDismissed);
   const dismissChecklist = useOnboardingStore(s => s.dismissChecklist);
@@ -29,9 +48,9 @@ export const FirstStepsChecklist = () => {
   const stepsWithStatus = useMemo(
     () => STEPS.map(step => ({
       ...step,
-      done: completedSteps.includes(step.id) || step.isDone(gameState),
+      done: completedSteps.includes(step.id) || step.isDone(sliceState),
     })),
-    [completedSteps, gameState]
+    [completedSteps, sliceState]
   );
 
   const allDone = stepsWithStatus.every(s => s.done);
