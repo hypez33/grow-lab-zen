@@ -517,6 +517,7 @@ export const useGameStore = create<GameState>()(
       soundEnabled: true,
       musicEnabled: true,
       reducedMotion: false,
+      performanceMode: false,
       tutorialComplete: false,
 
       totalHarvests: 0,
