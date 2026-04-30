@@ -1963,7 +1963,7 @@ export const useCustomerStore = create<CustomerState>()(
             xpReward: req.xpReward ?? Math.max(2, Math.floor((req.gramsRequested ?? 1) * 1)),
           };
         };
-        return {
+        const migrated: any = {
           ...persistedState,
           customers: Array.isArray(persistedState.customers)
             ? persistedState.customers.map((customer: Customer) => {
