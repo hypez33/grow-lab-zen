@@ -2012,6 +2012,21 @@ export const useCustomerStore = create<CustomerState>()(
             ? persistedState.nextProspectAtMinutes
             : 0,
         };
+
+        // Cap per-customer history arrays so old saves don't carry unbounded data
+        if (Array.isArray(migrated.customers)) {
+          migrated.customers = migrated.customers.map((c: any) => ({
+            ...c,
+            messages: Array.isArray(c.messages) && c.messages.length > LOG_LIMITS.customerMessages
+              ? c.messages.slice(-LOG_LIMITS.customerMessages)
+              : (c.messages ?? []),
+            requestHistory: Array.isArray(c.requestHistory) && c.requestHistory.length > LOG_LIMITS.requestHistory
+              ? c.requestHistory.slice(-LOG_LIMITS.requestHistory)
+              : (c.requestHistory ?? []),
+          }));
+        }
+
+        return migrated;
       },
     }
   )
