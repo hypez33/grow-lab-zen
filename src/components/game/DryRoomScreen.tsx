@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, BudItem } from '@/store/gameStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { BudIcon } from './BudIcon';
 import { useBlowDetection } from '@/hooks/useBlowDetection';
+import { useMotionPrefs } from '@/hooks/useMotionPrefs';
 
 export const DryRoomScreen = () => {
   const {
