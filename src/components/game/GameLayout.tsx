@@ -19,6 +19,7 @@ const KoksScreen = lazy(() => import('./KoksScreen').then(m => ({ default: m.Kok
 const MethScreen = lazy(() => import('./MethScreen').then(m => ({ default: m.MethScreen })));
 const CustomersScreen = lazy(() => import('./CustomersScreen').then(m => ({ default: m.CustomersScreen })));
 const TerritoryScreen = lazy(() => import('./TerritoryScreen').then(m => ({ default: m.TerritoryScreen })));
+import { ScreenLoader } from './ScreenLoader';
 import { LevelUpPopup } from './LevelUpPopup';
 import { useGameStore } from '@/store/gameStore';
 import { useShallow } from 'zustand/react/shallow';
