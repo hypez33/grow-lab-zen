@@ -964,6 +964,7 @@ export const useBusinessStore = create<BusinessState>()(
     }),
     {
       name: 'business-save',
+      storage: debouncedJSONStorage,
       version: 5,
       migrate: (persistedState: any) => {
         const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
