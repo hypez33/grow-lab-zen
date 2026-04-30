@@ -1013,10 +1013,10 @@ export const useBusinessStore = create<BusinessState>()(
 
         const shipments = Array.isArray(state.shipments) ? state.shipments : [];
         const businessLogs = Array.isArray(state.businessLogs)
-          ? state.businessLogs.slice(0, BUSINESS_LOG_LIMIT)
+          ? state.businessLogs.slice(0, Math.min(BUSINESS_LOG_LIMIT, LOG_LIMITS.businessLogs))
           : [];
         const businessEvents = Array.isArray(state.businessEvents)
-          ? state.businessEvents.slice(0, BUSINESS_EVENT_LIMIT)
+          ? state.businessEvents.slice(0, Math.min(BUSINESS_EVENT_LIMIT, LOG_LIMITS.businessEvents))
           : [];
 
         const persistedCapacity = Number.isFinite(state.warehouseCapacity) ? state.warehouseCapacity : 0;
