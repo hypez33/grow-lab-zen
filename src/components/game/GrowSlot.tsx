@@ -30,9 +30,29 @@ interface GrowSlotProps {
   onSelect: () => void;
   onOpenSupplies?: (mode: 'fertilizer' | 'soil') => void;
   onWater?: () => void;
+  /** Cosmetic upgrade levels (passed once from GrowScreen, not subscribed per slot). */
+  solarGlowLevel?: number;
+  bioLuminLevel?: number;
+  particleLevel?: number;
+  auraLevel?: number;
+  /** True when reduced-motion / performance-mode is active. */
+  disableDecorative?: boolean;
 }
 
-const GrowSlotComponent = ({ slot, onTap, onHarvest, isSelected, onSelect, onOpenSupplies, onWater }: GrowSlotProps) => {
+const GrowSlotComponent = ({
+  slot,
+  onTap,
+  onHarvest,
+  isSelected,
+  onSelect,
+  onOpenSupplies,
+  onWater,
+  solarGlowLevel = 0,
+  bioLuminLevel = 0,
+  particleLevel = 0,
+  auraLevel = 0,
+  disableDecorative = false,
+}: GrowSlotProps) => {
   const isReady = slot.stage === 'harvest' && slot.progress >= 100;
   const isEmpty = !slot.seed;
   const isLocked = !slot.isUnlocked;
