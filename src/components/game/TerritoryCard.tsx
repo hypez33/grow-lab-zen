@@ -218,4 +218,4 @@ export const TerritoryCard = memo(function TerritoryCardImpl({
       </div>
     </motion.div>
   );
-};
+});
