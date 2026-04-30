@@ -13,13 +13,14 @@ import { RoadmapModal } from './RoadmapModal';
 
 export const SettingsScreen = () => {
   const {
-    soundEnabled, musicEnabled, reducedMotion,
+    soundEnabled, musicEnabled, reducedMotion, performanceMode,
     totalHarvests, totalTaps, totalCoinsEarned, gameStarted,
   } = useGameStore(
     useShallow(s => ({
       soundEnabled: s.soundEnabled,
       musicEnabled: s.musicEnabled,
       reducedMotion: s.reducedMotion,
+      performanceMode: s.performanceMode,
       totalHarvests: s.totalHarvests,
       totalTaps: s.totalTaps,
       totalCoinsEarned: s.totalCoinsEarned,
@@ -29,6 +30,7 @@ export const SettingsScreen = () => {
   const toggleSound = useGameStore(s => s.toggleSound);
   const toggleMusic = useGameStore(s => s.toggleMusic);
   const toggleReducedMotion = useGameStore(s => s.toggleReducedMotion);
+  const setPerformanceMode = useGameStore(s => s.setPerformanceMode);
   const exportSave = useGameStore(s => s.exportSave);
   const importSave = useGameStore(s => s.importSave);
   const resetGame = useGameStore(s => s.resetGame);
