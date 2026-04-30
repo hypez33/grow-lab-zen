@@ -1524,6 +1524,7 @@ export const useCocaStore = create<CocaState>()(
     }),
     {
       name: 'coca-lab-save',
+      storage: debouncedJSONStorage,
       version: 7,
       migrate: (persistedState: any, version: number) => {
         // Always ensure all COCA_WORKERS are in the state
