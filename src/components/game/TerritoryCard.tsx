@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Territory, TerritoryBonus } from '@/store/territoryStore';
 import { Users, Flame, Shield, Crown, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -83,13 +84,13 @@ const getDifficultyBadge = (difficulty: string) => {
   }
 };
 
-export const TerritoryCard = ({
+export const TerritoryCard = memo(function TerritoryCardImpl({
   territory,
   activeBonuses,
   assignedCount,
   nextContestLabel,
   onManage,
-}: TerritoryCardProps) => {
+}: TerritoryCardProps) {
   const tier = getControlTier(territory.control);
   const colors = getTierColors(tier);
   const passiveIncome = territory.control >= 100 ? territory.passiveIncome : 0;
