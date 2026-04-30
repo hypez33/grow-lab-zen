@@ -260,12 +260,14 @@ const DevInfo = () => {
   const [revenueHistory, setRevenueHistory] = useState<number[]>([]);
   const lastTrackedCoinsRef = useRef(0);
   
-  const {
-    workers,
-    totalSalesRevenue,
-    totalGramsSold,
-    totalCoinsEarned,
-  } = useGameStore();
+  const { workers, totalSalesRevenue, totalGramsSold, totalCoinsEarned } = useGameStore(
+    useShallow(s => ({
+      workers: s.workers,
+      totalSalesRevenue: s.totalSalesRevenue,
+      totalGramsSold: s.totalGramsSold,
+      totalCoinsEarned: s.totalCoinsEarned,
+    }))
+  );
   
   // FPS counter
   useEffect(() => {
