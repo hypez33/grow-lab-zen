@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { debouncedJSONStorage } from '@/lib/persistStorage';
+import { LOG_LIMITS } from '@/lib/arrayLimits';
 import { useTerritoryStore } from '@/store/territoryStore';
 
 export type BusinessDrug = 'weed' | 'koks';
