@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, Seed, SEED_CATALOG, GrowSlot as GrowSlotType } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationStore } from '@/store/navigationStore';
 import { GrowSlot } from './GrowSlot';
 import { GrowSuppliesModal } from './GrowSuppliesModal';
@@ -217,11 +218,32 @@ const calculateHarvestBreakdown = (slot: GrowSlotType, state: ReturnType<typeof 
 };
 
 export const GrowScreen = () => {
-  const { 
+  const {
     growSlots, seeds, budcoins, resin, essence, gems, level, xp,
-    tapBatch, harvest, plantSeed, updateProgress, calculateOfflineProgress,
-    tutorialComplete, completeTutorial, buyUpgrade, upgrades, waterPlant, waterAllPlants
-  } = useGameStore();
+    tutorialComplete, upgrades,
+  } = useGameStore(
+    useShallow(s => ({
+      growSlots: s.growSlots,
+      seeds: s.seeds,
+      budcoins: s.budcoins,
+      resin: s.resin,
+      essence: s.essence,
+      gems: s.gems,
+      level: s.level,
+      xp: s.xp,
+      tutorialComplete: s.tutorialComplete,
+      upgrades: s.upgrades,
+    }))
+  );
+  const tapBatch = useGameStore(s => s.tapBatch);
+  const harvest = useGameStore(s => s.harvest);
+  const plantSeed = useGameStore(s => s.plantSeed);
+  const updateProgress = useGameStore(s => s.updateProgress);
+  const calculateOfflineProgress = useGameStore(s => s.calculateOfflineProgress);
+  const completeTutorial = useGameStore(s => s.completeTutorial);
+  const buyUpgrade = useGameStore(s => s.buyUpgrade);
+  const waterPlant = useGameStore(s => s.waterPlant);
+  const waterAllPlants = useGameStore(s => s.waterAllPlants);
   
   const { playTap, playHarvest } = useGameSounds();
   const { emitBurst } = useCanvasParticles();
