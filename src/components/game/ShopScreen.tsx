@@ -202,7 +202,44 @@ export const ShopScreen = () => {
   const customersUnlocked = isFeatureUnlocked('customers', level);
 
   // ----- recommendation list (shared bottleneck detector) ----------------
+  // Use a small primitive cache key so this only re-runs when the player's
+  // situation actually changes — not on every tick that mutates the
+  // underlying arrays.
   const visited = useOnboardingStore(s => s.visitedFeatures);
+  const recoCacheKey = useMemo(() => {
+    let empty = 0, thirsty = 0, ready = 0;
+    for (const slot of growSlots) {
+      if (!slot.isUnlocked) continue;
+      if (!slot.seed) empty++;
+      else {
+        if (slot.waterLevel < 25) thirsty++;
+        if (slot.stage === 'harvest' && slot.progress >= 100) ready++;
+      }
+    }
+    let wet = 0, dried = 0;
+    for (const b of inventory) {
+      if (b.state === 'wet') wet++;
+      else if (b.state === 'dried') dried++;
+    }
+    let freeRacks = 0, fullRacks = 0;
+    for (const r of dryingRacks) {
+      if (!r.isUnlocked) continue;
+      if (!r.bud) freeRacks++;
+      else if (r.bud.dryingProgress >= 100) fullRacks++;
+    }
+    const pending = (customers ?? []).reduce((n, c) => (c.pendingRequest ? n + 1 : n), 0);
+    const owned = (businesses ?? []).filter(b => b.owned).length;
+    const dealers = (territories ?? []).reduce((n, t) => n + ((t.assignedDealerIds ?? []).length), 0);
+    return [
+      empty, thirsty, ready, wet, dried, freeRacks, fullRacks,
+      pending, owned, dealers,
+      level, seeds.length, workers.length,
+      autoSellSettings?.enabled ? 1 : 0,
+      visited.length,
+    ].join('|');
+  }, [growSlots, inventory, dryingRacks, customers, businesses, territories,
+      level, seeds.length, workers.length, autoSellSettings?.enabled, visited.length]);
+
   const recommendations = useMemo<Recommendation[]>(() => {
     const ctx = getBottleneckCtx(visited as string[]);
     const hints = detectBottlenecks(ctx);
@@ -228,10 +265,8 @@ export const ShopScreen = () => {
       goToScreen: h.action as FeatureId | undefined,
       severity: h.severity,
     }));
-  }, [
-    visited, level, budcoins, growSlots, seeds.length, inventory, dryingRacks, customers,
-    workers, autoSellSettings, businesses, territories,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recoCacheKey]);
 
   // ----- handlers --------------------------------------------------------
   const handleBuyUpgrade = (upgradeId: string, cost: number) => {
