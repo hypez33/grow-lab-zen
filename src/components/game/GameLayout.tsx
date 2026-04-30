@@ -1,22 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map, Lock, MoreHorizontal, X as CloseIcon } from 'lucide-react';
 import { isFeatureUnlocked, FEATURE_UNLOCKS } from '@/lib/progression';
 import { useOnboardingStore } from '@/store/onboardingStore';
+// Eager: core early-game loop
 import { GrowScreen } from './GrowScreen';
-import { ShopScreen } from './ShopScreen';
-import { SkillsScreen } from './SkillsScreen';
-import { GeneticsScreen } from './GeneticsScreen';
-import { QuestsScreen } from './QuestsScreen';
-import { SettingsScreen } from './SettingsScreen';
-import { CollectionScreen } from './CollectionScreen';
 import { DryRoomScreen } from './DryRoomScreen';
 
-import { BusinessScreen } from './BusinessScreen';
-import { KoksScreen } from './KoksScreen';
-import { MethScreen } from './MethScreen';
-import { CustomersScreen } from './CustomersScreen';
-import { TerritoryScreen } from './TerritoryScreen';
+// Lazy-loaded heavy/optional screens — wrap named exports as default
+const ShopScreen = lazy(() => import('./ShopScreen').then(m => ({ default: m.ShopScreen })));
+const SkillsScreen = lazy(() => import('./SkillsScreen').then(m => ({ default: m.SkillsScreen })));
+const GeneticsScreen = lazy(() => import('./GeneticsScreen').then(m => ({ default: m.GeneticsScreen })));
+const QuestsScreen = lazy(() => import('./QuestsScreen').then(m => ({ default: m.QuestsScreen })));
+const SettingsScreen = lazy(() => import('./SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const CollectionScreen = lazy(() => import('./CollectionScreen').then(m => ({ default: m.CollectionScreen })));
+const BusinessScreen = lazy(() => import('./BusinessScreen').then(m => ({ default: m.BusinessScreen })));
+const KoksScreen = lazy(() => import('./KoksScreen').then(m => ({ default: m.KoksScreen })));
+const MethScreen = lazy(() => import('./MethScreen').then(m => ({ default: m.MethScreen })));
+const CustomersScreen = lazy(() => import('./CustomersScreen').then(m => ({ default: m.CustomersScreen })));
+const TerritoryScreen = lazy(() => import('./TerritoryScreen').then(m => ({ default: m.TerritoryScreen })));
+import { ScreenLoader } from './ScreenLoader';
 import { LevelUpPopup } from './LevelUpPopup';
 import { useGameStore } from '@/store/gameStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -372,22 +375,24 @@ export const GameLayout = () => {
   };
 
   const renderScreen = () => {
+    let node: JSX.Element;
     switch (activeScreen) {
-      case 'grow': return <GrowScreen />;
-      case 'dryroom': return <DryRoomScreen />;
-      case 'customers': return <CustomersScreen />;
-      case 'turf': return <TerritoryScreen />;
-      case 'business': return <BusinessScreen />;
-      case 'koks': return <KoksScreen />;
-      case 'meth': return <MethScreen />;
-      case 'shop': return <ShopScreen />;
-      case 'genetics': return <GeneticsScreen />;
-      case 'skills': return <SkillsScreen />;
-      case 'collection': return <CollectionScreen />;
-      case 'quests': return <QuestsScreen />;
-      case 'settings': return <SettingsScreen />;
-      default: return <GrowScreen />;
+      case 'grow': node = <GrowScreen />; break;
+      case 'dryroom': node = <DryRoomScreen />; break;
+      case 'customers': node = <CustomersScreen />; break;
+      case 'turf': node = <TerritoryScreen />; break;
+      case 'business': node = <BusinessScreen />; break;
+      case 'koks': node = <KoksScreen />; break;
+      case 'meth': node = <MethScreen />; break;
+      case 'shop': node = <ShopScreen />; break;
+      case 'genetics': node = <GeneticsScreen />; break;
+      case 'skills': node = <SkillsScreen />; break;
+      case 'collection': node = <CollectionScreen />; break;
+      case 'quests': node = <QuestsScreen />; break;
+      case 'settings': node = <SettingsScreen />; break;
+      default: node = <GrowScreen />;
     }
+    return <Suspense fallback={<ScreenLoader />}>{node}</Suspense>;
   };
 
   return (
