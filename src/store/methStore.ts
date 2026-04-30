@@ -1028,6 +1028,7 @@ export const useMethStore = create<MethState>()(
     }),
     {
       name: 'meth-lab-save',
+      storage: debouncedJSONStorage,
       version: 6,
       migrate: (persistedState: any, version: number) => {
         if (!persistedState) return persistedState;
