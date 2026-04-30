@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useGameStore, SEED_CATALOG, COLLECTION_BONUSES, Rarity, Seed } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { PlantSVG } from './PlantSVG';
 import { Book, Check, Lock, Gift, Sparkles, Dna } from 'lucide-react';
 import { getGenerationDisplay } from '@/lib/breedingSystem';
