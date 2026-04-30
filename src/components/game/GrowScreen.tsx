@@ -13,6 +13,7 @@ import { GoldenHourEvent } from './GoldenHourEvent';
 import { LiveStatsPanel } from './LiveStatsPanel';
 import { QuickActionsBar } from './QuickActionsBar';
 import { MiniDashboard } from './MiniDashboard';
+import { useMotionPrefs } from '@/hooks/useMotionPrefs';
 import { MilestoneHUD } from './MilestoneHUD';
 import { FirstStepsChecklist } from './FirstStepsChecklist';
 import { toast } from 'sonner';
