@@ -14,6 +14,7 @@ import {
 import type { MethLogType } from '@/store/methStore';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const stageLabels: Record<MethStage, string> = {
   maceration: 'Mazeration',
@@ -131,7 +132,26 @@ export const MethScreen = () => {
     totalMethCooked,
     totalMethSold,
     totalMethRevenue,
-  } = useMethStore();
+  } = useMethStore(useShallow((s) => ({
+    precursors: s.precursors,
+    methSlots: s.methSlots,
+    methInventory: s.methInventory,
+    methCustomers: s.methCustomers,
+    methSamples: s.methSamples,
+    methProspects: s.methProspects,
+    methActivityLogs: s.methActivityLogs,
+    methWorkers: s.methWorkers,
+    buyPrecursors: s.buyPrecursors,
+    unlockMethSlot: s.unlockMethSlot,
+    startMethCook: s.startMethCook,
+    collectMeth: s.collectMeth,
+    sellMethProduct: s.sellMethProduct,
+    createMethSamples: s.createMethSamples,
+    acquireMethCustomer: s.acquireMethCustomer,
+    totalMethCooked: s.totalMethCooked,
+    totalMethSold: s.totalMethSold,
+    totalMethRevenue: s.totalMethRevenue,
+  })));
 
   const budcoins = useGameStore(state => state.budcoins);
   const cocaWorkers = useCocaStore(state => state.cocaWorkers);

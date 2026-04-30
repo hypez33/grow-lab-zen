@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCocaStore, CocaSeed, CocaLeaves, CocaProduct } from '@/store/cocaStore';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { CocaPlantSVG } from './CocaPlantSVG';
 import { toast } from 'sonner';
 import { X, Zap, Lock, Unlock, Beaker, FlaskConical, Sparkles, Leaf, Package, DollarSign, ChevronDown, ChevronUp, Settings, Dna, Snowflake } from 'lucide-react';
@@ -63,9 +64,29 @@ export const KoksScreen = () => {
     startProcessing, collectProcessed,
     buyCocaUpgrade, sellCocaProduct, totalCocaHarvests, totalPowderProduced,
     unlockProcessingStation, breedCocaSeeds,
-  } = useCocaStore();
+  } = useCocaStore(useShallow((s) => ({
+    cocaGrowSlots: s.cocaGrowSlots,
+    cocaSeeds: s.cocaSeeds,
+    cocaLeaves: s.cocaLeaves,
+    cocaProducts: s.cocaProducts,
+    processingStations: s.processingStations,
+    cocaUpgrades: s.cocaUpgrades,
+    cocaWorkers: s.cocaWorkers,
+    cocaActivityLogs: s.cocaActivityLogs,
+    cocaTapBatch: s.cocaTapBatch,
+    plantCocaSeed: s.plantCocaSeed,
+    harvestCoca: s.harvestCoca,
+    startProcessing: s.startProcessing,
+    collectProcessed: s.collectProcessed,
+    buyCocaUpgrade: s.buyCocaUpgrade,
+    sellCocaProduct: s.sellCocaProduct,
+    totalCocaHarvests: s.totalCocaHarvests,
+    totalPowderProduced: s.totalPowderProduced,
+    unlockProcessingStation: s.unlockProcessingStation,
+    breedCocaSeeds: s.breedCocaSeeds,
+  })));
 
-  const { budcoins } = useGameStore();
+  const budcoins = useGameStore((s) => s.budcoins);
   const updateBudcoins = (amount: number) => {
     useGameStore.setState(state => ({ budcoins: state.budcoins + amount }));
   };
