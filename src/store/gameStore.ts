@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { getFeaturesUnlockedAt } from '@/lib/progression';
