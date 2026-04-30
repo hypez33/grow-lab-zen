@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Star, Lock, Check, Sparkles, Gift, Coins } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 
 interface AchievementReward {
@@ -39,11 +40,23 @@ export const AchievementBadges = () => {
   const [showPopup, setShowPopup] = useState<Achievement | null>(null);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
   
-  const { 
-    totalHarvests, totalCoinsEarned, totalTaps, level, workers, 
+  const {
+    totalHarvests, totalCoinsEarned, totalTaps, level, workers,
     discoveredSeeds, seeds, claimedAchievements, totalBreedings,
-    claimAchievement 
-  } = useGameStore();
+  } = useGameStore(
+    useShallow(s => ({
+      totalHarvests: s.totalHarvests,
+      totalCoinsEarned: s.totalCoinsEarned,
+      totalTaps: s.totalTaps,
+      level: s.level,
+      workers: s.workers,
+      discoveredSeeds: s.discoveredSeeds,
+      seeds: s.seeds,
+      claimedAchievements: s.claimedAchievements,
+      totalBreedings: s.totalBreedings,
+    }))
+  );
+  const claimAchievement = useGameStore(s => s.claimAchievement);
 
   // Count legendary seeds in inventory
   const legendarySeeds = seeds.filter(s => s.rarity === 'legendary').length;

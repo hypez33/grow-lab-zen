@@ -19,6 +19,7 @@ import { CustomersScreen } from './CustomersScreen';
 import { TerritoryScreen } from './TerritoryScreen';
 import { LevelUpPopup } from './LevelUpPopup';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationStore, Screen } from '@/store/navigationStore';
 import { useBackgroundMusic } from '@/hooks/useBackgroundMusic';
 import { useScreenShake } from '@/hooks/useScreenShake';
@@ -258,13 +259,15 @@ export const GameLayout = () => {
     }
   };
 
-  // Per-tab urgency badges (recomputed cheaply each render)
-  const gameState = useGameStore();
-  const customerState = useCustomerStore();
-  const harvestReady = gameState.growSlots.filter(s => s.stage === 'harvest' && s.progress >= 100).length;
-  const dryReady = gameState.dryingRacks.filter(r => r.bud && r.bud.dryingProgress >= 100).length;
-  const driedStock = gameState.inventory.filter(b => b.state === 'dried').length;
-  const waitingCustomers = customerState.customers?.length ?? 0;
+  // Per-tab urgency badges — derive only the small primitives we need so this
+  // component does not re-render on every store mutation.
+  const harvestReady = useGameStore(s =>
+    s.growSlots.reduce((n, slot) => (slot.stage === 'harvest' && slot.progress >= 100 ? n + 1 : n), 0)
+  );
+  const dryReady = useGameStore(s =>
+    s.dryingRacks.reduce((n, r) => (r.bud && r.bud.dryingProgress >= 100 ? n + 1 : n), 0)
+  );
+  const waitingCustomers = useCustomerStore(s => s.customers?.length ?? 0);
 
   const allNavItems = [
     { id: 'grow' as Screen, icon: Home, label: 'Grow', badge: harvestReady },
@@ -283,7 +286,7 @@ export const GameLayout = () => {
 
   // Split into primary (always visible if unlocked) + secondary (in More drawer)
   const PRIMARY_IDS: Screen[] = ['grow', 'dryroom', 'customers', 'shop'];
-  const currentLevelForGate = gameState.level;
+  const currentLevelForGate = currentLevel;
 
   const primaryItems = allNavItems.filter(i => PRIMARY_IDS.includes(i.id));
   const secondaryItems = allNavItems.filter(i => !PRIMARY_IDS.includes(i.id));

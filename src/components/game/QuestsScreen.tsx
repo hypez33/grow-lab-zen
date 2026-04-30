@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useCocaStore, CocaQuest } from '@/store/cocaStore';
 import { ResourceIcon } from './ResourceIcon';
 import { CheckCircle, Gift, Clock, Trophy, Snowflake, Leaf } from 'lucide-react';
@@ -8,8 +9,14 @@ import { useQuestStreakStore } from '@/store/questStreakStore';
 import { QuestStreakBadge } from './QuestStreakBadge';
 
 export const QuestsScreen = () => {
-  const { quests, claimQuest, budcoins, gems } = useGameStore();
-  const { cocaQuests, claimCocaQuest, cocaSeeds } = useCocaStore();
+  const { quests, budcoins, gems } = useGameStore(
+    useShallow(s => ({ quests: s.quests, budcoins: s.budcoins, gems: s.gems }))
+  );
+  const claimQuest = useGameStore(s => s.claimQuest);
+  const { cocaQuests, cocaSeeds } = useCocaStore(
+    useShallow(s => ({ cocaQuests: s.cocaQuests, cocaSeeds: s.cocaSeeds }))
+  );
+  const claimCocaQuest = useCocaStore(s => s.claimCocaQuest);
   const registerQuestClaim = useQuestStreakStore(s => s.registerQuestClaim);
 
   const handleClaimWeed = (id: string) => {

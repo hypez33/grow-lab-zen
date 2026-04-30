@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useGameStore, SEED_CATALOG, COLLECTION_BONUSES, Rarity, Seed } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { PlantSVG } from './PlantSVG';
 import { Book, Check, Lock, Gift, Sparkles, Dna } from 'lucide-react';
 import { getGenerationDisplay } from '@/lib/breedingSystem';
@@ -31,7 +32,13 @@ const rarityGlow: Record<Rarity, string> = {
 };
 
 export const CollectionScreen = () => {
-  const { discoveredSeeds, getCollectionBonus, discoveredHybridSeeds } = useGameStore();
+  const { discoveredSeeds, discoveredHybridSeeds } = useGameStore(
+    useShallow(s => ({
+      discoveredSeeds: s.discoveredSeeds,
+      discoveredHybridSeeds: s.discoveredHybridSeeds,
+    }))
+  );
+  const getCollectionBonus = useGameStore(s => s.getCollectionBonus);
 
   const totalSeeds = SEED_CATALOG.length;
   const discoveredCount = discoveredSeeds.length;

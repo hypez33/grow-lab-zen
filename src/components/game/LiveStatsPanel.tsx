@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Activity, Zap, BarChart3, Clock, Flame, Target, Award } from 'lucide-react';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 
 interface StatData {
   value: number;
@@ -22,7 +23,15 @@ export const LiveStatsPanel = () => {
   const lastHarvestsRef = useRef(0);
   const sessionStartRef = useRef(Date.now());
 
-  const { totalCoinsEarned, totalHarvests, workers, growSlots, level } = useGameStore();
+  const { totalCoinsEarned, totalHarvests, workers, growSlots, level } = useGameStore(
+    useShallow(s => ({
+      totalCoinsEarned: s.totalCoinsEarned,
+      totalHarvests: s.totalHarvests,
+      workers: s.workers,
+      growSlots: s.growSlots,
+      level: s.level,
+    }))
+  );
 
   // Track stats every second
   useEffect(() => {

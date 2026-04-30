@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSmartCoach } from '@/hooks/useSmartCoach';
 import { TrendingUp, Sprout, Package, DollarSign, Star, Sparkles, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
@@ -8,6 +9,8 @@ import { getCurrentRank, getNextRank, getRankProgress, getRankStats } from '@/da
 import { SEVERITY_CLASS, SEVERITY_ICON_COLOR } from '@/lib/bottlenecks';
 
 export const MiniDashboard = () => {
+  // Targeted, shallow-compared selector — only re-render when these primitives
+  // / arrays actually change references.
   const {
     budcoins,
     level,
@@ -20,9 +23,24 @@ export const MiniDashboard = () => {
     reputation,
     heat,
     maxHeat,
-    getReputationTier,
-    getHeatLevel,
-  } = useGameStore();
+  } = useGameStore(
+    useShallow(s => ({
+      budcoins: s.budcoins,
+      level: s.level,
+      xp: s.xp,
+      totalGramsHarvested: s.totalGramsHarvested,
+      inventory: s.inventory,
+      growSlots: s.growSlots,
+      workers: s.workers,
+      dealerActivities: s.dealerActivities,
+      reputation: s.reputation,
+      heat: s.heat,
+      maxHeat: s.maxHeat,
+    }))
+  );
+  // Methods — stable references in zustand, safe to grab via getState helpers.
+  const getReputationTier = useGameStore(s => s.getReputationTier);
+  const getHeatLevel = useGameStore(s => s.getHeatLevel);
   const tier = getReputationTier();
   const heatLevel = getHeatLevel();
   const setActiveScreen = useNavigationStore(s => s.setActiveScreen);

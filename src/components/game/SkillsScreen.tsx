@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useGameStore, SkillNode, SkillPath } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Coins, Sparkles, Cpu, Lock, Check } from 'lucide-react';
 
 const pathConfig: Record<SkillPath, { label: string; icon: typeof Coins; color: string; bgColor: string }> = {
@@ -9,7 +10,10 @@ const pathConfig: Record<SkillPath, { label: string; icon: typeof Coins; color: 
 };
 
 export const SkillsScreen = () => {
-  const { skills, skillPoints, level, unlockSkill } = useGameStore();
+  const { skills, skillPoints, level } = useGameStore(
+    useShallow(s => ({ skills: s.skills, skillPoints: s.skillPoints, level: s.level }))
+  );
+  const unlockSkill = useGameStore(s => s.unlockSkill);
 
   const paths: SkillPath[] = ['producer', 'alchemist', 'engineer'];
 

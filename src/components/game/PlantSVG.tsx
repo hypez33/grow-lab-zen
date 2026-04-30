@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { PlantStage, Rarity, useGameStore } from '@/store/gameStore';
 
@@ -26,7 +27,7 @@ const stageVariants = {
   harvest: { scale: [1, 1.05, 1], filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1)'], transition: { duration: 1.5, repeat: Infinity } },
 };
 
-export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size = 120, budGrowth = 0 }: PlantSVGProps) => {
+const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 120, budGrowth = 0 }: PlantSVGProps) => {
   const colors = rarityColors[rarity];
   const hasGlitter = traits.includes('Glitter');
   const hasFrost = traits.includes('Frost');
@@ -382,3 +383,4 @@ export const PlantSVG = ({ stage, rarity, traits = [], isAnimated = true, size =
     </motion.div>
   );
 };
+export const PlantSVG = memo(PlantSVGImpl);

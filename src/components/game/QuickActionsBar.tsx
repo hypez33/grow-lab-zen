@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSmartCoach } from '@/hooks/useSmartCoach';
 import { SEVERITY_CLASS, SEVERITY_ICON_COLOR } from '@/lib/bottlenecks';
@@ -9,7 +10,16 @@ import { toast } from 'sonner';
 import { GrowSuppliesModal } from './GrowSuppliesModal';
 
 export const QuickActionsBar = () => {
-  const { inventory, growSlots, seeds, dryingRacks, tapBatch, waterAllPlants } = useGameStore();
+  const { inventory, growSlots, seeds, dryingRacks } = useGameStore(
+    useShallow(s => ({
+      inventory: s.inventory,
+      growSlots: s.growSlots,
+      seeds: s.seeds,
+      dryingRacks: s.dryingRacks,
+    }))
+  );
+  const tapBatch = useGameStore(s => s.tapBatch);
+  const waterAllPlants = useGameStore(s => s.waterAllPlants);
   const { setActiveScreen } = useNavigationStore();
   const [showSuppliesShop, setShowSuppliesShop] = useState(false);
   const coach = useSmartCoach();

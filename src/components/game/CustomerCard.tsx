@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, MessageSquare, Zap, TrendingUp } from 'lucide-react';
 import { Customer } from '@/store/customerStore';
@@ -59,7 +60,7 @@ const formatTimeLeft = (timestamp: number) => {
   return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`;
 };
 
-export const CustomerCard = ({
+export const CustomerCard = memo(function CustomerCardImpl({
   customer,
   unreadCount,
   lastActivityLabel,
@@ -67,7 +68,7 @@ export const CustomerCard = ({
   onGiveSample,
   onSell,
   sampleCandidates,
-}: CustomerCardProps) => {
+}: CustomerCardProps) {
   const hasSamples = sampleCandidates > 0;
   const addictionKoks = customer.addiction?.koks ?? 0;
   const addictionMeth = customer.addiction?.meth ?? 0;
@@ -286,4 +287,4 @@ export const CustomerCard = ({
       </div>
     </motion.div>
   );
-};
+});

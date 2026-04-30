@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Users, Bell, UserPlus, Package, Search, Filter, TrendingUp, Crown, Star, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,17 +33,19 @@ const formatRelativeTime = (timestamp?: number) => {
 };
 
 export const CustomersScreen = () => {
-  const {
-    customers,
-    totalCustomerRevenue,
-    addProspect,
-    giveSample,
-    sellToCustomer,
-    fulfillRequest,
-    offerDrug,
-    sellHardDrug,
-    markCustomerRead,
-  } = useCustomerStore();
+  const { customers, totalCustomerRevenue } = useCustomerStore(
+    useShallow(s => ({
+      customers: s.customers,
+      totalCustomerRevenue: s.totalCustomerRevenue,
+    }))
+  );
+  const addProspect = useCustomerStore(s => s.addProspect);
+  const giveSample = useCustomerStore(s => s.giveSample);
+  const sellToCustomer = useCustomerStore(s => s.sellToCustomer);
+  const fulfillRequest = useCustomerStore(s => s.fulfillRequest);
+  const offerDrug = useCustomerStore(s => s.offerDrug);
+  const sellHardDrug = useCustomerStore(s => s.sellHardDrug);
+  const markCustomerRead = useCustomerStore(s => s.markCustomerRead);
   const inventory = useGameStore(state => state.inventory);
   const cocaProducts = useCocaStore(state => state.cocaProducts);
   const methInventory = useMethStore(state => state.methInventory);
