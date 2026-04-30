@@ -241,13 +241,13 @@ export const DryRoomScreen = () => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 pointer-events-none z-50 overflow-hidden"
           >
-            {/* Wind streaks */}
-            {[...Array(12)].map((_, i) => (
+            {/* Wind streaks (skipped entirely under reducedMotion) */}
+            {blowFx.streaks.map((s, i) => (
               <motion.div
-                key={`streak-${i}`}
+                key={s.key}
                 className="absolute w-1 rounded-full"
                 style={{
-                  left: `${5 + (i * 8)}%`,
+                  left: `${s.leftPct}%`,
                   background: `linear-gradient(to top, transparent, hsl(var(--primary) / ${0.3 + blowIntensity * 0.5}), hsl(180 100% 50% / ${0.2 + blowIntensity * 0.4}), transparent)`,
                   height: `${80 + blowIntensity * 120}px`,
                 }}
@@ -258,67 +258,56 @@ export const DryRoomScreen = () => {
                   scaleY: [0.5, 1, 1.2, 0.8],
                 }}
                 transition={{
-                  duration: 0.8 + Math.random() * 0.4,
+                  duration: s.duration,
                   repeat: Infinity,
-                  delay: i * 0.08,
+                  delay: s.delay,
                   ease: 'easeOut',
                 }}
               />
             ))}
-            
+
             {/* Air particles */}
-            {[...Array(20)].map((_, i) => (
+            {blowFx.particles.map((p) => (
               <motion.div
-                key={`particle-${i}`}
+                key={p.key}
                 className="absolute rounded-full"
                 style={{
-                  left: `${Math.random() * 100}%`,
-                  width: `${4 + Math.random() * 8}px`,
-                  height: `${4 + Math.random() * 8}px`,
+                  left: `${p.leftPct}%`,
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
                   background: `radial-gradient(circle, hsl(180 100% 50% / ${0.4 + blowIntensity * 0.4}), transparent)`,
                 }}
                 initial={{ bottom: -20, opacity: 0 }}
                 animate={{
                   bottom: ['0%', '100%'],
                   opacity: [0, 0.7, 0.7, 0],
-                  x: [0, (Math.random() - 0.5) * 100],
+                  x: [0, p.drift],
                   scale: [0.5, 1 + blowIntensity, 0.5],
                 }}
                 transition={{
-                  duration: 1.2 + Math.random() * 0.8,
+                  duration: p.duration,
                   repeat: Infinity,
-                  delay: i * 0.1,
+                  delay: p.delay,
                   ease: 'easeOut',
                 }}
               />
             ))}
-            
-            {/* Intensity glow at bottom */}
+
+            {/* Intensity glow at bottom — kept even in reduced motion as a subtle replacement for particles */}
             <motion.div
               className="absolute bottom-0 left-0 right-0 h-32"
               style={{
                 background: `linear-gradient(to top, hsl(180 100% 50% / ${blowIntensity * 0.3}), transparent)`,
               }}
-              animate={{
-                opacity: [0.5, 1, 0.5],
-              }}
-              transition={{
-                duration: 0.3,
-                repeat: Infinity,
-              }}
+              animate={motionPrefs.disableDecorative ? undefined : { opacity: [0.5, 1, 0.5] }}
+              transition={motionPrefs.disableDecorative ? undefined : { duration: 0.3, repeat: Infinity }}
             />
-            
+
             {/* Speed text indicator */}
             <motion.div
               className="absolute bottom-8 left-1/2 -translate-x-1/2"
-              animate={{
-                y: [0, -10, 0],
-                scale: [1, 1.1, 1],
-              }}
-              transition={{
-                duration: 0.5,
-                repeat: Infinity,
-              }}
+              animate={motionPrefs.disableDecorative ? undefined : { y: [0, -10, 0], scale: [1, 1.1, 1] }}
+              transition={motionPrefs.disableDecorative ? undefined : { duration: 0.5, repeat: Infinity }}
             >
               <div className="bg-neon-cyan/20 backdrop-blur-sm rounded-full px-4 py-2 border border-neon-cyan/50">
                 <span className="text-neon-cyan font-bold text-lg">
