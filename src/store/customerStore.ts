@@ -152,7 +152,7 @@ interface CustomerState {
 
 const SAMPLE_GRAMS = 0.5;
 const INACTIVITY_MINUTES = 7 * 24 * 60;
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = LOG_LIMITS.customerMessages;
 const MAX_CUSTOMERS = 100;
 const AUTO_PROSPECT_LIMIT = 50;
 const BASE_WEED_PRICE = 15;
