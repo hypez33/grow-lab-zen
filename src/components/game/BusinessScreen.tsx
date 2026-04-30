@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Briefcase, Clock, DollarSign, TrendingUp, Warehouse, Package, ShoppingCart, MapPin, Truck, Zap, Activity, Coins, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
 import { Progress } from '@/components/ui/progress';
@@ -47,10 +48,20 @@ export const BusinessScreen = () => {
     warehouseCapacity,
     totalBusinessRevenue,
     businessLogs,
-    sellWarehouseStock,
-    upgradeBusiness,
-    dispatchContractShipment,
-  } = useBusinessStore();
+  } = useBusinessStore(
+    useShallow(s => ({
+      businesses: s.businesses,
+      importContracts: s.importContracts,
+      shipments: s.shipments,
+      warehouseLots: s.warehouseLots,
+      warehouseCapacity: s.warehouseCapacity,
+      totalBusinessRevenue: s.totalBusinessRevenue,
+      businessLogs: s.businessLogs,
+    }))
+  );
+  const sellWarehouseStock = useBusinessStore(s => s.sellWarehouseStock);
+  const upgradeBusiness = useBusinessStore(s => s.upgradeBusiness);
+  const dispatchContractShipment = useBusinessStore(s => s.dispatchContractShipment);
 
   const budcoins = useGameStore(state => state.budcoins);
   const level = useGameStore(state => state.level);
