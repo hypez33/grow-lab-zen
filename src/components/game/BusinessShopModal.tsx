@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { toast } from 'sonner';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 
 interface BusinessShopModalProps {
   open: boolean;
@@ -44,7 +45,16 @@ export const BusinessShopModal = ({ open, onClose }: BusinessShopModalProps) => 
     upgradeBusiness,
     buyWarehouse,
     buyContract,
-  } = useBusinessStore();
+  } = useBusinessStore(useShallow((s) => ({
+    businesses: s.businesses,
+    warehouseUpgrades: s.warehouseUpgrades,
+    importContracts: s.importContracts,
+    warehouseCapacity: s.warehouseCapacity,
+    buyBusiness: s.buyBusiness,
+    upgradeBusiness: s.upgradeBusiness,
+    buyWarehouse: s.buyWarehouse,
+    buyContract: s.buyContract,
+  })));
 
   const budcoins = useGameStore(state => state.budcoins);
   const level = useGameStore(state => state.level);
