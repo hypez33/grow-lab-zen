@@ -705,6 +705,11 @@ export const GrowScreen = () => {
                         toast.success(`💧 Pflanze ${slot.id + 1} gegossen!`);
                       }
                     }}
+                    solarGlowLevel={solarGlowLevel}
+                    bioLuminLevel={bioLuminLevel}
+                    particleLevel={particleLevel}
+                    auraLevel={auraLevel}
+                    disableDecorative={motionPrefs.disableDecorative}
                   />
                 </div>
               );
