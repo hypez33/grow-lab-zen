@@ -521,6 +521,13 @@ export const GrowScreen = () => {
   // Find next locked slot and calculate unlock cost
   const nextLockedSlot = growSlots.find(s => !s.isUnlocked);
   const growSlotUpgrade = upgrades.find(u => u.id === 'grow-slot');
+  // Cosmetic upgrade levels — computed once and passed to every GrowSlot,
+  // so PlantSVG no longer subscribes to the upgrades array itself.
+  const solarGlowLevel = upgrades.find(u => u.id === 'solar-glow')?.level ?? 0;
+  const bioLuminLevel = upgrades.find(u => u.id === 'bioluminescence')?.level ?? 0;
+  const particleLevel = upgrades.find(u => u.id === 'particle-trail')?.level ?? 0;
+  const auraLevel = upgrades.find(u => u.id === 'aura-field')?.level ?? 0;
+  const motionPrefs = useMotionPrefs();
   const unlockCost = growSlotUpgrade 
     ? Math.floor(growSlotUpgrade.baseCost * Math.pow(growSlotUpgrade.costScaling, growSlotUpgrade.level))
     : 250;
