@@ -1,14 +1,35 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { PlantStage, Rarity, useGameStore } from '@/store/gameStore';
+import { PlantStage, Rarity } from '@/store/gameStore';
 
 interface PlantSVGProps {
   stage: PlantStage;
   rarity: Rarity;
   traits?: string[];
+  /**
+   * Whether the plant should play idle/loop animations. Set false for
+   * card thumbnails, list items, performance mode, or non-selected
+   * non-ready slots.
+   */
   isAnimated?: boolean;
   size?: number;
-  budGrowth?: number; // 0-100, used for flower stage bud animation
+  /** 0-100 — used for flower stage bud animation. */
+  budGrowth?: number;
+  /**
+   * Cosmetic upgrade levels — passed in by the parent (GrowSlot /
+   * GrowScreen) so PlantSVG never has to subscribe to the upgrades array
+   * itself. This keeps memoization effective: when only resources tick,
+   * PlantSVG does not re-render.
+   */
+  solarGlowLevel?: number;
+  bioLuminLevel?: number;
+  particleLevel?: number;
+  auraLevel?: number;
+  /**
+   * Skip all decorative loops (aura, particles, biolumin pulses, turbo
+   * ring). Used in performance / reduced-motion mode.
+   */
+  disableDecorative?: boolean;
 }
 
 const rarityColors: Record<Rarity, { primary: string; glow: string }> = {
@@ -27,18 +48,41 @@ const stageVariants = {
   harvest: { scale: [1, 1.05, 1], filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1)'], transition: { duration: 1.5, repeat: Infinity } },
 };
 
-const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 120, budGrowth = 0 }: PlantSVGProps) => {
+const PlantSVGImpl = ({
+  stage,
+  rarity,
+  traits = [],
+  isAnimated = true,
+  size = 120,
+  budGrowth = 0,
+  solarGlowLevel = 0,
+  bioLuminLevel = 0,
+  particleLevel = 0,
+  auraLevel = 0,
+  disableDecorative = false,
+}: PlantSVGProps) => {
   const colors = rarityColors[rarity];
   const hasGlitter = traits.includes('Glitter');
   const hasFrost = traits.includes('Frost');
   const hasTurbo = traits.includes('Turbo');
-  
-  // Get upgrade levels for visual effects
-  const upgrades = useGameStore((state) => state.upgrades);
-  const solarGlowLevel = upgrades.find(u => u.id === 'solar-glow')?.level ?? 0;
-  const bioLuminLevel = upgrades.find(u => u.id === 'bioluminescence')?.level ?? 0;
-  const particleLevel = upgrades.find(u => u.id === 'particle-trail')?.level ?? 0;
-  const auraLevel = upgrades.find(u => u.id === 'aura-field')?.level ?? 0;
+
+  // Memoize particle randomness so it doesn't change on every parent
+  // re-render. Counts are halved when decorative motion is disabled.
+  const particleCount = disableDecorative ? 0 : particleLevel * 2 + 2;
+  const particles = useMemo(
+    () =>
+      Array.from({ length: particleCount }, (_, i) => ({
+        key: i,
+        size: 3 + Math.random() * 3,
+        leftPct: 20 + Math.random() * 60,
+        bottomPct: 20 + Math.random() * 40,
+        yEnd: -40 - Math.random() * 30,
+        xDrift: (Math.random() - 0.5) * 20,
+        duration: 2 + Math.random(),
+        delay: i * 0.3,
+      })),
+    [particleCount]
+  );
 
   // Calculate bud sizes based on budGrowth (0-100)
   const budScale = 0.3 + (budGrowth / 100) * 0.7; // 30% to 100% size
