@@ -515,6 +515,7 @@ export const useTerritoryStore = create<TerritoryState>()(
     }),
     {
       name: 'territory-control-save',
+      storage: debouncedJSONStorage,
       version: 2,
       migrate: (persistedState: any) => {
         const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
