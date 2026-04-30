@@ -33,7 +33,7 @@ export const FirstStepsChecklist = () => {
   const level = useGameStore(s => s.level);
   // Targeted slice instead of subscribing to the whole game store.
   const sliceState = useGameStore(
-    useShallow<ChecklistState>(s => ({
+    useShallow((s): ChecklistState => ({
       growSlots: s.growSlots,
       totalHarvests: s.totalHarvests,
       inventory: s.inventory,
