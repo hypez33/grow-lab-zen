@@ -275,6 +275,7 @@ export interface GameState {
   soundEnabled: boolean;
   musicEnabled: boolean;
   reducedMotion: boolean;
+  performanceMode: boolean;
   tutorialComplete: boolean;
 
   // Stats
