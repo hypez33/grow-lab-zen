@@ -383,3 +383,4 @@ const PlantSVGImpl = ({ stage, rarity, traits = [], isAnimated = true, size = 12
     </motion.div>
   );
 };
+export const PlantSVG = memo(PlantSVGImpl);
