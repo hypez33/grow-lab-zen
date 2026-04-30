@@ -338,6 +338,7 @@ export interface GameState {
   toggleSound: () => void;
   toggleMusic: () => void;
   toggleReducedMotion: () => void;
+  setPerformanceMode: (value: boolean) => void;
   completeTutorial: () => void;
   resetGame: () => void;
   exportSave: () => string;
