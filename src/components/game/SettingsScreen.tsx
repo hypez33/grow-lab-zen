@@ -129,16 +129,24 @@ export const SettingsScreen = () => {
           />
         </div>
 
-        {/* Accessibility */}
+        {/* Accessibility & Performance */}
         <div className="game-card p-4 space-y-3">
-          <h3 className="font-display font-semibold text-muted-foreground">Accessibility</h3>
-          
+          <h3 className="font-display font-semibold text-muted-foreground">Accessibility & Performance</h3>
+
           <ToggleRow
             icon={reducedMotion ? EyeOff : Eye}
             label="Reduced Motion"
             description="Disable animations"
             enabled={reducedMotion}
             onToggle={toggleReducedMotion}
+          />
+
+          <ToggleRow
+            icon={Zap}
+            label="Performance Mode"
+            description="Weniger Animationen für schwächere Geräte. Reduziert Partikel, Daueranimationen und visuelle Effekte."
+            enabled={performanceMode}
+            onToggle={() => setPerformanceMode(!performanceMode)}
           />
         </div>
 
