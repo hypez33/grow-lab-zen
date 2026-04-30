@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { useGameStore, Upgrade, Worker, SEED_CATALOG, Rarity } from '@/store/gameStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useBusinessStore } from '@/store/businessStore';
 import { useCocaStore, CocaWorker, COCA_SEED_CATALOG, CocaRarity } from '@/store/cocaStore';
 import { useMethStore, MethWorker } from '@/store/methStore';
@@ -139,16 +140,42 @@ export const ShopScreen = () => {
   const [bulkQuantity, setBulkQuantity] = useState(1);
 
   const {
-    upgrades, budcoins, buyUpgrade, workers, buyWorker, upgradeWorker, buySeed, seeds,
-    toggleWorkerPause, level, growSlots, inventory, dryingRacks, autoSellSettings,
-  } = useGameStore();
+    upgrades, budcoins, workers, seeds,
+    level, growSlots, inventory, dryingRacks, autoSellSettings,
+  } = useGameStore(
+    useShallow(s => ({
+      upgrades: s.upgrades,
+      budcoins: s.budcoins,
+      workers: s.workers,
+      seeds: s.seeds,
+      level: s.level,
+      growSlots: s.growSlots,
+      inventory: s.inventory,
+      dryingRacks: s.dryingRacks,
+      autoSellSettings: s.autoSellSettings,
+    }))
+  );
+  const buyUpgrade = useGameStore(s => s.buyUpgrade);
+  const buyWorker = useGameStore(s => s.buyWorker);
+  const upgradeWorker = useGameStore(s => s.upgradeWorker);
+  const buySeed = useGameStore(s => s.buySeed);
+  const toggleWorkerPause = useGameStore(s => s.toggleWorkerPause);
 
   const koksGrams = useBusinessStore(state => state.warehouseLots.reduce((sum, lot) => (
     lot.drug === 'koks' ? sum + lot.grams : sum
   ), 0));
   const businesses = useBusinessStore(state => state.businesses);
-  const { cocaWorkers, buyCocaWorker, upgradeCocaWorker, toggleCocaWorkerPause, cocaSeeds, buyCocaSeed } = useCocaStore();
-  const { methWorkers, buyMethWorker, upgradeMethWorker, toggleMethWorkerPause } = useMethStore();
+  const { cocaWorkers, cocaSeeds } = useCocaStore(
+    useShallow(s => ({ cocaWorkers: s.cocaWorkers, cocaSeeds: s.cocaSeeds }))
+  );
+  const buyCocaWorker = useCocaStore(s => s.buyCocaWorker);
+  const upgradeCocaWorker = useCocaStore(s => s.upgradeCocaWorker);
+  const toggleCocaWorkerPause = useCocaStore(s => s.toggleCocaWorkerPause);
+  const buyCocaSeed = useCocaStore(s => s.buyCocaSeed);
+  const methWorkers = useMethStore(s => s.methWorkers);
+  const buyMethWorker = useMethStore(s => s.buyMethWorker);
+  const upgradeMethWorker = useMethStore(s => s.upgradeMethWorker);
+  const toggleMethWorkerPause = useMethStore(s => s.toggleMethWorkerPause);
   const customers = useCustomerStore(state => state.customers);
   const territories = useTerritoryStore(state => state.territories);
   const navigateTo = useNavigationStore(state => state.navigateTo);
