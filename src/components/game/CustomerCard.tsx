@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, MessageSquare, Zap, TrendingUp } from 'lucide-react';
 import { Customer } from '@/store/customerStore';
