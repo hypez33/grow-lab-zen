@@ -1947,6 +1947,7 @@ export const useCustomerStore = create<CustomerState>()(
     }),
     {
       name: 'customer-network-save',
+      storage: debouncedJSONStorage,
       version: 8,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState;
