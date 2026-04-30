@@ -267,9 +267,6 @@ export const GameLayout = () => {
   const dryReady = useGameStore(s =>
     s.dryingRacks.reduce((n, r) => (r.bud && r.bud.dryingProgress >= 100 ? n + 1 : n), 0)
   );
-  const driedStock = useGameStore(s =>
-    s.inventory.reduce((n, b) => (b.state === 'dried' ? n + 1 : n), 0)
-  );
   const waitingCustomers = useCustomerStore(s => s.customers?.length ?? 0);
 
   const allNavItems = [
