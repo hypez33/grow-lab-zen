@@ -287,4 +287,4 @@ export const CustomerCard = memo(function CustomerCardImpl({
       </div>
     </motion.div>
   );
-};
+});
