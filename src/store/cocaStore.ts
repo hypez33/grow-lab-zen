@@ -1544,9 +1544,12 @@ export const useCocaStore = create<CocaState>()(
           return templateWorker;
         });
         
+        const cocaActivityLogs = Array.isArray(persistedState.cocaActivityLogs)
+          ? persistedState.cocaActivityLogs.slice(0, LOG_LIMITS.cocaActivityLogs)
+          : [];
         const nextState = {
           ...persistedState,
-          cocaActivityLogs: persistedState.cocaActivityLogs || [],
+          cocaActivityLogs,
           cocaDealerLastActivityAt: persistedState.cocaDealerLastActivityAt || {},
           cocaWorkers: mergedWorkers,
         };

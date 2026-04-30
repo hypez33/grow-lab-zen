@@ -1105,7 +1105,7 @@ export const useMethStore = create<MethState>()(
           methProspects: mergedProspects,
           methSamples: storedSamples,
           methActivityLogs: Array.isArray(persistedState.methActivityLogs)
-            ? persistedState.methActivityLogs
+            ? persistedState.methActivityLogs.slice(0, LOG_LIMITS.methActivityLogs)
             : [],
           methWorkers: mergedWorkers,
         };
