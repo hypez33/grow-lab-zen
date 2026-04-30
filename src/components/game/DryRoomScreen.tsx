@@ -106,6 +106,34 @@ export const DryRoomScreen = () => {
   };
 
   const { isBlowing, isListening, startListening, stopListening, error: micError, blowIntensity, currentSessionTime } = useBlowDetection(handleBlowDetected);
+  const motionPrefs = useMotionPrefs();
+
+  // Particle counts depend on motion preferences. We compute these once
+  // (and the per-particle randomness once) so the per-frame render does
+  // NOT call Math.random(), which kept re-creating styles on every tick.
+  const blowFx = useMemo(() => {
+    const streakCount = motionPrefs.particleScale === 0
+      ? 0
+      : motionPrefs.performanceMode ? 5 : 12;
+    const particleCount = motionPrefs.particleScale === 0
+      ? 0
+      : motionPrefs.performanceMode ? 6 : 20;
+    const streaks = Array.from({ length: streakCount }, (_, i) => ({
+      key: `streak-${i}`,
+      leftPct: 5 + i * (90 / Math.max(1, streakCount - 1)),
+      duration: 0.8 + Math.random() * 0.4,
+      delay: i * 0.08,
+    }));
+    const particles = Array.from({ length: particleCount }, (_, i) => ({
+      key: `particle-${i}`,
+      leftPct: Math.random() * 100,
+      size: 4 + Math.random() * 8,
+      duration: 1.2 + Math.random() * 0.8,
+      delay: i * 0.1,
+      drift: (Math.random() - 0.5) * 100,
+    }));
+    return { streakCount, particleCount, streaks, particles };
+  }, [motionPrefs.particleScale, motionPrefs.performanceMode]);
 
   // End session and save stats
   const handleStopListening = () => {
