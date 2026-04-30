@@ -374,22 +374,24 @@ export const GameLayout = () => {
   };
 
   const renderScreen = () => {
+    let node: JSX.Element;
     switch (activeScreen) {
-      case 'grow': return <GrowScreen />;
-      case 'dryroom': return <DryRoomScreen />;
-      case 'customers': return <CustomersScreen />;
-      case 'turf': return <TerritoryScreen />;
-      case 'business': return <BusinessScreen />;
-      case 'koks': return <KoksScreen />;
-      case 'meth': return <MethScreen />;
-      case 'shop': return <ShopScreen />;
-      case 'genetics': return <GeneticsScreen />;
-      case 'skills': return <SkillsScreen />;
-      case 'collection': return <CollectionScreen />;
-      case 'quests': return <QuestsScreen />;
-      case 'settings': return <SettingsScreen />;
-      default: return <GrowScreen />;
+      case 'grow': node = <GrowScreen />; break;
+      case 'dryroom': node = <DryRoomScreen />; break;
+      case 'customers': node = <CustomersScreen />; break;
+      case 'turf': node = <TerritoryScreen />; break;
+      case 'business': node = <BusinessScreen />; break;
+      case 'koks': node = <KoksScreen />; break;
+      case 'meth': node = <MethScreen />; break;
+      case 'shop': node = <ShopScreen />; break;
+      case 'genetics': node = <GeneticsScreen />; break;
+      case 'skills': node = <SkillsScreen />; break;
+      case 'collection': node = <CollectionScreen />; break;
+      case 'quests': node = <QuestsScreen />; break;
+      case 'settings': node = <SettingsScreen />; break;
+      default: node = <GrowScreen />;
     }
+    return <Suspense fallback={<ScreenLoader />}>{node}</Suspense>;
   };
 
   return (
