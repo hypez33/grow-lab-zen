@@ -2396,7 +2396,7 @@ export const useGameStore = create<GameState>()(
                 return {
                   ...state,
                   dealerDrugEffects,
-                  dealerActivities: dealerActivities.slice(0, 30),
+                  dealerActivities: dealerActivities.slice(0, LOG_LIMITS.dealerActivities),
                 };
               }
               // SCAM
@@ -2537,8 +2537,8 @@ export const useGameStore = create<GameState>()(
               }
               
               // Keep only last 30 activities (shared between dealers)
-              if (dealerActivities.length > 30) {
-                dealerActivities = dealerActivities.slice(0, 30);
+              if (dealerActivities.length > LOG_LIMITS.dealerActivities) {
+                dealerActivities = dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
               }
             } else {
               const customerName = getRandomCustomerName();
@@ -2663,8 +2663,8 @@ export const useGameStore = create<GameState>()(
                 }
               }
 
-              if (dealerActivities.length > 30) {
-                dealerActivities = dealerActivities.slice(0, 30);
+              if (dealerActivities.length > LOG_LIMITS.dealerActivities) {
+                dealerActivities = dealerActivities.slice(0, LOG_LIMITS.dealerActivities);
               }
             }
           }
