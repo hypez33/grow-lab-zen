@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Leaf, Droplets, Sparkles, TrendingUp, Zap, Crown, Star } from 'lucide-react';
-import { Rarity } from '@/store/gameStore';
+import { X, Leaf, Droplets, Sparkles, TrendingUp, Zap, Crown, ChevronDown, Wind, ArrowRight } from 'lucide-react';
+import { Rarity, useGameStore } from '@/store/gameStore';
+import { useNavigationStore } from '@/store/navigationStore';
 
 export interface HarvestBonus {
   name: string;
@@ -38,7 +39,7 @@ interface HarvestBreakdownModalProps {
 }
 
 const rarityColors: Record<Rarity, string> = {
-  common: 'text-gray-400',
+  common: 'text-gray-300',
   uncommon: 'text-green-400',
   rare: 'text-blue-400',
   epic: 'text-purple-400',
@@ -46,11 +47,11 @@ const rarityColors: Record<Rarity, string> = {
 };
 
 const rarityBgColors: Record<Rarity, string> = {
-  common: 'bg-gray-500/20 border-gray-500/30',
-  uncommon: 'bg-green-500/20 border-green-500/30',
-  rare: 'bg-blue-500/20 border-blue-500/30',
-  epic: 'bg-purple-500/20 border-purple-500/30',
-  legendary: 'bg-yellow-500/20 border-yellow-500/30',
+  common: 'bg-gray-500/15 border-gray-500/30',
+  uncommon: 'bg-green-500/15 border-green-500/30',
+  rare: 'bg-blue-500/15 border-blue-500/30',
+  epic: 'bg-purple-500/15 border-purple-500/30',
+  legendary: 'bg-yellow-500/15 border-yellow-500/30',
 };
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -73,58 +74,101 @@ const categoryLabels: Record<string, string> = {
   special: 'Spezial',
 };
 
+function qualityGradeLabel(q: number): string {
+  if (q >= 95) return 'Top Shelf';
+  if (q >= 80) return 'Premium';
+  if (q >= 60) return 'Standard';
+  if (q >= 40) return 'Mid';
+  return 'Low';
+}
+
 export const HarvestBreakdownModal: React.FC<HarvestBreakdownModalProps> = ({ isOpen, onClose, data }) => {
+  const [showDetails, setShowDetails] = useState(false);
+  const reducedMotion = useGameStore((s) => s.reducedMotion);
+  const performanceMode = useGameStore((s) => s.performanceMode);
+  const lowMotion = reducedMotion || performanceMode;
+
+  // Top bonuses (largest positive multipliers first)
+  const topBonuses = useMemo(() => {
+    if (!data) return [];
+    return [...data.bonuses]
+      .filter((b) => b.multiplier > 1)
+      .sort((a, b) => b.multiplier - a.multiplier)
+      .slice(0, 3);
+  }, [data]);
+
+  const groupedBonuses = useMemo(() => {
+    if (!data) return {} as Record<string, HarvestBonus[]>;
+    return data.bonuses.reduce((acc, bonus) => {
+      if (!acc[bonus.category]) acc[bonus.category] = [];
+      acc[bonus.category].push(bonus);
+      return acc;
+    }, {} as Record<string, HarvestBonus[]>);
+  }, [data]);
+
   if (!data) return null;
 
-  const groupedBonuses = data.bonuses.reduce((acc, bonus) => {
-    if (!acc[bonus.category]) acc[bonus.category] = [];
-    acc[bonus.category].push(bonus);
-    return acc;
-  }, {} as Record<string, HarvestBonus[]>);
+  const goToDryRoom = () => {
+    useNavigationStore.getState().setActiveScreen('dryroom');
+    onClose();
+  };
+
+  const grade = qualityGradeLabel(data.finalQuality);
+  const showScrap = data.coinGain > 0 && data.coinGain >= 1;
+
+  const overlayAnim = lowMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.12 } }
+    : { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } };
+
+  const cardAnim = lowMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
+    : {
+        initial: { scale: 0.9, opacity: 0, y: 16 },
+        animate: { scale: 1, opacity: 1, y: 0 },
+        exit: { scale: 0.9, opacity: 0, y: 16 },
+        transition: { type: 'spring' as const, damping: 22, stiffness: 320 },
+      };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          {...overlayAnim}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 20 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className={`relative w-full max-w-md max-h-[85vh] overflow-hidden rounded-2xl border ${rarityBgColors[data.rarity]} bg-card shadow-2xl`}
+            {...cardAnim}
+            className={`relative w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border ${rarityBgColors[data.rarity]} bg-card shadow-2xl`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className={`relative p-4 border-b border-border/50 ${rarityBgColors[data.rarity]}`}>
+            {/* Compact Header */}
+            <div className={`relative px-4 py-3 border-b border-border/50 ${rarityBgColors[data.rarity]}`}>
               <button
                 onClick={onClose}
-                className="absolute right-3 top-3 p-1.5 rounded-full bg-background/50 hover:bg-background/80 transition-colors"
+                aria-label="Schließen"
+                className="absolute right-2 top-2 p-1.5 rounded-full bg-background/60 hover:bg-background/90 transition-colors"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
-              
-              <div className="flex items-center gap-3">
-                <div className={`text-4xl ${data.isCrit ? 'animate-pulse' : ''}`}>🌿</div>
-                <div>
-                  <h2 className={`text-xl font-bold ${rarityColors[data.rarity]}`}>
+              <div className="flex items-center gap-2 pr-8">
+                <span className="text-2xl leading-none">🌿</span>
+                <div className="min-w-0 flex-1">
+                  <h2 className={`text-base font-bold truncate ${rarityColors[data.rarity]}`}>
                     {data.strainName}
                   </h2>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="capitalize">{data.rarity}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${rarityBgColors[data.rarity]} ${rarityColors[data.rarity]} border`}>
+                      {data.rarity}
+                    </span>
                     {data.isCrit && (
-                      <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full text-xs font-bold animate-pulse">
-                        ⚡ KRITISCH!
+                      <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded-full text-[10px] font-bold">
+                        ⚡ Krit
                       </span>
                     )}
                     {data.isDoubleHarvest && (
-                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs font-bold">
-                        🎉 DOPPELT!
+                      <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-[10px] font-bold">
+                        🎉 Doppelt
                       </span>
                     )}
                   </div>
@@ -132,108 +176,180 @@ export const HarvestBreakdownModal: React.FC<HarvestBreakdownModalProps> = ({ is
               </div>
             </div>
 
-            {/* Content */}
-            <div className="p-4 space-y-4 overflow-y-auto max-h-[50vh]">
-              {/* Main Result */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-primary/10 rounded-xl p-3 text-center border border-primary/20">
-                  <div className="text-2xl font-bold text-primary">
-                    {data.finalGramsMin === data.finalGramsMax 
-                      ? `${data.finalGrams}g`
-                      : `${data.finalGramsMin}-${data.finalGramsMax}g`
-                    }
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {/* 3 Stat Cards */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-primary/10 rounded-xl p-2.5 text-center border border-primary/25">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Nass</div>
+                  <div className="text-lg font-bold text-primary leading-tight mt-0.5">
+                    {data.finalGrams}g
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                    🎲 Ertrag (RNG)
-                  </div>
-                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-                    Basis: {data.yieldMin}-{data.yieldMax}g
-                  </div>
+                  <div className="text-[10px] text-muted-foreground/80 mt-0.5">muss trocknen</div>
                 </div>
-                <div className="bg-yellow-500/10 rounded-xl p-3 text-center border border-yellow-500/20">
-                  <div className="text-2xl font-bold text-yellow-400">{data.finalQuality}%</div>
-                  <div className="text-xs text-muted-foreground">Qualität</div>
+                <div className="bg-yellow-500/10 rounded-xl p-2.5 text-center border border-yellow-500/25">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Qualität</div>
+                  <div className="text-lg font-bold text-yellow-400 leading-tight mt-0.5">
+                    {data.finalQuality}%
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/80 mt-0.5">{grade}</div>
                 </div>
-              </div>
-
-              {/* Total Multiplier */}
-              <div className="bg-gradient-to-r from-green-500/10 via-blue-500/10 to-purple-500/10 rounded-xl p-3 border border-green-500/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Gesamt-Multiplikator</span>
-                  <span className="text-xl font-bold text-green-400">
+                <div className="bg-green-500/10 rounded-xl p-2.5 text-center border border-green-500/25">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Bonus</div>
+                  <div className="text-lg font-bold text-green-400 leading-tight mt-0.5">
                     ×{data.totalMultiplier.toFixed(2)}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Basis: {data.baseYield} → Final: {data.finalGrams}g
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/80 mt-0.5">Erde · Dünger · Traits</div>
                 </div>
               </div>
 
-              {/* Bonus Breakdown */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Star size={14} className="text-yellow-400" />
-                  Bonus-Aufschlüsselung
-                </h3>
-                
-                {Object.entries(groupedBonuses).map(([category, bonuses]) => (
-                  <div key={category} className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-                      {categoryIcons[category]}
-                      {categoryLabels[category]}
+              {/* Top bonuses summary */}
+              {topBonuses.length > 0 && (
+                <div className="space-y-1">
+                  {topBonuses.map((b, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between bg-background/50 rounded-lg px-3 py-1.5 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0">{b.icon}</span>
+                        <span className="font-medium truncate">{b.name}</span>
+                      </div>
+                      <span className="font-bold text-green-400 shrink-0 ml-2">
+                        +{Math.round((b.multiplier - 1) * 100)}%
+                      </span>
                     </div>
-                    {bonuses.map((bonus, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="flex items-center justify-between bg-background/50 rounded-lg px-3 py-2 text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{bonus.icon}</span>
-                          <div>
-                            <div className="font-medium">{bonus.name}</div>
-                            <div className="text-xs text-muted-foreground">{bonus.description}</div>
-                          </div>
-                        </div>
-                        <span className={`font-bold ${bonus.multiplier > 1 ? 'text-green-400' : 'text-muted-foreground'}`}>
-                          {bonus.multiplier > 1 ? `+${Math.round((bonus.multiplier - 1) * 100)}%` : '—'}
-                        </span>
-                      </motion.div>
-                    ))}
-                  </div>
-                ))}
-
-                {data.bonuses.length === 0 && (
-                  <div className="text-center text-muted-foreground text-sm py-4">
-                    Keine aktiven Boni - nutze Dünger & bessere Erde!
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer with rewards */}
-            <div className="p-4 border-t border-border/50 bg-background/50">
-              <div className="text-xs text-muted-foreground mb-2">Erhaltene Belohnungen:</div>
-              <div className="flex flex-wrap gap-2">
-                <div className="px-3 py-1.5 bg-yellow-500/20 rounded-full text-sm font-bold text-yellow-400">
-                  💰 {data.coinGain}
+                  ))}
                 </div>
+              )}
+
+              {/* Pipeline hint */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background/40 rounded-lg px-3 py-2 border border-border/40">
+                <Wind size={14} className="text-primary shrink-0" />
+                <span className="truncate">
+                  Next: <span className="text-foreground/90 font-medium">DryRoom</span> → trocknen → verkaufen
+                </span>
+              </div>
+
+              {/* Rewards (only non-zero) */}
+              <div className="flex flex-wrap gap-1.5">
+                {data.xpGain > 0 && (
+                  <span className="px-2.5 py-1 bg-blue-500/15 border border-blue-500/25 rounded-full text-xs font-semibold text-blue-400">
+                    ⭐ {data.xpGain} XP
+                  </span>
+                )}
                 {data.resinGain > 0 && (
-                  <div className="px-3 py-1.5 bg-amber-500/20 rounded-full text-sm font-bold text-amber-400">
+                  <span className="px-2.5 py-1 bg-amber-500/15 border border-amber-500/25 rounded-full text-xs font-semibold text-amber-400">
                     🍯 {data.resinGain}
-                  </div>
+                  </span>
                 )}
                 {data.essenceGain > 0 && (
-                  <div className="px-3 py-1.5 bg-purple-500/20 rounded-full text-sm font-bold text-purple-400">
+                  <span className="px-2.5 py-1 bg-purple-500/15 border border-purple-500/25 rounded-full text-xs font-semibold text-purple-400">
                     ✨ {data.essenceGain}
-                  </div>
+                  </span>
                 )}
-                <div className="px-3 py-1.5 bg-blue-500/20 rounded-full text-sm font-bold text-blue-400">
-                  ⭐ {data.xpGain} XP
-                </div>
+                {showScrap && (
+                  <span className="px-2.5 py-1 bg-muted/40 border border-border/50 rounded-full text-[11px] font-medium text-muted-foreground">
+                    Nebenfund: 💰 {data.coinGain}
+                  </span>
+                )}
               </div>
+
+              {/* Details toggle */}
+              <button
+                onClick={() => setShowDetails((v) => !v)}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 border-t border-border/40"
+              >
+                {showDetails ? 'Details ausblenden' : 'Details anzeigen'}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${showDetails ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {showDetails && (
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-background/50 rounded-lg px-3 py-2">
+                      <div className="text-muted-foreground">Basis</div>
+                      <div className="font-semibold">
+                        {data.yieldMin}–{data.yieldMax}g
+                      </div>
+                    </div>
+                    <div className="bg-background/50 rounded-lg px-3 py-2">
+                      <div className="text-muted-foreground">Final Range</div>
+                      <div className="font-semibold">
+                        {data.finalGramsMin === data.finalGramsMax
+                          ? `${data.finalGrams}g`
+                          : `${data.finalGramsMin}–${data.finalGramsMax}g`}
+                      </div>
+                    </div>
+                    <div className="bg-background/50 rounded-lg px-3 py-2 col-span-2">
+                      <div className="text-muted-foreground">Gesamt-Multiplikator</div>
+                      <div className="font-semibold text-green-400">
+                        ×{data.totalMultiplier.toFixed(2)} · Basis {data.baseYield} → {data.finalGrams}g
+                      </div>
+                    </div>
+                  </div>
+
+                  {Object.entries(groupedBonuses).map(([category, bonuses]) => (
+                    <div key={category} className="space-y-1">
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+                        {categoryIcons[category]}
+                        {categoryLabels[category]}
+                      </div>
+                      {bonuses.map((bonus, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between bg-background/50 rounded-lg px-3 py-1.5 text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="shrink-0">{bonus.icon}</span>
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{bonus.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {bonus.description}
+                              </div>
+                            </div>
+                          </div>
+                          <span
+                            className={`font-bold shrink-0 ml-2 ${
+                              bonus.multiplier > 1 ? 'text-green-400' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {bonus.multiplier > 1
+                              ? `+${Math.round((bonus.multiplier - 1) * 100)}%`
+                              : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+
+                  {data.bonuses.length === 0 && (
+                    <div className="text-center text-muted-foreground text-xs py-2">
+                      Keine aktiven Boni – nutze Dünger & bessere Erde!
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Sticky CTA Footer */}
+            <div className="px-4 py-3 border-t border-border/50 bg-background/70 backdrop-blur-sm flex gap-2">
+              <button
+                onClick={onClose}
+                className="flex-1 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 text-sm font-medium transition-colors border border-border/50"
+              >
+                Schließen
+              </button>
+              <button
+                onClick={goToDryRoom}
+                className="flex-[1.4] px-3 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_0_20px_-6px_hsl(var(--primary))]"
+              >
+                Zum DryRoom
+                <ArrowRight size={14} />
+              </button>
             </div>
           </motion.div>
         </motion.div>
