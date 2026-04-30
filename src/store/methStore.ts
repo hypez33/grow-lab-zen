@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { useGameStore } from '@/store/gameStore';
 import { FEATURE_UNLOCKS } from '@/lib/progression';
@@ -1027,6 +1028,7 @@ export const useMethStore = create<MethState>()(
     }),
     {
       name: 'meth-lab-save',
+      storage: debouncedJSONStorage,
       version: 6,
       migrate: (persistedState: any, version: number) => {
         if (!persistedState) return persistedState;

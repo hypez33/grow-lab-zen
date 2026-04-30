@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { breedCocaSeeds as breedCocaSeedsLib } from '@/lib/cocaBreedingSystem';
 import { useBusinessStore } from '@/store/businessStore';
 import { useGameStore } from '@/store/gameStore';
@@ -1523,6 +1524,7 @@ export const useCocaStore = create<CocaState>()(
     }),
     {
       name: 'coca-lab-save',
+      storage: debouncedJSONStorage,
       version: 7,
       migrate: (persistedState: any, version: number) => {
         // Always ensure all COCA_WORKERS are in the state

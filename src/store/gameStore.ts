@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { useBusinessStore } from '@/store/businessStore';
 import { useTerritoryStore } from '@/store/territoryStore';
 import { getFeaturesUnlockedAt } from '@/lib/progression';
@@ -2938,6 +2939,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grow-lab-save',
+      storage: debouncedJSONStorage,
       version: 17, // v17: Career Rank rewards tracking
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {

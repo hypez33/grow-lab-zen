@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 export type TerritoryDealerType = 'street' | 'business';
 
 export interface TerritoryDealerPower {
@@ -514,6 +515,7 @@ export const useTerritoryStore = create<TerritoryState>()(
     }),
     {
       name: 'territory-control-save',
+      storage: debouncedJSONStorage,
       version: 2,
       migrate: (persistedState: any) => {
         const state = persistedState && typeof persistedState === 'object' ? persistedState : {};
