@@ -431,6 +431,11 @@ export const GrowSlot = memo(GrowSlotComponent, (prev, next) => {
   if (prev.onSelect !== next.onSelect) return false;
   if (prev.onWater !== next.onWater) return false;
   if (prev.onOpenSupplies !== next.onOpenSupplies) return false;
+  if (prev.solarGlowLevel !== next.solarGlowLevel) return false;
+  if (prev.bioLuminLevel !== next.bioLuminLevel) return false;
+  if (prev.particleLevel !== next.particleLevel) return false;
+  if (prev.auraLevel !== next.auraLevel) return false;
+  if (prev.disableDecorative !== next.disableDecorative) return false;
   const a = prev.slot;
   const b = next.slot;
   return (
