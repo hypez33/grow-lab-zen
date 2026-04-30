@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debouncedJSONStorage } from '@/lib/persistStorage';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useMethStore } from '@/store/methStore';
