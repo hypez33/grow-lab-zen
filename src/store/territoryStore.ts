@@ -340,7 +340,14 @@ export const useTerritoryStore = create<TerritoryState>()(
       },
 
       fortifyTerritory: (territoryId, budcoins) => {
-        if (budcoins < 5000) {
+        const target = get().territories.find(t => t.id === territoryId);
+        if (!target) {
+          return { success: false, message: 'Territory nicht gefunden.' };
+        }
+        if (target.fortified) {
+          return { success: false, message: 'Territory ist bereits fortifiziert.' };
+        }
+        if (budcoins < FORTIFY_COST) {
           return { success: false, message: 'Nicht genug BudCoins.' };
         }
         set(state => ({
