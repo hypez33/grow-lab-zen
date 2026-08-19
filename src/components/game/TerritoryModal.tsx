@@ -170,27 +170,35 @@ export const TerritoryModal = ({
   onUnassign,
   onFortify,
 }: TerritoryModalProps) => {
+  // All hooks must run before any early return — the modal renders with
+  // `territory === null` while closed.
   const canAffordFortify = useGameStore(s => s.budcoins >= FORTIFY_COST);
-  if (!territory) return null;
 
-  const assignedDealers = availableDealers.filter(dealer => territory.assignedDealerIds.includes(dealer.id));
-  const unassignedDealers = availableDealers.filter(dealer => !territory.assignedDealerIds.includes(dealer.id));
-  const tierPercent = getControlTierPercent(territory.control);
-  const scaledBonuses = getScaledBonuses(territory.bonuses, territory.control);
-  const upkeepPerHour = assignedDealers.length * 50;
-  const isFullControl = territory.control >= 100;
+  const assignedDealers = useMemo(
+    () => (territory ? availableDealers.filter(d => territory.assignedDealerIds.includes(d.id)) : []),
+    [territory, availableDealers]
+  );
+  const unassignedDealers = useMemo(
+    () => (territory ? availableDealers.filter(d => !territory.assignedDealerIds.includes(d.id)) : []),
+    [territory, availableDealers]
+  );
 
   // Activity log state
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
+  const hasDealers = assignedDealers.length > 0;
 
   // Generate activities periodically
   useEffect(() => {
-    if (!territory) return;
-    
+    if (!territory) {
+      setActivities([]);
+      return;
+    }
+    const territoryName = territory.name;
+
     // Initial activities
     const initialActivities: ActivityEvent[] = [];
     for (let i = 0; i < 3; i++) {
-      const activity = generateActivity(territory.name, assignedDealers.length > 0);
+      const activity = generateActivity(territoryName, hasDealers);
       activity.timestamp = new Date(Date.now() - (i + 1) * 30000);
       initialActivities.push(activity);
     }
@@ -198,12 +206,19 @@ export const TerritoryModal = ({
 
     // Add new activity every 3-6 seconds
     const interval = setInterval(() => {
-      const newActivity = generateActivity(territory.name, assignedDealers.length > 0);
+      const newActivity = generateActivity(territoryName, hasDealers);
       setActivities(prev => [newActivity, ...prev].slice(0, 10));
     }, 3000 + Math.random() * 3000);
 
     return () => clearInterval(interval);
-  }, [territory?.id, assignedDealers.length]);
+  }, [territory?.id, territory?.name, hasDealers, territory]);
+
+  if (!territory) return null;
+
+  const tierPercent = getControlTierPercent(territory.control);
+  const scaledBonuses = getScaledBonuses(territory.bonuses, territory.control);
+  const upkeepPerHour = assignedDealers.length * 50;
+  const isFullControl = territory.control >= 100;
 
   const formatActivityTime = (date: Date) => {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
