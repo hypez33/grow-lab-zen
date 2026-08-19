@@ -114,6 +114,9 @@ export interface AggregatedDemandProfile {
   contributingTerritoryNames: string[];
 }
 
+/** Cost of a single fortify action (shared by store + UI). */
+export const FORTIFY_COST = 5000;
+
 const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'nextContestAt' | 'fortified' | 'lastContestResult'>[] = [
   {
     id: 'university',
@@ -340,7 +343,14 @@ export const useTerritoryStore = create<TerritoryState>()(
       },
 
       fortifyTerritory: (territoryId, budcoins) => {
-        if (budcoins < 5000) {
+        const target = get().territories.find(t => t.id === territoryId);
+        if (!target) {
+          return { success: false, message: 'Territory nicht gefunden.' };
+        }
+        if (target.fortified) {
+          return { success: false, message: 'Territory ist bereits fortifiziert.' };
+        }
+        if (budcoins < FORTIFY_COST) {
           return { success: false, message: 'Nicht genug BudCoins.' };
         }
         set(state => ({

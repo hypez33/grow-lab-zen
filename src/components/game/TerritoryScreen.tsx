@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Map, Users, DollarSign, TrendingUp, Flame, Crown, Swords, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Territory, TerritoryBonus, useTerritoryStore } from '@/store/territoryStore';
+import { FORTIFY_COST, Territory, TerritoryBonus, useTerritoryStore } from '@/store/territoryStore';
 import { useGameStore } from '@/store/gameStore';
 import { useCocaStore } from '@/store/cocaStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -131,8 +131,8 @@ export const TerritoryScreen = () => {
       toast.error(result.message || 'Fortify fehlgeschlagen.');
       return;
     }
-    useGameStore.setState(game => ({ budcoins: game.budcoins - 5000 }));
-    toast.success('Territory fortifiziert.');
+    useGameStore.setState(game => ({ budcoins: Math.max(0, game.budcoins - FORTIFY_COST) }));
+    toast.success(`Territory fortifiziert (-$${FORTIFY_COST.toLocaleString()})`);
   };
 
   return (
