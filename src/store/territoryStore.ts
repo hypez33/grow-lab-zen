@@ -114,6 +114,9 @@ export interface AggregatedDemandProfile {
   contributingTerritoryNames: string[];
 }
 
+/** Cost of a single fortify action (shared by store + UI). */
+export const FORTIFY_COST = 5000;
+
 const TERRITORY_CATALOG: Omit<Territory, 'control' | 'assignedDealerIds' | 'nextContestAt' | 'fortified' | 'lastContestResult'>[] = [
   {
     id: 'university',
