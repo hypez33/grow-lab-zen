@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map, Lock, MoreHorizontal, X as CloseIcon } from 'lucide-react';
+import { Home, ShoppingBag, Dna, ListTodo, Settings as SettingsIcon, Download, Book, Wind, Snowflake, FlaskConical, Briefcase, Users, Map, Lock, MoreHorizontal, X as CloseIcon, DollarSign, Sparkles } from 'lucide-react';
 import { isFeatureUnlocked, FEATURE_UNLOCKS } from '@/lib/progression';
 import { useOnboardingStore } from '@/store/onboardingStore';
 // Eager: core early-game loop
@@ -19,6 +19,7 @@ const KoksScreen = lazy(() => import('./KoksScreen').then(m => ({ default: m.Kok
 const MethScreen = lazy(() => import('./MethScreen').then(m => ({ default: m.MethScreen })));
 const CustomersScreen = lazy(() => import('./CustomersScreen').then(m => ({ default: m.CustomersScreen })));
 const TerritoryScreen = lazy(() => import('./TerritoryScreen').then(m => ({ default: m.TerritoryScreen })));
+const SalesScreen = lazy(() => import('./SalesScreen').then(m => ({ default: m.SalesScreen })));
 import { ScreenLoader } from './ScreenLoader';
 import { LevelUpPopup } from './LevelUpPopup';
 import { useGameStore } from '@/store/gameStore';
@@ -153,7 +154,8 @@ export const GameLayout = () => {
         earnedDelta += turfResult.passiveIncome;
       }
       if (turfResult.upkeepCost > 0) {
-        cashDelta -= turfResult.upkeepCost;
+        // Never let upkeep push the player into negative cash.
+        cashDelta -= Math.min(turfResult.upkeepCost, gameState.budcoins + cashDelta);
       }
       if (businessResult.profit > 0) {
         cashDelta += businessResult.profit;
@@ -330,19 +332,25 @@ export const GameLayout = () => {
   const dryReady = useGameStore(s =>
     s.dryingRacks.reduce((n, r) => (r.bud && r.bud.dryingProgress >= 100 ? n + 1 : n), 0)
   );
-  const waitingCustomers = useCustomerStore(s => s.customers?.length ?? 0);
+  // Only customers with an open request are actionable — a raw customer count
+  // made the badge permanently "urgent".
+  const waitingCustomers = useCustomerStore(s =>
+    (s.customers ?? []).reduce((n, c) => (c.pendingRequest ? n + 1 : n), 0)
+  );
 
   const allNavItems = [
     { id: 'grow' as Screen, icon: Home, label: 'Grow', badge: harvestReady },
     { id: 'dryroom' as Screen, icon: Wind, label: 'Dry', badge: dryReady },
     { id: 'customers' as Screen, icon: Users, label: 'Kunden', badge: waitingCustomers },
     { id: 'shop' as Screen, icon: ShoppingBag, label: 'Shop', badge: 0 },
+    { id: 'sales' as Screen, icon: DollarSign, label: 'Verkauf', badge: 0 },
     { id: 'business' as Screen, icon: Briefcase, label: 'Business', badge: 0 },
     { id: 'turf' as Screen, icon: Map, label: 'Turf', badge: 0 },
     { id: 'koks' as Screen, icon: Snowflake, label: 'Koks', badge: 0 },
     { id: 'meth' as Screen, icon: FlaskConical, label: 'Meth', badge: 0 },
     { id: 'genetics' as Screen, icon: Dna, label: 'Genetics', badge: 0 },
     { id: 'collection' as Screen, icon: Book, label: 'Album', badge: 0 },
+    { id: 'skills' as Screen, icon: Sparkles, label: 'Skills', badge: 0 },
     { id: 'quests' as Screen, icon: ListTodo, label: 'Quests', badge: 0 },
     { id: 'settings' as Screen, icon: SettingsIcon, label: 'Setup', badge: 0 },
   ];
@@ -380,6 +388,7 @@ export const GameLayout = () => {
       case 'grow': node = <GrowScreen />; break;
       case 'dryroom': node = <DryRoomScreen />; break;
       case 'customers': node = <CustomersScreen />; break;
+      case 'sales': node = <SalesScreen />; break;
       case 'turf': node = <TerritoryScreen />; break;
       case 'business': node = <BusinessScreen />; break;
       case 'koks': node = <KoksScreen />; break;
