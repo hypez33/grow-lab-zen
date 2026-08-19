@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Territory, TerritoryBonus } from '@/store/territoryStore';
+import { FORTIFY_COST, Territory, TerritoryBonus } from '@/store/territoryStore';
+import { useGameStore } from '@/store/gameStore';
 import { Users, Shield, MapPin, Flame, TrendingUp, Minus, Plus, Crown, Zap, Activity, DollarSign, Eye, Package, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -542,16 +543,25 @@ export const TerritoryModal = ({
             <button
               type="button"
               onClick={() => onFortify(territory.id)}
-              disabled={territory.fortified}
+              disabled={territory.fortified || !canAffordFortify}
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all ${
-                territory.fortified 
-                  ? 'bg-muted/20 text-muted-foreground cursor-not-allowed' 
+                territory.fortified || !canAffordFortify
+                  ? 'bg-muted/20 text-muted-foreground cursor-not-allowed'
                   : 'bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-400 border border-amber-500/30'
               }`}
             >
               <Shield size={16} />
-              {territory.fortified ? 'Already Fortified' : 'Fortify Defense ($5,000)'}
+              {territory.fortified
+                ? 'Bereits fortifiziert (+20% Defense)'
+                : canAffordFortify
+                  ? `Fortify Defense ($${FORTIFY_COST.toLocaleString()})`
+                  : `Zu wenig Cash ($${FORTIFY_COST.toLocaleString()})`}
             </button>
+            {!territory.fortified && (
+              <p className="mt-2 text-[10px] text-center text-muted-foreground">
+                Fortify gibt +20% Defense beim nächsten Contest und wird danach verbraucht.
+              </p>
+            )}
           </div>
         )}
       </DialogContent>
