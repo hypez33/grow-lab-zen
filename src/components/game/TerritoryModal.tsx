@@ -170,6 +170,7 @@ export const TerritoryModal = ({
   onUnassign,
   onFortify,
 }: TerritoryModalProps) => {
+  const canAffordFortify = useGameStore(s => s.budcoins >= FORTIFY_COST);
   if (!territory) return null;
 
   const assignedDealers = availableDealers.filter(dealer => territory.assignedDealerIds.includes(dealer.id));
